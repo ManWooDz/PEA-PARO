@@ -16,6 +16,7 @@ IN_COLAB = 'google.colab' in sys.modules
 
 if IN_COLAB:
     from google.colab import userdata, drive
+    import pathlib
 
     # 1. Mount Drive
     drive.mount('/content/drive')
@@ -25,20 +26,37 @@ if IN_COLAB:
     REPO_HTTPS   = f'https://{GITHUB_TOKEN}@github.com/ManWooDz/PEA-PARO.git'
     PROJECT_DIR  = '/content/drive/MyDrive/PEA-PARO'
 
-    # 3. Clone if first time; otherwise update remote URL + pull
+    # 3. Clone if first time; otherwise force-sync to GitHub
     if not os.path.exists(os.path.join(PROJECT_DIR, '.git')):
         print("Cloning repo to Google Drive (first time)...")
-        subprocess.run(['git', 'clone', REPO_HTTPS, PROJECT_DIR], check=True)
-        print("✅ Cloned")
+        r = subprocess.run(['git', 'clone', REPO_HTTPS, PROJECT_DIR],
+                           capture_output=True, text=True)
+        print(r.stdout or r.stderr)
     else:
         # Refresh token in remote URL (token may expire between sessions)
         subprocess.run(['git', '-C', PROJECT_DIR, 'remote', 'set-url', 'origin', REPO_HTTPS])
-        result = subprocess.run(
-            ['git', '-C', PROJECT_DIR, 'pull', 'origin', 'master'],
+
+        # fetch + reset --hard  แทน pull
+        # git pull ล้มเหลวเงียบๆ ถ้ามี local modification ค้างอยู่บน Drive
+        # reset --hard รับประกันว่า working tree ตรงกับ GitHub เสมอ
+        subprocess.run(['git', '-C', PROJECT_DIR, 'fetch', 'origin'],
+                       capture_output=True, text=True)
+        r = subprocess.run(
+            ['git', '-C', PROJECT_DIR, 'reset', '--hard', 'origin/master'],
             capture_output=True, text=True
         )
-        print(result.stdout or result.stderr or "Already up to date.")
-        print("✅ src/ and all files are now up to date from GitHub")
+        print(r.stdout or r.stderr)
+        if r.returncode != 0:
+            raise RuntimeError(f"git reset failed: {r.stderr}")
+
+    # 4. Verify key src file has latest content
+    pm_path = pathlib.Path(PROJECT_DIR) / 'ml/prophet_lstm/src/prophet_model.py'
+    pm_text = pm_path.read_text(encoding='utf-8')
+    if "growth='flat'" in pm_text:
+        print("✅ prophet_model.py verified: growth='flat' present")
+    else:
+        print("⚠️  prophet_model.py may be outdated — growth='flat' NOT found!")
+        print("    First 5 lines:", pm_text[:300])
 else:
     print("Not in Colab — skip GitHub auth")
 
