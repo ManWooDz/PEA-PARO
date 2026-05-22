@@ -11,7 +11,7 @@ class LineStatus(BaseModel):
     limit_mw: float
     flow_mw: float
     utilization_pct: float
-    status: Literal["normal", "warning", "critical"]  # <70 / 70-90 / >90 %
+    status: Literal["normal", "warning", "critical"]
 
 
 class SourceCard(BaseModel):
@@ -28,8 +28,9 @@ class SourceCard(BaseModel):
 # ── Tab 1 realtime ───────────────────────────────────────────────────────────
 class RealtimeKPI(BaseModel):
     island_c_load_mw: float
-    line6_utilization_pct: float
+    line6_util_pct: float          # frontend: kpi.line6_util_pct
     battery_soc_pct: float
+    battery_soc_mwh: float         # frontend: kpi.battery_soc_mwh
     warning_level: Literal["normal", "watch", "high"]
     warning_label_th: str
     risk_score: int
@@ -39,15 +40,14 @@ class RealtimeResponse(BaseModel):
     kpi: RealtimeKPI
     lines: list[LineStatus]
     sources: list[SourceCard]
+    status: str                    # frontend: rt.status → "normal"|"warning"|"critical"
     server_time: str
 
 
 class LoadPoint(BaseModel):
-    t_label: str
-    hour: int
-    offset: int          # <0 = past, 0 = now, >0 = forecast
-    load_kw: float | None
-    forecast_kw: float | None
+    ts: str                        # ISO datetime "YYYY-MM-DDTHH:MM:SS"
+    hour: int                      # 0-23
+    load_mw: float | None          # MW (was load_kw)
 
 
 class LoadHistoryResponse(BaseModel):
@@ -55,11 +55,11 @@ class LoadHistoryResponse(BaseModel):
 
 
 class EnergyMixPoint(BaseModel):
-    hour: str
-    grid_kw: float
-    battery_kw: float
-    diesel_a_kw: float
-    diesel_c_kw: float
+    ts: str                        # ISO datetime (was hour: str like "09")
+    grid_mw: float                 # MW (was grid_kw)
+    battery_mw: float              # MW (was battery_kw)
+    diesel_a_mw: float             # MW (was diesel_a_kw)
+    diesel_c_mw: float             # MW (was diesel_c_kw)
 
 
 class EnergyMixResponse(BaseModel):
@@ -68,33 +68,24 @@ class EnergyMixResponse(BaseModel):
 
 # ── Tab 2 dispatch ───────────────────────────────────────────────────────────
 class DispatchRow(BaseModel):
-    hour: str           # "00:00"
-    h: int
-    load_kw: float
-    grid_kw: float
-    battery_kw: float   # positive=discharge, negative=charge
-    diesel_a_kw: float
-    diesel_c_kw: float
-    battery_soc_pct: float
-    token_per_hour: float
+    hour: int                      # 0-23 integer (was "00:00" string)
+    load_mw: float                 # MW (was load_kw)
+    grid_mw: float                 # MW (was grid_kw)
+    battery_mw: float              # MW +discharge/-charge (was battery_kw)
+    diesel_a_mw: float             # MW (was diesel_a_kw)
+    diesel_c_mw: float             # MW (was diesel_c_kw)
+    soc_pct: float                 # % (was battery_soc_pct)
+    token_per_hour: float          # Token/hr — unchanged
     status: Literal["normal", "diesel", "low-soc", "grid-high", "line6-near"]
-    # Unit commitment
-    diesel8_units_on: int   # 0-3
-    diesel9_units_on: int   # 0-2
+    diesel8_units_on: int
+    diesel9_units_on: int
 
 
 class CostBreakdown(BaseModel):
-    grid_tokens: float
-    battery_tokens: float
-    diesel_a_tokens: float
-    diesel_c_tokens: float
-    total_tokens: float
-    revenue_tokens: float
-    net_tokens: float
-    energy_grid_kwh: float
-    energy_battery_kwh: float
-    energy_diesel_a_kwh: float
-    energy_diesel_c_kwh: float
+    grid_thb: float                # ฿ (was grid_tokens)
+    battery_thb: float             # ฿ (was battery_tokens)
+    diesel_thb: float              # ฿ combined A+C (was diesel_a_tokens + diesel_c_tokens)
+    total_thb: float               # ฿ (was total_tokens)
 
 
 class DispatchPlan(BaseModel):
@@ -115,16 +106,34 @@ class CustomPlanRequest(BaseModel):
 
 # ── Tab 3 forecast ───────────────────────────────────────────────────────────
 class ForecastPoint(BaseModel):
-    t: int
-    label: str
-    load_kw: float
-    hi_kw: float
-    lo_kw: float
+    ts: str                        # ISO datetime
+    load_mw: float                 # MW (was load_kw)
+    conf_high: float               # upper confidence bound (was hi_kw)
+    conf_low: float                # lower confidence bound (was lo_kw)
+
+
+class ModelInfo(BaseModel):
+    name: str
+    mae_mw: float
+    rmse_mw: float
+    conf_band_mw: float
 
 
 class ForecastResponse(BaseModel):
     points: list[ForecastPoint]
-    model_info: dict
+    model: ModelInfo               # typed (was model_info: dict)
+
+
+class ForecastDay(BaseModel):
+    date: str                      # "YYYY-MM-DD"
+    peak_mw: float
+    avg_mw: float
+    min_mw: float
+
+
+class Forecast7DayResponse(BaseModel):
+    days: list[ForecastDay]        # frontend: week.days[]
+    model: ModelInfo
 
 
 # ── Tab 4 alerts ─────────────────────────────────────────────────────────────
