@@ -176,6 +176,7 @@ lstm_model = build_lstm(
     n_features=CFG['N_FEATURES'],
     lookback=CFG['LOOKBACK'],
     horizon=CFG['HORIZON'],
+    dropout=CFG['DROPOUT'],
 )
 lstm_model.summary()
 

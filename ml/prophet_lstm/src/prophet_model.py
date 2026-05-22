@@ -4,9 +4,12 @@ import numpy as np
 from prophet import Prophet
 
 PROPHET_REGRESSORS = [
+    # Weather — Prophet ไม่รู้เอง ต้องใส่
     'temperature_2m', 'relativehumidity_2m', 'windspeed_10m', 'precipitation',
-    'is_weekend', 'lag_96', 'lag_672',
-    'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos', 'month_sin', 'month_cos'
+    # Calendar — weekend flag ที่ Prophet ไม่ได้ model ตรงๆ
+    'is_weekend',
+    # ตัดออก: lag_96, lag_672 — มีค่าเป็น MW ทำให้ coefficient บวม → ทำนายสูงเกิน
+    # ตัดออก: hour/dow/month sin/cos — ซ้ำซ้อนกับ Prophet's built-in seasonality
 ]
 
 

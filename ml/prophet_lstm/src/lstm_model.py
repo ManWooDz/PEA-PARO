@@ -4,23 +4,30 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.regularizers import l2
 
 
-def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96) -> tf.keras.Model:
+def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
+               dropout: float = 0.3, l2_reg: float = 1e-4) -> tf.keras.Model:
     """Build a 2-layer LSTM for multi-step forecasting.
 
     Args:
         n_features: Number of input features per timestep (15 in this project).
         lookback:   Input sequence length (96 = 24 hours at 15-min resolution).
         horizon:    Output sequence length (96 = next 24 hours).
+        dropout:    Dropout rate after first LSTM layer.
+        l2_reg:     L2 regularization strength on LSTM kernel weights.
 
     Returns:
         Compiled Keras Sequential model.
     """
     model = Sequential([
-        LSTM(100, return_sequences=True, input_shape=(lookback, n_features)),
-        Dropout(0.2),
-        LSTM(100, return_sequences=False),
+        LSTM(100, return_sequences=True, input_shape=(lookback, n_features),
+             kernel_regularizer=l2(l2_reg)),
+        Dropout(dropout),
+        LSTM(100, return_sequences=False,
+             kernel_regularizer=l2(l2_reg)),
+        Dropout(dropout / 2),        # dropout เบาๆ ก่อน output layer
         Dense(horizon),
     ])
     model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
