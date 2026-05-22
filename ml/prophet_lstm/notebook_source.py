@@ -67,6 +67,16 @@ if IN_COLAB:
     else:
         print("⚠️  prophet_model.py may be outdated — growth='flat' NOT found!")
         print("    ควรเลือก 1 เพื่อ sync ใหม่")
+
+    # 5. Clear Python module cache for src.*
+    # Python caches imported modules in sys.modules — even if the file on disk changes,
+    # re-importing the same module name returns the cached version.
+    # This is a problem when Cell 0 updates src/ but the session already ran imports.
+    cleared = [m for m in list(sys.modules) if m.startswith('src.')]
+    for m in cleared:
+        del sys.modules[m]
+    if cleared:
+        print(f"🔄 Cleared module cache: {cleared}")
 else:
     print("Not in Colab — skip GitHub auth")
 
