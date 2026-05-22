@@ -26,7 +26,7 @@ function ForecastTip({ active, payload, label }) {
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color }}>●</span>
           <span className="text-muted">{p.name}</span>
-          <span className="mono font-semibold">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -44,7 +44,7 @@ function WeekTip({ active, payload, label }) {
             <span style={{ color: p.color }}>●</span>
             <span className="text-muted">{p.name}</span>
           </div>
-          <span className="mono font-semibold">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -96,7 +96,7 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
             <button key={h} onClick={() => setHorizon(h)}
                     className="px-4 py-1.5 rounded-lg text-sm border font-medium mono transition cursor-pointer"
                     style={hours === h
-                      ? { borderColor: '#d040b8', background: 'rgba(208,64,184,0.1)', color: '#d040b8' }
+                      ? { borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }
                       : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)', color: 'var(--muted)' }}>
               {label}
             </button>
@@ -146,15 +146,15 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
         <div className="panel rounded-xl p-4">
           {loading && !shortData.length ? (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm gap-2">
-              <Dot color="#d040b8" pulse /> <span>กำลังคำนวณ…</span>
+              <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
             </div>
           ) : shortData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={shortData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="fcGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#d040b8" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#d040b8" stopOpacity={0.02} />
+                    <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
@@ -165,7 +165,7 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
                                label={{ value: 'Line 6 Cap 8MW', position: 'insideTopRight', fontSize: 9, fill: '#ef4444' }} />
                 <Area
                   type="monotone" dataKey="Load" name="Forecast"
-                  stroke="#d040b8" strokeWidth={2} strokeDasharray="6 3"
+                  stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 3"
                   fill="url(#fcGrad)" dot={false} activeDot={{ r: 4 }}
                 />
               </AreaChart>
@@ -196,7 +196,7 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
                   return (
                     <tr key={i} className="border-b hairline last:border-0">
                       <td className="px-3 py-2 mono text-muted">{p.ts?.slice(11,16) ?? '—'}</td>
-                      <td className="px-3 py-2 mono font-semibold" style={{ color: '#d040b8' }}>{fmt1(p.load_mw)}</td>
+                      <td className="px-3 py-2 mono font-semibold" style={{ color: 'var(--primary)' }}>{fmt1(p.load_mw)}</td>
                       <td className="px-3 py-2 mono text-muted">{fmt1(p.conf_low)}</td>
                       <td className="px-3 py-2 mono text-muted">{fmt1(p.conf_high)}</td>
                       <td className="px-3 py-2">
@@ -229,7 +229,7 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
                 <Tooltip content={<WeekTip />} />
                 <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2" />
                 <Bar dataKey="Min"  fill="#334155" radius={[0,0,0,0]} name="Min" />
-                <Bar dataKey="Avg"  fill="#d040b8" radius={[0,0,0,0]} name="Avg" />
+                <Bar dataKey="Avg"  fill="var(--primary)" radius={[0,0,0,0]} name="Avg" />
                 <Bar dataKey="Peak" fill="#f59e0b" radius={[2,2,0,0]} name="Peak" />
               </BarChart>
             </ResponsiveContainer>

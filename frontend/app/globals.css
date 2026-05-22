@@ -1,75 +1,76 @@
+/* Force CSS Reload - 2 */
 @import "tailwindcss";
 
 /* ── PEA-PARO Design Tokens
-     Main:      #740460  rgb(116,4,95)   — deep magenta
-     Secondary: #c7911b  rgb(199,145,27) — golden amber
+     Main:      #74045F  rgb(116,4,95)   — deep magenta
+     Secondary: #C7911B  rgb(199,145,27) — golden amber
    ────────────────────────────────────────────────────────────────────
-   DARK:  deep-purple family backgrounds  (bg clearly comes from Main)
-   LIGHT: warm golden-cream backgrounds   (bg clearly comes from Secondary)
+   DARK:  deep-magenta family backgrounds (bg comes from Main)
+   LIGHT: warm golden family backgrounds  (bg comes from Secondary)
    ─────────────────────────────────────────────────────────────────── */
 
 /* ── DARK theme (default) ──────────────────────────────────────────── */
 :root {
-  /* Backgrounds — deep purple/magenta family, unmistakably on-palette */
-  --bg:          #0e0020;   /* deep dark purple                        */
-  --surface:     #1e0a40;   /* rich purple surface                     */
-  --surface-2:   #160630;   /* card insets / secondary surface         */
-  --topbar:      #09000f;   /* near-black purple header                */
-  --tabbar:      #130025;   /* dark purple nav                         */
+  /* Backgrounds — sleek neutral dark (brighter than pure black)       */
+  --bg:          #18181b;   /* medium dark grey background             */
+  --surface:     #27272a;   /* elevated dark panel                     */
+  --surface-2:   #3f3f46;   /* card insets / secondary surface         */
+  --topbar:      #18181b;   /* header                                  */
+  --tabbar:      #27272a;   /* nav                                     */
 
-  /* Borders — visible purple, not grey                                */
-  --border:      #5824a8;
-  --border-soft: #3a1078;
+  /* Borders — neutral grey                                            */
+  --border:      #52525b;
+  --border-soft: #3f3f46;
 
-  /* Text                                                              */
-  --text:        #f0e6ff;   /* lavender-white                          */
-  --muted:       #a888d0;   /* muted lavender                          */
-  --muted-2:     #7050a8;   /* darker lavender                         */
-  --muted-3:     #4a2878;
+  /* Text — crisp white and neutral greys                              */
+  --text:        #fafafa;   /* clean white                             */
+  --muted:       #d4d4d8;   /* light grey (zinc-300)                   */
+  --muted-2:     #a1a1aa;   /* medium grey (zinc-400)                  */
+  --muted-3:     #71717a;   /* dark grey (zinc-500)                    */
 
   /* Chart grid / tooltip                                              */
-  --grid-line:   #1e0a40;
-  --tip-bg:      #09000f;
-  --row-hover:   rgba(181,22,156,0.10);
+  --grid-line:   #3f3f46;
+  --tip-bg:      #18181b;
+  --row-hover:   rgba(116,4,95,0.15); /* tinted with Main palette color */
 
-  /* Brand accents                                                     */
-  --primary:     #d040b8;   /* bright magenta for dark bg              */
-  --secondary:   #c7911b;   /* golden amber                            */
+  /* Brand accents — staying true to the requested palette             */
+  --primary:     #ff5ee2;   /* brightened Main (magenta) for dark bg   */
+  --secondary:   #c7911b;   /* Secondary (golden amber)                */
 }
 
 /* ── LIGHT theme ───────────────────────────────────────────────────── */
 body.theme-light {
-  /* Backgrounds — warm golden-cream family, unmistakably on-palette  */
-  --bg:          #fef4d0;   /* warm golden cream                       */
-  --surface:     #fffaec;   /* very light golden white                 */
-  --surface-2:   #f8e8b0;   /* visible golden surface                  */
-  --topbar:      #fffcf0;   /* near-white golden header                */
-  --tabbar:      #fdf2cc;   /* golden tabbar                           */
+  /* Backgrounds — white background with grey panels                  */
+  --bg:          #ffffff;   /* pure white background                   */
+  --surface:     #f4f4f5;   /* light grey panel surface                */
+  --surface-2:   #e4e4e7;   /* secondary grey inset                    */
+  --topbar:      #ffffff;   /* white header                            */
+  --tabbar:      #f4f4f5;   /* light grey tabbar                       */
 
-  /* Borders — golden, not grey                                        */
-  --border:      #c4880a;
-  --border-soft: #ddb840;
+  /* Borders — soft grey                                               */
+  --border:      #d4d4d8;
+  --border-soft: #e4e4e7;
 
   /* Text                                                              */
-  --text:        #1a0600;   /* very dark warm brown-black              */
-  --muted:       #7a4a05;   /* golden-brown                            */
-  --muted-2:     #a87020;   /* medium golden-brown                     */
-  --muted-3:     #c89840;
+  --text:        #261c05;   /* very dark warm brown-black              */
+  --muted:       #735616;   /* golden-brown                            */
+  --muted-2:     #997522;   /* medium golden-brown                     */
+  --muted-3:     #bf9b45;
 
   /* Chart grid / tooltip                                              */
-  --grid-line:   #f8e8b0;
-  --tip-bg:      #fffaec;
-  --row-hover:   rgba(116,4,95,0.06);
+  --grid-line:   #e4e4e7;
+  --tip-bg:      #ffffff;
+  --row-hover:   rgba(199,145,27,0.15);
 
-  /* Brand accents (deep magenta pops on golden bg)                   */
-  --primary:     #740460;
-  --secondary:   #a86e08;
+  /* Brand accents                                                    */
+  --primary:     #74045f;   /* Main color (deep magenta)               */
+  --secondary:   #c7911b;   /* Secondary color (amber)                 */
 }
 
 /* ── Base ───────────────────────────────────────────────────────────── */
 html, body, #__next { background: var(--bg); color: var(--text); }
 body {
-  font-family: 'Inter', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  font-family: 'Prompt', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -80,17 +81,18 @@ body {
   --color-ems-border:  var(--border);
   --color-ems-text:    var(--text);
   --color-ems-muted:   var(--muted);
-  --color-primary:     #d040b8;
+  --color-primary:     var(--primary);
   --color-bess:        #10b981;
   --color-diesel-a:    #f59e0b;
   --color-diesel-c:    #ef4444;
-  --color-grid-line:   #a855f7;
+  --color-grid-line:   var(--grid-line);
+  --font-sans:         'Prompt', 'Noto Sans Thai', system-ui, sans-serif;
 }
 
 /* ── Utility classes ─────────────────────────────────────────────────── */
-.thai     { font-family: 'Noto Sans Thai', 'Inter', system-ui, sans-serif; }
+.thai     { font-family: 'Prompt', 'Noto Sans Thai', system-ui, sans-serif; }
 .mono     { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-.eyebrow  { letter-spacing: 0.12em; }
+.eyebrow  { letter-spacing: 0.12em; font-weight: 700; }
 
 .panel    { background: var(--surface);   border: 1px solid var(--border-soft); }
 .panel-2  { background: var(--surface-2); border: 1px solid var(--border-soft); }
@@ -102,12 +104,12 @@ body {
 .text-muted-2 { color: var(--muted-2); }
 
 /* Light theme — Tailwind class overrides (text contrast on golden bg) */
-body.theme-light .text-slate-300 { color: #7a4a05 !important; }
-body.theme-light .text-slate-400 { color: #9a6010 !important; }
-body.theme-light .text-slate-500 { color: #a87820 !important; }
-body.theme-light .text-white     { color: #1a0600 !important; }
-body.theme-light nav.tabbar .text-muted   { color: #6b3800 !important; }
-body.theme-light nav.tabbar .text-muted-2 { color: #8a5408 !important; }
+body.theme-light .text-slate-300 { color: #735616 !important; }
+body.theme-light .text-slate-400 { color: #997522 !important; }
+body.theme-light .text-slate-500 { color: #bf9b45 !important; }
+body.theme-light .text-white     { color: #261c05 !important; }
+body.theme-light nav.tabbar .text-muted   { color: #735616 !important; }
+body.theme-light nav.tabbar .text-muted-2 { color: #997522 !important; }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────── */
 .scrollbar::-webkit-scrollbar         { width: 8px; height: 8px; }
@@ -148,3 +150,4 @@ input[type=range].tk::-webkit-slider-thumb {
 
 /* ── Recharts overrides ─────────────────────────────────────────────── */
 .recharts-tooltip-wrapper { outline: none !important; }
+.recharts-text { font-weight: 400 !important; }

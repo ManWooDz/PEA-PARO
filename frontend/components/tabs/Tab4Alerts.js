@@ -27,7 +27,7 @@ function AlertCard({ alert, onResolve }) {
   const [open, setOpen]     = useState(false)
 
   const isResolved = alert.status === 'resolved'
-  const levelColor = { high: '#ef4444', medium: '#f59e0b', low: '#d040b8', resolved: '#64748b' }[alert.level] ?? '#64748b'
+  const levelColor = { high: '#ef4444', medium: '#f59e0b', low: 'var(--primary)', resolved: '#64748b' }[alert.level] ?? '#64748b'
 
   return (
     <div className="panel rounded-xl overflow-hidden transition"
@@ -153,7 +153,7 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
 
         {loading && !sorted.length ? (
           <div className="flex items-center justify-center h-32 text-muted text-sm gap-2">
-            <Dot color="#d040b8" pulse /> <span>กำลังโหลด…</span>
+            <Dot color="var(--primary)" pulse /> <span>กำลังโหลด…</span>
           </div>
         ) : sorted.length === 0 ? (
           <div className="panel rounded-xl p-8 flex flex-col items-center gap-3 text-center">

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Icon } from '@/components/shared/Icon'
 
-const P  = '#d040b8'                  // primary magenta
+const P  = 'var(--primary)'                  // primary magenta
 const PB = 'rgba(208,64,184,0.14)'   // icon bg tint
 const PS = 'rgba(208,64,184,0.08)'   // selected scope bg
 

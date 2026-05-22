@@ -46,8 +46,8 @@ export function GridTopology({ lines = [] }) {
               <div className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-center"
                    style={{
                      background: i === 3 ? 'rgba(208,64,184,0.14)' : 'var(--surface-2)',
-                     border: `1px solid ${i === 3 ? '#d040b8' : 'var(--border-soft)'}`,
-                     color: i === 3 ? '#d040b8' : 'var(--text)',
+                     border: `1px solid ${i === 3 ? 'var(--primary)' : 'var(--border-soft)'}`,
+                     color: i === 3 ? 'var(--primary)' : 'var(--text)',
                      minWidth: '72px',
                    }}>
                 {node}

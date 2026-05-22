@@ -19,7 +19,7 @@ import { useAlerts }   from '@/hooks/useAlerts'
 export default function Home() {
   /* ── UI state ── */
   const [active,     setActive]     = useState('realtime')
-  const [theme,      setTheme]      = useState('dark')
+  const [theme,      setTheme]      = useState('light')
   const [toast,      setToast_]     = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
 

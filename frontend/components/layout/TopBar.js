@@ -28,13 +28,13 @@ export function TopBar({ theme, setTheme, onExport }) {
         {/* Left: logo + SCADA */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg grid place-items-center text-white flex-shrink-0"
-                 style={{ background: 'linear-gradient(135deg,#740460 0%,#c7911b 100%)' }}>
+            <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0"
+                 style={{ background: 'linear-gradient(135deg,#740460 0%,#c7911b 100%)', color: 'white' }}>
               <Icon.Bolt width="20" height="20" />
             </div>
             <div>
               <div className="text-[15px] font-semibold leading-tight">PEA-PARO</div>
-              <div className="text-[10.5px] uppercase eyebrow text-muted leading-tight">3-Island Grid · EMS</div>
+              <div className="text-[10.5px] uppercase eyebrow text-muted leading-tight">Island Energy Management · PEA</div>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l hairline">
@@ -65,8 +65,10 @@ export function TopBar({ theme, setTheme, onExport }) {
               onClick={onExport}
               className="h-9 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-medium border hairline hover:opacity-80 transition panel-2 cursor-pointer">
               <Icon.File width="15" height="15" />
-              <span className="thai">รายงาน</span>
-              <span className="text-[10.5px] uppercase eyebrow text-muted hidden sm:inline">Report</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="thai">รายงาน</span>
+                <span className="text-[10.5px] uppercase eyebrow text-muted hidden sm:inline">Report</span>
+              </div>
             </button>
           </div>
 

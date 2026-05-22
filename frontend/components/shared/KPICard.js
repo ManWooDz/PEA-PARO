@@ -1,7 +1,7 @@
 'use client'
 import { MiniBar } from './MiniBar'
 
-export function KPICard({ label, value, unit, sub, delta, icon: I, accent = '#d040b8', showBar, children }) {
+export function KPICard({ label, value, unit, sub, delta, icon: I, accent = 'var(--primary)', showBar, children }) {
   const positive = (delta ?? 0) >= 0
   return (
     <div className="panel rounded-xl p-4 relative overflow-hidden">

@@ -11,7 +11,7 @@ import { MiniBar }     from '@/components/shared/MiniBar'
 /* ── strategy meta ── */
 const STRATEGIES = [
   { id: 'baseline',    th: 'Baseline',      en: 'Merit-order',    color: '#64748b', desc: 'ลำดับความถูก กริด→แบต→ดีเซล' },
-  { id: 'min-cost',    th: 'ต้นทุนต่ำสุด', en: 'Min-Cost',      color: '#d040b8', desc: 'เพิ่มการใช้กริดออฟ-พีก' },
+  { id: 'min-cost',    th: 'ต้นทุนต่ำสุด', en: 'Min-Cost',      color: 'var(--primary)', desc: 'เพิ่มการใช้กริดออฟ-พีก' },
   { id: 'reliability', th: 'ความน่าเชื่อถือ', en: 'Reliability',  color: '#10b981', desc: 'SoC สำรองสูง + Line 6 margin' },
   { id: 'eco',         th: 'ประหยัดพลังงาน', en: 'Eco',          color: '#a78bfa', desc: 'ลดดีเซลสูงสุด' },
   { id: 'custom',      th: 'กำหนดเอง',     en: 'Custom',         color: '#f59e0b', desc: 'ปรับสัดส่วน + ช่วงเวลา' },
@@ -32,7 +32,7 @@ function DispatchTip({ active, payload, label }) {
             <span style={{ color: p.color }}>●</span>
             <span className="text-muted">{p.name}</span>
           </div>
-          <span className="mono font-semibold">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -146,7 +146,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
               <div>
                 <div className="text-[10px] uppercase eyebrow text-muted mb-3">สัดส่วนพลังงาน · Energy Shares (%)</div>
                 <div className="space-y-3">
-                  <SliderRow label="Grid"     value={customCfg.shares.grid}     min={0} max={100} step={1} onChange={v => setShare('grid', v)}     color="#d040b8" />
+                  <SliderRow label="Grid"     value={customCfg.shares.grid}     min={0} max={100} step={1} onChange={v => setShare('grid', v)}     color="var(--primary)" />
                   <SliderRow label="Battery"  value={customCfg.shares.battery}  min={0} max={100} step={1} onChange={v => setShare('battery', v)}  color="#10b981" />
                   <SliderRow label="Diesel A" value={customCfg.shares.diesel_a} min={0} max={100} step={1} onChange={v => setShare('diesel_a', v)} color="#f59e0b" />
                   <SliderRow label="Diesel C" value={customCfg.shares.diesel_c} min={0} max={100} step={1} onChange={v => setShare('diesel_c', v)} color="#ef4444" />
@@ -156,7 +156,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
               <div>
                 <div className="text-[10px] uppercase eyebrow text-muted mb-3">ช่วงเวลาจ่ายไฟ · Dispatch Windows</div>
                 <div className="space-y-2">
-                  <WindowRow label="Grid"     value={customCfg.windows.grid}     onChange={v => setWindow('grid', v)}     color="#d040b8" />
+                  <WindowRow label="Grid"     value={customCfg.windows.grid}     onChange={v => setWindow('grid', v)}     color="var(--primary)" />
                   <WindowRow label="Battery"  value={customCfg.windows.battery}  onChange={v => setWindow('battery', v)}  color="#10b981" />
                   <WindowRow label="Diesel A" value={customCfg.windows.diesel_a} onChange={v => setWindow('diesel_a', v)} color="#f59e0b" />
                   <WindowRow label="Diesel C" value={customCfg.windows.diesel_c} onChange={v => setWindow('diesel_c', v)} color="#ef4444" />
@@ -174,7 +174,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: 'ต้นทุนรวม', value: fmtCost(cost.total_thb), unit: '฿', color: activeMeta.color },
-              { label: 'Grid',     value: fmtCost(cost.grid_thb),    unit: '฿', color: '#d040b8' },
+              { label: 'Grid',     value: fmtCost(cost.grid_thb),    unit: '฿', color: 'var(--primary)' },
               { label: 'Battery',  value: fmtCost(cost.battery_thb), unit: '฿', color: '#10b981' },
               { label: 'Diesel',   value: fmtCost(cost.diesel_thb),  unit: '฿', color: '#f59e0b' },
             ].map(c => (
@@ -194,7 +194,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
         <div className="panel rounded-xl p-4">
           {loading && !chartData.length ? (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm gap-2">
-              <Dot color="#d040b8" pulse /> <span>กำลังคำนวณ…</span>
+              <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
             </div>
           ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
@@ -206,7 +206,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
                 <Tooltip content={<DispatchTip />} />
                 <Legend wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }} />
                 <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2" label={{ value: 'Line 6 Cap', position: 'right', fontSize: 9, fill: '#ef4444' }} />
-                <Bar dataKey="Grid"       stackId="a" fill="#d040b8" />
+                <Bar dataKey="Grid"       stackId="a" fill="var(--primary)" />
                 <Bar dataKey="Battery"    stackId="a" fill="#10b981" />
                 <Bar dataKey="Diesel A"   stackId="a" fill="#f59e0b" />
                 <Bar dataKey="Diesel C"   stackId="a" fill="#ef4444" radius={[2,2,0,0]} />
@@ -266,7 +266,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
                   <tr key={i} className="border-b hairline last:border-0 hover:opacity-80">
                     <td className="px-3 py-2 mono">{String(r.hour).padStart(2,'0')}:00</td>
                     <td className="px-3 py-2 mono">{fmt1(r.load_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: '#d040b8' }}>{fmt1(r.grid_mw)}</td>
+                    <td className="px-3 py-2 mono" style={{ color: 'var(--primary)' }}>{fmt1(r.grid_mw)}</td>
                     <td className="px-3 py-2 mono" style={{ color: '#10b981' }}>{fmt1(r.battery_mw)}</td>
                     <td className="px-3 py-2 mono" style={{ color: '#f59e0b' }}>{fmt1(r.diesel_a_mw)}</td>
                     <td className="px-3 py-2 mono" style={{ color: '#ef4444' }}>{fmt1(r.diesel_c_mw)}</td>

@@ -23,7 +23,7 @@ export function LevelBadge({ level }) {
   const map = {
     high:     { c: '#ef4444', label: 'เสี่ยงสูง',     en: 'HIGH' },
     medium:   { c: '#f59e0b', label: 'เฝ้าระวัง',    en: 'WATCH' },
-    low:      { c: '#d040b8', label: 'ข้อมูล',        en: 'INFO' },
+    low:      { c: 'var(--primary)', label: 'ข้อมูล',        en: 'INFO' },
     resolved: { c: '#10b981', label: 'แก้ไขแล้ว',    en: 'RESOLVED' },
   }
   const s = map[level] || map.low

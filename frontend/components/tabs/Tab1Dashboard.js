@@ -24,7 +24,7 @@ function ChartTip({ active, payload, label }) {
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color }}>●</span>
           <span className="text-muted">{p.name}</span>
-          <span className="mono font-semibold">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -40,7 +40,7 @@ function MixTip({ active, payload, label }) {
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color }}>●</span>
           <span className="text-muted">{p.name}</span>
-          <span className="mono font-semibold">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -61,7 +61,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
   if (!rt) {
     return (
       <div className="flex items-center justify-center h-64 text-muted text-sm gap-2">
-        <Dot color="#d040b8" pulse />
+        <Dot color="var(--primary)" pulse />
         <span>กำลังโหลดข้อมูล…</span>
       </div>
     )
@@ -97,7 +97,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
             sub={`Line 6 cap: 8 MW`}
             delta={delta}
             icon={Icon.Gauge}
-            accent="#d040b8"
+            accent="var(--primary)"
             showBar
           />
           <KPICard
@@ -115,7 +115,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
             unit=""
             sub="8 MW limit"
             icon={Icon.Cable}
-            accent={kpi?.line6_util_pct > 90 ? '#ef4444' : kpi?.line6_util_pct > 75 ? '#f59e0b' : '#d040b8'}
+            accent={kpi?.line6_util_pct > 90 ? '#ef4444' : kpi?.line6_util_pct > 75 ? '#f59e0b' : 'var(--primary)'}
             showBar
           />
           <KPICard
@@ -124,7 +124,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
             unit=""
             sub=""
             icon={Icon.Bolt}
-            accent="#d040b8"
+            accent="var(--primary)"
           >
             <StatusBadge status={status} />
           </KPICard>
@@ -146,8 +146,8 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
               <AreaChart data={loadData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#d040b8" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#d040b8" stopOpacity={0.02} />
+                    <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
@@ -156,7 +156,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
                 <Tooltip content={<ChartTip />} />
                 <Area
                   type="monotone" dataKey="load" name="Island C Load"
-                  stroke="#d040b8" strokeWidth={2}
+                  stroke="var(--primary)" strokeWidth={2}
                   fill="url(#loadGrad)" dot={false} activeDot={{ r: 4 }}
                 />
               </AreaChart>
@@ -178,7 +178,7 @@ export function Tab1Dashboard({ rt, history, energyMix, delta }) {
                 <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} unit=" MW" />
                 <Tooltip content={<MixTip />} />
                 <Legend wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }} />
-                <Bar dataKey="Grid"      stackId="a" fill="#d040b8" radius={[0,0,0,0]} />
+                <Bar dataKey="Grid"      stackId="a" fill="var(--primary)" radius={[0,0,0,0]} />
                 <Bar dataKey="Battery"   stackId="a" fill="#10b981" radius={[0,0,0,0]} />
                 <Bar dataKey="Diesel A"  stackId="a" fill="#f59e0b" radius={[0,0,0,0]} />
                 <Bar dataKey="Diesel C"  stackId="a" fill="#ef4444" radius={[2,2,0,0]} />
