@@ -1,0 +1,65 @@
+# ── Python / Backend ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Node / Frontend ───────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ── Environment / Secrets ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ── IDE / OS ─────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.DS_Store
+Thumbs.db
+*.pem
+
+# ── Project tooling ───────────────────────────────────────────────────
+.antigravitycli/
+.claude/
+.vercel/
+
+# ── Data ─────────────────────────────────────────────────────────────
+backend/data/*.csv

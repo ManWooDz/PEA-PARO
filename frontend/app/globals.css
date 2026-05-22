@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ── PEA-PARO Design Tokens
+     Main:      #740460  rgb(116,4,95)   — deep magenta
+     Secondary: #c7911b  rgb(199,145,27) — golden amber
+   ────────────────────────────────────────────────────────────────────
+   DARK:  deep-purple family backgrounds  (bg clearly comes from Main)
+   LIGHT: warm golden-cream backgrounds   (bg clearly comes from Secondary)
+   ─────────────────────────────────────────────────────────────────── */
+
+/* ── DARK theme (default) ──────────────────────────────────────────── */
+:root {
+  /* Backgrounds — deep purple/magenta family, unmistakably on-palette */
+  --bg:          #0e0020;   /* deep dark purple                        */
+  --surface:     #1e0a40;   /* rich purple surface                     */
+  --surface-2:   #160630;   /* card insets / secondary surface         */
+  --topbar:      #09000f;   /* near-black purple header                */
+  --tabbar:      #130025;   /* dark purple nav                         */
+
+  /* Borders — visible purple, not grey                                */
+  --border:      #5824a8;
+  --border-soft: #3a1078;
+
+  /* Text                                                              */
+  --text:        #f0e6ff;   /* lavender-white                          */
+  --muted:       #a888d0;   /* muted lavender                          */
+  --muted-2:     #7050a8;   /* darker lavender                         */
+  --muted-3:     #4a2878;
+
+  /* Chart grid / tooltip                                              */
+  --grid-line:   #1e0a40;
+  --tip-bg:      #09000f;
+  --row-hover:   rgba(181,22,156,0.10);
+
+  /* Brand accents                                                     */
+  --primary:     #d040b8;   /* bright magenta for dark bg              */
+  --secondary:   #c7911b;   /* golden amber                            */
+}
+
+/* ── LIGHT theme ───────────────────────────────────────────────────── */
+body.theme-light {
+  /* Backgrounds — warm golden-cream family, unmistakably on-palette  */
+  --bg:          #fef4d0;   /* warm golden cream                       */
+  --surface:     #fffaec;   /* very light golden white                 */
+  --surface-2:   #f8e8b0;   /* visible golden surface                  */
+  --topbar:      #fffcf0;   /* near-white golden header                */
+  --tabbar:      #fdf2cc;   /* golden tabbar                           */
+
+  /* Borders — golden, not grey                                        */
+  --border:      #c4880a;
+  --border-soft: #ddb840;
+
+  /* Text                                                              */
+  --text:        #1a0600;   /* very dark warm brown-black              */
+  --muted:       #7a4a05;   /* golden-brown                            */
+  --muted-2:     #a87020;   /* medium golden-brown                     */
+  --muted-3:     #c89840;
+
+  /* Chart grid / tooltip                                              */
+  --grid-line:   #f8e8b0;
+  --tip-bg:      #fffaec;
+  --row-hover:   rgba(116,4,95,0.06);
+
+  /* Brand accents (deep magenta pops on golden bg)                   */
+  --primary:     #740460;
+  --secondary:   #a86e08;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────── */
+html, body, #__next { background: var(--bg); color: var(--text); }
+body {
+  font-family: 'Inter', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Tailwind v4 custom tokens ───────────────────────────────────────── */
+@theme inline {
+  --color-ems-bg:      var(--bg);
+  --color-ems-surface: var(--surface);
+  --color-ems-border:  var(--border);
+  --color-ems-text:    var(--text);
+  --color-ems-muted:   var(--muted);
+  --color-primary:     #d040b8;
+  --color-bess:        #10b981;
+  --color-diesel-a:    #f59e0b;
+  --color-diesel-c:    #ef4444;
+  --color-grid-line:   #a855f7;
+}
+
+/* ── Utility classes ─────────────────────────────────────────────────── */
+.thai     { font-family: 'Noto Sans Thai', 'Inter', system-ui, sans-serif; }
+.mono     { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.eyebrow  { letter-spacing: 0.12em; }
+
+.panel    { background: var(--surface);   border: 1px solid var(--border-soft); }
+.panel-2  { background: var(--surface-2); border: 1px solid var(--border-soft); }
+.hairline { border-color: var(--border-soft) !important; }
+.topbar   { background: var(--topbar); }
+.tabbar   { background: var(--tabbar); }
+.text-default { color: var(--text); }
+.text-muted   { color: var(--muted); }
+.text-muted-2 { color: var(--muted-2); }
+
+/* Light theme — Tailwind class overrides (text contrast on golden bg) */
+body.theme-light .text-slate-300 { color: #7a4a05 !important; }
+body.theme-light .text-slate-400 { color: #9a6010 !important; }
+body.theme-light .text-slate-500 { color: #a87820 !important; }
+body.theme-light .text-white     { color: #1a0600 !important; }
+body.theme-light nav.tabbar .text-muted   { color: #6b3800 !important; }
+body.theme-light nav.tabbar .text-muted-2 { color: #8a5408 !important; }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────── */
+.scrollbar::-webkit-scrollbar         { width: 8px; height: 8px; }
+.scrollbar::-webkit-scrollbar-track   { background: transparent; }
+.scrollbar::-webkit-scrollbar-thumb   { background: var(--border); border-radius: 4px; }
+
+/* ── Animations ─────────────────────────────────────────────────────── */
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50%       { box-shadow: 0 0 0 6px transparent; opacity: 0.6; }
+}
+.toast-in { animation: toastIn 220ms cubic-bezier(.2,.7,.2,1); }
+@keyframes toastIn {
+  from { transform: translateY(-10px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.modal-in { animation: modalIn 180ms cubic-bezier(.2,.7,.2,1); }
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* ── Range slider ───────────────────────────────────────────────────── */
+input[type=range].tk {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px; background: var(--border-soft); border-radius: 999px; outline: none;
+}
+input[type=range].tk::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--primary); cursor: pointer;
+  border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--primary);
+}
+
+/* ── Table row hover ────────────────────────────────────────────────── */
+.row-hover:hover { background: var(--row-hover); }
+
+/* ── Recharts overrides ─────────────────────────────────────────────── */
+.recharts-tooltip-wrapper { outline: none !important; }
