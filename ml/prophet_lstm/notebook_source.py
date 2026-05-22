@@ -251,6 +251,19 @@ test_report.to_csv(os.path.join(RESULTS_DIR, 'test_metrics.csv'), index=False)
 # Plot learning curves
 plot_learning_curves(history, save_path=os.path.join(RESULTS_DIR, 'learning_curves.png'))
 
+# --- 6-Hour Forecast Metrics (first 24 steps = 6h of each 96-step window) ---
+H6 = 24
+test_report_6h = evaluation_report(
+    y_test_true[:,   :H6].flatten(),
+    y_test_lstm[:,   :H6].flatten(),
+    y_test_prophet[:,:H6].flatten(),
+    y_test_hybrid[:, :H6].flatten(),
+    label='Test-6h'
+)
+print("\n=== 6-Hour Forecast Metrics ===")
+print(test_report_6h.to_string(index=False))
+test_report_6h.to_csv(os.path.join(RESULTS_DIR, 'test_metrics_6h.csv'), index=False)
+
 # %% [markdown]
 # ## Cell 10 — Forecast Plots
 
@@ -283,17 +296,52 @@ forecast_df.to_csv(forecast_csv_path, index=False)
 print(f"Forecast data saved: {forecast_csv_path}  ({len(forecast_df)} rows)")
 
 # Save full test set (not just 7 days) for deeper analysis
+# Use [:, 0] = first-step-ahead prediction per window to avoid overlap
+n_windows = len(y_test_true)
 full_forecast_df = pd.DataFrame({
-    'datetime': test.index[lookback: lookback + len(y_test_true.flatten())],
-    'actual':   y_test_true.flatten(),
-    'hybrid':   y_test_hybrid.flatten(),
-    'lstm':     y_test_lstm.flatten(),
-    'prophet':  y_test_prophet.flatten(),
+    'datetime': test.index[lookback: lookback + n_windows],
+    'actual':   y_test_true[:, 0],
+    'hybrid':   y_test_hybrid[:, 0],
+    'lstm':     y_test_lstm[:, 0],
+    'prophet':  y_test_prophet[:, 0],
 })
 full_forecast_df.to_csv(os.path.join(RESULTS_DIR, 'forecast_full_test.csv'), index=False)
 print(f"Full test forecast saved: {len(full_forecast_df)} rows")
 
 print("All results saved to:", RESULTS_DIR)
+
+# --- 6-Hour Rolling Forecast (non-overlapping 6h blocks) ---
+H6 = 24
+n_6h_blocks = len(y_test_true) // H6
+idx_6h = test.index[lookback: lookback + n_6h_blocks * H6]
+
+# Each block: use predictions starting at stride H6 (independent 6h forecast per block)
+y_true_6h    = np.concatenate([y_test_true[i * H6,    :H6] for i in range(n_6h_blocks)])
+y_hybrid_6h  = np.concatenate([y_test_hybrid[i * H6,  :H6] for i in range(n_6h_blocks)])
+y_lstm_6h    = np.concatenate([y_test_lstm[i * H6,    :H6] for i in range(n_6h_blocks)])
+y_prophet_6h = np.concatenate([y_test_prophet[i * H6, :H6] for i in range(n_6h_blocks)])
+
+# Plot first 2 days (8 blocks × 24 steps = 192 points)
+plot_steps_6h = min(H6 * 8, len(y_true_6h))
+plot_forecast(
+    index     = idx_6h[:plot_steps_6h],
+    y_true    = y_true_6h[:plot_steps_6h],
+    y_hybrid  = y_hybrid_6h[:plot_steps_6h],
+    y_lstm    = y_lstm_6h[:plot_steps_6h],
+    y_prophet = y_prophet_6h[:plot_steps_6h],
+    title     = 'Island C (Koh Tao) — 6-Hour Rolling Forecast (Test Set)',
+    save_path = os.path.join(RESULTS_DIR, 'forecast_6h.png'),
+)
+
+forecast_6h_df = pd.DataFrame({
+    'datetime': idx_6h,
+    'actual':   y_true_6h,
+    'hybrid':   y_hybrid_6h,
+    'lstm':     y_lstm_6h,
+    'prophet':  y_prophet_6h,
+})
+forecast_6h_df.to_csv(os.path.join(RESULTS_DIR, 'forecast_6h.csv'), index=False)
+print(f"6h forecast saved: {len(forecast_6h_df)} rows  ({n_6h_blocks} blocks × {H6} steps)")
 
 # %% [markdown]
 # ## Cell 11 — Save All Artifacts for Backend
@@ -403,3 +451,64 @@ print(f"✅ Saved: {html_path}")
 if IN_COLAB:
     from google.colab import files
     files.download(html_path)
+
+# %% [markdown]
+# ## Cell 13 — Interactive 6-Hour Forecast Chart
+
+# %%
+import pandas as pd
+import plotly.graph_objects as go
+
+forecast_6h_df = pd.read_csv(
+    os.path.join(RESULTS_DIR, 'forecast_6h.csv'), parse_dates=['datetime']
+)
+
+# Show first 2 days for readability by default (slider lets user zoom to any range)
+H6 = 24
+view_df = forecast_6h_df.iloc[:H6 * 8]   # 2 days = 8 blocks
+
+fig6h = go.Figure()
+fig6h.add_trace(go.Scatter(
+    x=view_df['datetime'], y=view_df['actual'],
+    name='Actual', line=dict(color='black', width=2),
+))
+fig6h.add_trace(go.Scatter(
+    x=view_df['datetime'], y=view_df['hybrid'],
+    name='Hybrid', line=dict(color='royalblue', width=1.5),
+))
+fig6h.add_trace(go.Scatter(
+    x=view_df['datetime'], y=view_df['lstm'],
+    name='LSTM', line=dict(color='orange', width=1.2, dash='dash'),
+))
+fig6h.add_trace(go.Scatter(
+    x=view_df['datetime'], y=view_df['prophet'],
+    name='Prophet', line=dict(color='green', width=1.2, dash='dot'),
+))
+
+fig6h.update_layout(
+    title='Island C (Koh Tao) — 6-Hour Rolling Forecast vs Actual',
+    xaxis_title='Datetime',
+    yaxis_title='Load (MW)',
+    hovermode='x unified',
+    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+    template='plotly_white',
+)
+fig6h.update_xaxes(
+    rangeslider_visible=True,
+    rangeselector=dict(buttons=[
+        dict(count=6,  label='6h',  step='hour', stepmode='backward'),
+        dict(count=12, label='12h', step='hour', stepmode='backward'),
+        dict(count=1,  label='1d',  step='day',  stepmode='backward'),
+        dict(step='all', label='All'),
+    ])
+)
+
+fig6h.show()
+
+html_6h_path = os.path.join(RESULTS_DIR, 'forecast_6h_interactive.html')
+fig6h.write_html(html_6h_path, include_plotlyjs='cdn')
+print(f"✅ Saved: {html_6h_path}")
+
+if IN_COLAB:
+    from google.colab import files
+    files.download(html_6h_path)
