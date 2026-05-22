@@ -336,3 +336,59 @@ if IN_COLAB:
     shutil.make_archive('/content/pea_model_artifacts', 'zip', MODELS_DIR)
     from google.colab import files
     files.download('/content/pea_model_artifacts.zip')
+
+# %% [markdown]
+# ## Cell 12 — Interactive Forecast Chart (toggle แต่ละเส้นได้)
+
+# %%
+import pandas as pd
+import plotly.graph_objects as go
+
+# โหลด CSV ที่เซฟไว้ใน Cell 10
+forecast_df = pd.read_csv(os.path.join(RESULTS_DIR, 'forecast_7day.csv'), parse_dates=['datetime'])
+
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=forecast_df['datetime'], y=forecast_df['actual'],
+    name='Actual', line=dict(color='black', width=2),
+))
+fig.add_trace(go.Scatter(
+    x=forecast_df['datetime'], y=forecast_df['hybrid'],
+    name='Hybrid', line=dict(color='royalblue', width=1.5),
+))
+fig.add_trace(go.Scatter(
+    x=forecast_df['datetime'], y=forecast_df['lstm'],
+    name='LSTM', line=dict(color='orange', width=1.2, dash='dash'),
+))
+fig.add_trace(go.Scatter(
+    x=forecast_df['datetime'], y=forecast_df['prophet'],
+    name='Prophet', line=dict(color='green', width=1.2, dash='dot'),
+))
+
+fig.update_layout(
+    title='Island C (Koh Tao) — 7-Day Load Forecast vs Actual',
+    xaxis_title='Datetime',
+    yaxis_title='Load (MW)',
+    hovermode='x unified',        # hover แสดงทุกเส้นพร้อมกัน
+    legend=dict(
+        orientation='h',          # legend แนวนอน
+        yanchor='bottom', y=1.02,
+        xanchor='right',  x=1,
+    ),
+    template='plotly_white',
+)
+
+# Range selector — เลือกดูช่วงเวลาได้
+fig.update_xaxes(
+    rangeslider_visible=True,
+    rangeselector=dict(buttons=[
+        dict(count=1,  label='1d', step='day',  stepmode='backward'),
+        dict(count=3,  label='3d', step='day',  stepmode='backward'),
+        dict(count=7,  label='7d', step='day',  stepmode='backward'),
+        dict(step='all', label='All'),
+    ])
+)
+
+fig.show()
+print("💡 คลิกชื่อใน Legend เพื่อ toggle แต่ละเส้น | ลาก Slider ด้านล่างเพื่อ zoom")
