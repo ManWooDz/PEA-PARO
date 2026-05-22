@@ -35,13 +35,14 @@ def train_prophet(prophet_df: pd.DataFrame) -> Prophet:
         Fitted Prophet model.
     """
     model = Prophet(
+        growth='flat',                  # island load ไม่มี long-term trend ใน 14 เดือน
+                                        # growth='linear' ทำให้ extrapolate trend ไป Jan 2026
+                                        # → ทำนาย ~12 MW แทนที่จะเป็น ~3 MW
+                                        # growth='flat' บังคับให้อธิบายด้วย seasonality เท่านั้น
         yearly_seasonality=False,       # ปิด — train data 11 เดือน ไม่พอ fit 365-day Fourier
-                                        # yearly_seasonality=True ทำให้ trend+seasonality collinear
-                                        # → extrapolate ไป Jan ค่าพุ่ง ~12 MW แทนที่จะเป็น ~3 MW
         weekly_seasonality=True,
         daily_seasonality=False,        # ปิด — ใช้ custom แทนเพื่อควบคุม Fourier order
         interval_width=0.8,
-        changepoint_prior_scale=0.05,
     )
     # Custom daily seasonality: fourier_order=6 แทน default ที่สูงเกินไปสำหรับ 15-min data
     model.add_seasonality(name='daily', period=1, fourier_order=6)

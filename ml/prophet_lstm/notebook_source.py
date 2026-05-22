@@ -146,6 +146,11 @@ prophet_model = train_prophet(train_prophet_df)
 y_val_prophet_flat  = predict_prophet(prophet_model, val_prophet_df.drop('y', axis=1))
 y_test_prophet_flat = predict_prophet(prophet_model, test_prophet_df.drop('y', axis=1))
 
+# Sanity check — Prophet range should be close to actual load range (~2–4 MW)
+print(f"Actual  test range : [{test['load_c'].min():.2f}, {test['load_c'].max():.2f}] MW")
+print(f"Prophet val  range : [{y_val_prophet_flat.min():.2f}, {y_val_prophet_flat.max():.2f}] MW")
+print(f"Prophet test range : [{y_test_prophet_flat.min():.2f}, {y_test_prophet_flat.max():.2f}] MW")
+
 # Reshape to match LSTM output: (n_windows, horizon)
 # Trim to match sequence count
 n_val_seq  = len(X_val)
