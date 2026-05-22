@@ -236,7 +236,13 @@ prophet_model.plot_components(components)
 # ## Cell 7 — Train LSTM
 
 # %%
-import tensorflow as tf
+import random, tensorflow as tf
+# Fix random seeds for reproducibility across runs
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+
 print("GPU available:", tf.config.list_physical_devices('GPU'))
 
 from src.lstm_model import build_lstm, train_lstm, predict_lstm, save_lstm
