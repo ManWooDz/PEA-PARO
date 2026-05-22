@@ -20,9 +20,14 @@ def load_raw_data(filepath: str) -> pd.DataFrame:
     df.columns = ['datetime', 'line6_33kv', 'diesel_c', 'load_c']
     df['datetime'] = pd.to_datetime(df['datetime'], format='mixed', dayfirst=False)
     df = df.set_index('datetime').sort_index()
-    # Fix single negative value via linear interpolation
-    df.loc[df['load_c'] < 0, 'load_c'] = np.nan
+    # Replace outage periods (load_c <= 0) with NaN then interpolate
+    # Zeros = whole-island blackout (no submarine cable + no diesel) due to maintenance etc.
+    # Model forecasts normal operation so outages are treated as missing data,
+    # otherwise lag_96/lag_672 features carry 0 MW signals that mislead training.
+    n_bad = (df['load_c'] <= 0).sum()
+    df.loc[df['load_c'] <= 0, 'load_c'] = np.nan
     df['load_c'] = df['load_c'].interpolate(method='linear', limit_direction='both')
+    print(f"[preprocess] interpolated {n_bad} zero/negative load_c values")
     return df
 
 
