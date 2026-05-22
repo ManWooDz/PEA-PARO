@@ -180,8 +180,8 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
             onClick={() => setShowResolved(v => !v)}
             className="w-full flex items-center justify-between text-[10.5px] uppercase eyebrow text-muted mb-3 cursor-pointer hover:opacity-80">
             <span>ที่แก้ไขแล้ว · Resolved ({resolvedAlerts.length})</span>
-            <Icon.ChartBar width="12" height="12"
-                           style={{ transform: showResolved ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            <Icon.ChevronDown width="14" height="14"
+                             style={{ transform: showResolved ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </button>
 
           {showResolved && (
