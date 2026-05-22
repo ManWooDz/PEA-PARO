@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.regularizers import l2
@@ -22,12 +22,11 @@ def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
         Compiled Keras Sequential model.
     """
     model = Sequential([
-        LSTM(100, return_sequences=True, input_shape=(lookback, n_features),
-             kernel_regularizer=l2(l2_reg)),
+        Input(shape=(lookback, n_features)),
+        LSTM(100, return_sequences=True, kernel_regularizer=l2(l2_reg)),
         Dropout(dropout),
-        LSTM(100, return_sequences=False,
-             kernel_regularizer=l2(l2_reg)),
-        Dropout(dropout / 2),        # dropout เบาๆ ก่อน output layer
+        LSTM(100, return_sequences=False, kernel_regularizer=l2(l2_reg)),
+        Dropout(dropout / 2),
         Dense(horizon),
     ])
     model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
