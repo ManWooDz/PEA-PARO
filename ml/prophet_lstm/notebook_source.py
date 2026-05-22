@@ -392,3 +392,13 @@ fig.update_xaxes(
 
 fig.show()
 print("💡 คลิกชื่อใน Legend เพื่อ toggle แต่ละเส้น | ลาก Slider ด้านล่างเพื่อ zoom")
+
+# Save เป็น HTML ไฟล์เดียว — เปิดใน browser ได้เลย ไม่ต้องมี server
+html_path = os.path.join(RESULTS_DIR, 'forecast_interactive.html')
+fig.write_html(html_path, include_plotlyjs='cdn')
+print(f"✅ Saved: {html_path}")
+
+# Download ลงเครื่องทันที (Colab only)
+if IN_COLAB:
+    from google.colab import files
+    files.download(html_path)
