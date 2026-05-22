@@ -26,29 +26,38 @@ if IN_COLAB:
     REPO_HTTPS   = f'https://{GITHUB_TOKEN}@github.com/ManWooDz/PEA-PARO.git'
     PROJECT_DIR  = '/content/drive/MyDrive/PEA-PARO'
 
-    # 3. Clone if first time; otherwise force-sync to GitHub
+    # 3. Clone if first time; otherwise ask user what to do
     if not os.path.exists(os.path.join(PROJECT_DIR, '.git')):
         print("Cloning repo to Google Drive (first time)...")
         r = subprocess.run(['git', 'clone', REPO_HTTPS, PROJECT_DIR],
                            capture_output=True, text=True)
         print(r.stdout or r.stderr)
     else:
-        # Refresh token in remote URL (token may expire between sessions)
         subprocess.run(['git', '-C', PROJECT_DIR, 'remote', 'set-url', 'origin', REPO_HTTPS])
 
-        # fetch + checkout src/ เท่านั้น
-        # ไม่ใช้ reset --hard เพราะมันจะ overwrite .ipynb ที่ Colab กำลังเปิดอยู่
-        # → ทำให้เกิด "Auto saving failed / updated remotely" conflict
-        subprocess.run(['git', '-C', PROJECT_DIR, 'fetch', 'origin'],
-                       capture_output=True, text=True)
-        r = subprocess.run(
-            ['git', '-C', PROJECT_DIR, 'checkout', 'origin/master', '--',
-             'ml/prophet_lstm/src/'],
-            capture_output=True, text=True
-        )
-        print(r.stdout or r.stderr or "src/ checked out from origin/master")
-        if r.returncode != 0:
-            raise RuntimeError(f"git checkout src/ failed: {r.stderr}")
+        print("=" * 55)
+        print("เลือกวิธี sync:")
+        print("  1 = git fetch + reset --hard  (sync ทุกไฟล์จาก GitHub)")
+        print("      ⚠️  notebook ที่เปิดอยู่อาจขึ้น Auto saving failed")
+        print("  2 = skip  (ไม่ sync — ใช้เมื่ออัปเดทไฟล์ครบแล้ว)")
+        print("=" * 55)
+        choice = input("ใส่ 1 หรือ 2: ").strip()
+
+        if choice == '1':
+            subprocess.run(['git', '-C', PROJECT_DIR, 'fetch', 'origin'],
+                           capture_output=True, text=True)
+            r = subprocess.run(
+                ['git', '-C', PROJECT_DIR, 'reset', '--hard', 'origin/master'],
+                capture_output=True, text=True
+            )
+            print(r.stdout or r.stderr)
+            if r.returncode != 0:
+                raise RuntimeError(f"git reset failed: {r.stderr}")
+            print("✅ Reset สำเร็จ — ทุกไฟล์ตรงกับ GitHub")
+        elif choice == '2':
+            print("⏭️  Skip — ใช้ไฟล์บน Drive ที่มีอยู่เลย")
+        else:
+            print(f"⚠️  ไม่รู้จัก '{choice}' — skip โดยอัตโนมัติ")
 
     # 4. Verify key src file has latest content
     pm_path = pathlib.Path(PROJECT_DIR) / 'ml/prophet_lstm/src/prophet_model.py'
@@ -57,7 +66,7 @@ if IN_COLAB:
         print("✅ prophet_model.py verified: growth='flat' present")
     else:
         print("⚠️  prophet_model.py may be outdated — growth='flat' NOT found!")
-        print("    First 5 lines:", pm_text[:300])
+        print("    ควรเลือก 1 เพื่อ sync ใหม่")
 else:
     print("Not in Colab — skip GitHub auth")
 
