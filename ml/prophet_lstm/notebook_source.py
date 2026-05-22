@@ -36,18 +36,19 @@ if IN_COLAB:
         # Refresh token in remote URL (token may expire between sessions)
         subprocess.run(['git', '-C', PROJECT_DIR, 'remote', 'set-url', 'origin', REPO_HTTPS])
 
-        # fetch + reset --hard  แทน pull
-        # git pull ล้มเหลวเงียบๆ ถ้ามี local modification ค้างอยู่บน Drive
-        # reset --hard รับประกันว่า working tree ตรงกับ GitHub เสมอ
+        # fetch + checkout src/ เท่านั้น
+        # ไม่ใช้ reset --hard เพราะมันจะ overwrite .ipynb ที่ Colab กำลังเปิดอยู่
+        # → ทำให้เกิด "Auto saving failed / updated remotely" conflict
         subprocess.run(['git', '-C', PROJECT_DIR, 'fetch', 'origin'],
                        capture_output=True, text=True)
         r = subprocess.run(
-            ['git', '-C', PROJECT_DIR, 'reset', '--hard', 'origin/master'],
+            ['git', '-C', PROJECT_DIR, 'checkout', 'origin/master', '--',
+             'ml/prophet_lstm/src/'],
             capture_output=True, text=True
         )
-        print(r.stdout or r.stderr)
+        print(r.stdout or r.stderr or "src/ checked out from origin/master")
         if r.returncode != 0:
-            raise RuntimeError(f"git reset failed: {r.stderr}")
+            raise RuntimeError(f"git checkout src/ failed: {r.stderr}")
 
     # 4. Verify key src file has latest content
     pm_path = pathlib.Path(PROJECT_DIR) / 'ml/prophet_lstm/src/prophet_model.py'
