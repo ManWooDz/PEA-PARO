@@ -61,9 +61,9 @@ CFG = {
     'HORIZON':     96,   # forecast 24 h ahead
     'N_FEATURES':  15,
     'LSTM_UNITS':  100,
-    'DROPOUT':     0.2,
+    'DROPOUT':     0.3,   # เพิ่มจาก 0.2 เพื่อลด overfitting
     'LR':          0.001,
-    'EPOCHS':      50,
+    'EPOCHS':      80,    # เพิ่มจาก 50 ให้ EarlyStopping มีพื้นที่มากขึ้น
     'BATCH_SIZE':  32,
     # Koh Tao coordinates for weather
     'LAT':         10.10,

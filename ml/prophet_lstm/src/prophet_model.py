@@ -34,10 +34,12 @@ def train_prophet(prophet_df: pd.DataFrame) -> Prophet:
     model = Prophet(
         yearly_seasonality=True,
         weekly_seasonality=True,
-        daily_seasonality=True,
+        daily_seasonality=False,        # ปิด — ใช้ custom แทนเพื่อควบคุม Fourier order
         interval_width=0.8,
         changepoint_prior_scale=0.05,
     )
+    # Custom daily seasonality: fourier_order=6 แทน default ที่สูงเกินไปสำหรับ 15-min data
+    model.add_seasonality(name='daily', period=1, fourier_order=6)
     model.add_country_holidays(country_name='TH')
     for col in PROPHET_REGRESSORS:
         model.add_regressor(col)
