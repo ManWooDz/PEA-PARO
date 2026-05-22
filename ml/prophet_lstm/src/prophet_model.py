@@ -35,7 +35,9 @@ def train_prophet(prophet_df: pd.DataFrame) -> Prophet:
         Fitted Prophet model.
     """
     model = Prophet(
-        yearly_seasonality=True,
+        yearly_seasonality=False,       # ปิด — train data 11 เดือน ไม่พอ fit 365-day Fourier
+                                        # yearly_seasonality=True ทำให้ trend+seasonality collinear
+                                        # → extrapolate ไป Jan ค่าพุ่ง ~12 MW แทนที่จะเป็น ~3 MW
         weekly_seasonality=True,
         daily_seasonality=False,        # ปิด — ใช้ custom แทนเพื่อควบคุม Fourier order
         interval_width=0.8,

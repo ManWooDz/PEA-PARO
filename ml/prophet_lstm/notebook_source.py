@@ -153,8 +153,10 @@ n_test_seq = len(X_test)
 lookback   = CFG['LOOKBACK']
 horizon    = CFG['HORIZON']
 
-y_val_prophet  = np.array([y_val_prophet_flat[i:i+horizon]  for i in range(n_val_seq)])
-y_test_prophet = np.array([y_test_prophet_flat[i:i+horizon] for i in range(n_test_seq)])
+# offset by lookback: make_sequences window[i] targets val[lookback+i : lookback+i+horizon]
+# so Prophet predictions must also start at lookback+i, not i
+y_val_prophet  = np.array([y_val_prophet_flat[lookback + i: lookback + i + horizon]  for i in range(n_val_seq)])
+y_test_prophet = np.array([y_test_prophet_flat[lookback + i: lookback + i + horizon] for i in range(n_test_seq)])
 
 print(f"Prophet val predictions:  {y_val_prophet.shape}")
 print(f"Prophet test predictions: {y_test_prophet.shape}")
