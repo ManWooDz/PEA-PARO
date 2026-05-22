@@ -269,6 +269,29 @@ plot_forecast(
     save_path  = os.path.join(RESULTS_DIR, 'forecast_7day.png'),
 )
 
+# Save forecast data as CSV for interactive visualization later
+forecast_df = pd.DataFrame({
+    'datetime': test_index,
+    'actual':   y_test_true.flatten()[:plot_steps],
+    'hybrid':   y_test_hybrid.flatten()[:plot_steps],
+    'lstm':     y_test_lstm.flatten()[:plot_steps],
+    'prophet':  y_test_prophet.flatten()[:plot_steps],
+})
+forecast_csv_path = os.path.join(RESULTS_DIR, 'forecast_7day.csv')
+forecast_df.to_csv(forecast_csv_path, index=False)
+print(f"Forecast data saved: {forecast_csv_path}  ({len(forecast_df)} rows)")
+
+# Save full test set (not just 7 days) for deeper analysis
+full_forecast_df = pd.DataFrame({
+    'datetime': test.index[lookback: lookback + len(y_test_true.flatten())],
+    'actual':   y_test_true.flatten(),
+    'hybrid':   y_test_hybrid.flatten(),
+    'lstm':     y_test_lstm.flatten(),
+    'prophet':  y_test_prophet.flatten(),
+})
+full_forecast_df.to_csv(os.path.join(RESULTS_DIR, 'forecast_full_test.csv'), index=False)
+print(f"Full test forecast saved: {len(full_forecast_df)} rows")
+
 print("All results saved to:", RESULTS_DIR)
 
 # %% [markdown]
