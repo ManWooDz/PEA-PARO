@@ -67,3 +67,10 @@ backend/data/*.csv
 # ── Others ─────────────────────────────────────────────────────────────
 temp/
 docs/
+
+# Trained model artifacts (large binary files — download from Colab)
+backend/ml/artifacts/*.keras
+backend/ml/artifacts/*.pkl
+ml/prophet_lstm/models/
+ml/prophet_lstm/data/weather_koh_tao.csv
+ml/prophet_lstm/results/

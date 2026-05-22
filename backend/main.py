@@ -5,7 +5,7 @@ Run: uvicorn main:app --reload --port 8000
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from data.loader import load_historical
-from routers import realtime, dispatch, forecast, alerts
+from routers import realtime, dispatch, forecast, alerts, ml_forecast
 
 app = FastAPI(
     title="PEA Island EMS API",
@@ -26,6 +26,7 @@ app.include_router(realtime.router)
 app.include_router(dispatch.router)
 app.include_router(forecast.router)
 app.include_router(alerts.router)
+app.include_router(ml_forecast.router)
 
 
 @app.on_event("startup")
