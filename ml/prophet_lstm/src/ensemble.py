@@ -40,6 +40,20 @@ def optimize_weights(
         constraints={'type': 'eq', 'fun': lambda w: w[0] + w[1] - 1.0},
     )
     w1, w2 = float(result.x[0]), float(result.x[1])
+
+    # Sanity check: only keep w2 > 0 if Prophet actually improves val RMSE
+    # by at least min_gain_pct over LSTM-only. Guards against the optimizer
+    # over-fitting ensemble weights to the val set at the expense of test set.
+    min_gain_pct = 1.0  # require ≥ 1% RMSE improvement to justify any Prophet weight
+    rmse_lstm_only = np.sqrt(np.mean((yt - yl) ** 2))
+    rmse_hybrid    = rmse_loss([w1, w2])
+    gain_pct = (rmse_lstm_only - rmse_hybrid) / rmse_lstm_only * 100
+    if gain_pct < min_gain_pct:
+        print(f"[ensemble] Prophet gain {gain_pct:.2f}% < {min_gain_pct}% threshold → w2 forced to 0")
+        w1, w2 = 1.0, 0.0
+    else:
+        print(f"[ensemble] Prophet gain {gain_pct:.2f}% ≥ threshold → keeping w2={w2:.4f}")
+
     return w1, w2
 
 
