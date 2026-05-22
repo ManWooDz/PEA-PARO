@@ -7,6 +7,42 @@
 # **Target:** Forecast next 24 hours (96 × 15-min steps) of Island C electrical load
 
 # %% [markdown]
+# ## Cell 0 — GitHub Auth & Repo Sync (Colab only)
+# ก่อนรัน: เพิ่ม `GITHUB_TOKEN` ใน Colab Secrets (🔑 ไอคอนซ้ายมือ)
+
+# %%
+import sys, subprocess, os
+IN_COLAB = 'google.colab' in sys.modules
+
+if IN_COLAB:
+    from google.colab import userdata, drive
+
+    # 1. Mount Drive
+    drive.mount('/content/drive')
+
+    # 2. Read token from Colab Secrets
+    GITHUB_TOKEN = userdata.get('GITHUB_TOKEN')
+    REPO_HTTPS   = f'https://{GITHUB_TOKEN}@github.com/ManWooDz/PEA-PARO.git'
+    PROJECT_DIR  = '/content/drive/MyDrive/PEA-PARO'
+
+    # 3. Clone if first time; otherwise update remote URL + pull
+    if not os.path.exists(os.path.join(PROJECT_DIR, '.git')):
+        print("Cloning repo to Google Drive (first time)...")
+        subprocess.run(['git', 'clone', REPO_HTTPS, PROJECT_DIR], check=True)
+        print("✅ Cloned")
+    else:
+        # Refresh token in remote URL (token may expire between sessions)
+        subprocess.run(['git', '-C', PROJECT_DIR, 'remote', 'set-url', 'origin', REPO_HTTPS])
+        result = subprocess.run(
+            ['git', '-C', PROJECT_DIR, 'pull', 'origin', 'master'],
+            capture_output=True, text=True
+        )
+        print(result.stdout or result.stderr or "Already up to date.")
+        print("✅ src/ and all files are now up to date from GitHub")
+else:
+    print("Not in Colab — skip GitHub auth")
+
+# %% [markdown]
 # ## Cell 1 — Install Dependencies (Colab/Kaggle)
 
 # %%
@@ -20,24 +56,13 @@ subprocess.check_call([sys.executable, "-m", "pip", "install", "-q"] + pkgs)
 print("Dependencies ready")
 
 # %% [markdown]
-# ## Cell 2 — Google Drive Mount (Colab only — skip on Kaggle)
+# ## Cell 2 — Set Paths
 
 # %%
-import os, subprocess
-IN_COLAB = 'google.colab' in sys.modules
+# IN_COLAB and drive already handled in Cell 0
+# PROJECT_DIR on Drive is already up-to-date via git pull in Cell 0
 if IN_COLAB:
-    from google.colab import drive
-    drive.mount('/content/drive')
     PROJECT_ROOT = '/content/drive/MyDrive/PEA-PARO'
-
-    # Always pull latest src/ from GitHub so changes to prophet_model.py etc. take effect
-    # (uploading the notebook alone does NOT update src/ on Google Drive)
-    print("Pulling latest code from GitHub...")
-    result = subprocess.run(
-        ['git', '-C', PROJECT_ROOT, 'pull', 'origin', 'master'],
-        capture_output=True, text=True
-    )
-    print(result.stdout or result.stderr)
 else:
     # Kaggle or local: adjust path as needed
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
