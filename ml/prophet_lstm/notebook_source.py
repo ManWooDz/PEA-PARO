@@ -23,12 +23,21 @@ print("Dependencies ready")
 # ## Cell 2 — Google Drive Mount (Colab only — skip on Kaggle)
 
 # %%
-import os
+import os, subprocess
 IN_COLAB = 'google.colab' in sys.modules
 if IN_COLAB:
     from google.colab import drive
     drive.mount('/content/drive')
     PROJECT_ROOT = '/content/drive/MyDrive/PEA-PARO'
+
+    # Always pull latest src/ from GitHub so changes to prophet_model.py etc. take effect
+    # (uploading the notebook alone does NOT update src/ on Google Drive)
+    print("Pulling latest code from GitHub...")
+    result = subprocess.run(
+        ['git', '-C', PROJECT_ROOT, 'pull', 'origin', 'master'],
+        capture_output=True, text=True
+    )
+    print(result.stdout or result.stderr)
 else:
     # Kaggle or local: adjust path as needed
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
