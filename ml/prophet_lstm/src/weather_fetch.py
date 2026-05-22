@@ -11,7 +11,7 @@ def fetch_weather(
     lon: float = 99.84,
     start: str = '2025-01-01',
     end: str   = '2026-02-28',
-    cache_path = _DEFAULT_CACHE
+    cache_path: 'Path | str | None' = _DEFAULT_CACHE
 ) -> pd.DataFrame:
     """Fetch hourly weather from Open-Meteo archive API.
 

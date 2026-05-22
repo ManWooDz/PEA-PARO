@@ -23,9 +23,9 @@ def test_weather_15min_frequency():
         start='2025-01-01', end='2025-01-02',
         cache_path=None
     )
-    # API returns 48 hourly points (00:00–23:00 for 2 days).
-    # After resample('15min').ffill(), the last hour (23:00) is NOT extrapolated
-    # beyond the final data point, so: 48 hours × 4 - 3 trailing = 189 rows.
+    # resample('15min').ffill() does NOT extrapolate past the last hourly anchor.
+    # 48 hourly points → 189 rows (48×4 - 3 trailing = 189).
+    # In production, weather is joined to load data with how='left' so load rows drive shape.
     assert len(df) == 189, f"Expected 189 rows for 2 days at 15-min, got {len(df)}"
 
 
