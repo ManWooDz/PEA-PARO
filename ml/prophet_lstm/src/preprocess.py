@@ -22,12 +22,18 @@ def load_raw_data(filepath: str) -> pd.DataFrame:
     df = df.set_index('datetime').sort_index()
     # Fix single negative value via linear interpolation
     df.loc[df['load_c'] < 0, 'load_c'] = np.nan
-    df['load_c'] = df['load_c'].interpolate(method='linear')
+    df['load_c'] = df['load_c'].interpolate(method='linear', limit_direction='both')
     return df
 
 
 def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     """Add cyclical time, holiday, and lag features. Weather columns must already exist."""
+    # Validate that required weather columns are present
+    REQUIRED_WEATHER = ['temperature_2m', 'relativehumidity_2m', 'windspeed_10m', 'precipitation']
+    missing = [c for c in REQUIRED_WEATHER if c not in df.columns]
+    if missing:
+        raise ValueError(f"add_temporal_features: missing weather columns {missing}")
+
     df = df.copy()
     df['hour_sin']   = np.sin(2 * np.pi * df.index.hour / 24)
     df['hour_cos']   = np.cos(2 * np.pi * df.index.hour / 24)
@@ -35,6 +41,12 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     df['dow_cos']    = np.cos(2 * np.pi * df.index.dayofweek / 7)
     df['month_sin']  = np.sin(2 * np.pi * df.index.month / 12)
     df['month_cos']  = np.cos(2 * np.pi * df.index.month / 12)
+
+    # Clip cyclical features to [-1, 1] to prevent out-of-distribution values
+    # after scaler is fit on partial year (e.g., training stops at Nov, test has Dec)
+    CYCLICAL_COLS = ['hour_sin', 'hour_cos', 'dow_sin', 'dow_cos', 'month_sin', 'month_cos']
+    df[CYCLICAL_COLS] = df[CYCLICAL_COLS].clip(-1.0, 1.0)
+
     df['is_weekend'] = (df.index.dayofweek >= 5).astype(int)
     th_hols = holidays.Thailand(years=list(range(df.index.year.min(),
                                                  df.index.year.max() + 1)))
