@@ -318,21 +318,35 @@ y_test_true = scaler.inverse_transform(dummy_test)[:, 0].reshape(y_test.shape)
 y_test_hybrid = ensemble_predict(y_test_lstm, y_test_prophet, w1, w2)
 
 # ---------------------------------------------------------------------------
-# Safety margin: calibrated on VAL set (avoids test leakage)
-# Goal: forecast > actual for ≥90% of 15-min steps so operators never
-#       under-provision — under-forecasting causes power outages on Koh Tao.
+# Safety margins: calibrated on VAL set separately for 24h and 6h horizons.
+# Goal: forecast > actual for ≥90% of steps — under-forecasting causes
+#       power outages on Koh Tao.
+#
+# Key insight (from error analysis):
+#   6h LSTM is far more accurate (RMSE ~0.22) than 24h (RMSE ~0.31).
+#   Applying one flat 24h-derived margin to 6h predictions over-corrects,
+#   pushing 6h MAPE+margin from ~5% up to ~9.5%.
+#   Solution: compute a SEPARATE, smaller margin for the 6h horizon.
 # ---------------------------------------------------------------------------
-COVERAGE_PCT = 0.90   # 90% of steps: forecast > actual
-safety_margin = compute_safety_margin(
+COVERAGE_PCT = 0.90
+H6_MARGIN = 24   # steps in 6h horizon (reuse H6 defined below in 6h section)
+
+# 24h margin — from all 96-step val residuals
+margin_24h = compute_safety_margin(
     y_val_true.flatten(), y_val_lstm.flatten(), coverage_pct=COVERAGE_PCT
 )
-print(f"\n{'='*55}")
-print(f"  Safety Margin (calibrated on Val, target {COVERAGE_PCT*100:.0f}% coverage)")
-print(f"{'='*55}")
-print(f"  Additive margin : +{safety_margin:.4f} MW")
-print(f"  Interpretation  : add {safety_margin:.4f} MW to every LSTM forecast")
-print(f"  → ~{COVERAGE_PCT*100:.0f}% of forecasts will be ≥ actual demand")
-print(f"  → reduces power-outage risk from under-forecasting")
+# 6h margin — from first-24-step val residuals ONLY (much smaller buffer needed)
+margin_6h = compute_safety_margin(
+    y_val_true[:, :H6_MARGIN].flatten(), y_val_lstm[:, :H6_MARGIN].flatten(),
+    coverage_pct=COVERAGE_PCT
+)
+
+print(f"\n{'='*60}")
+print(f"  Safety Margins (calibrated on Val, target {COVERAGE_PCT*100:.0f}% coverage)")
+print(f"{'='*60}")
+print(f"  24h margin : +{margin_24h:.4f} MW  (from 96-step val residuals)")
+print(f"  6h  margin : +{margin_6h:.4f} MW  (from 24-step val residuals — smaller)")
+print(f"  → Add respective margin to LSTM forecast before dispatch")
 
 # Val metrics
 val_report = evaluation_report(
@@ -342,14 +356,14 @@ val_report = evaluation_report(
 print("\n=== Validation Metrics ===")
 print(val_report.to_string(index=False))
 
-# Test metrics — includes LSTM+Margin row
+# Test metrics — includes LSTM+Margin row (using 24h margin)
 test_report = evaluation_report(
     y_test_true.flatten(), y_test_lstm.flatten(),
     y_test_prophet.flatten(), y_test_hybrid.flatten(),
     label='Test',
-    safety_margin=safety_margin,
+    safety_margin=margin_24h,
 )
-print("\n=== Test Metrics (+ Conservative Forecast) ===")
+print("\n=== Test Metrics 24h (+ Conservative Forecast) ===")
 print(test_report.to_string(index=False))
 
 # Save metrics (LSTM+Margin row included)
@@ -358,11 +372,16 @@ test_report.to_csv(os.path.join(RESULTS_DIR, 'test_metrics.csv'), index=False)
 # Plot learning curves
 plot_learning_curves(history, save_path=os.path.join(RESULTS_DIR, 'learning_curves.png'))
 
-# Coverage sweep: margin (MW) → % of steps above actual
-cov_df = coverage_analysis(y_test_true.flatten(), y_test_lstm.flatten())
+# Coverage sweep: margin → % above actual (both horizons)
 print("\n=== Coverage Analysis (LSTM on Test Set) ===")
-print(cov_df.to_string(index=False))
-print(f"  → Use compute_safety_margin(..., coverage_pct=X) to get the exact margin for target X")
+print("24h horizon:")
+cov_df_24h = coverage_analysis(y_test_true.flatten(), y_test_lstm.flatten())
+print(cov_df_24h.to_string(index=False))
+print("\n6h horizon:")
+cov_df_6h = coverage_analysis(
+    y_test_true[:, :H6_MARGIN].flatten(), y_test_lstm[:, :H6_MARGIN].flatten()
+)
+print(cov_df_6h.to_string(index=False))
 
 # --- 6-Hour Forecast Metrics (first 24 steps = 6h of each 96-step window) ---
 H6 = 24
@@ -372,9 +391,9 @@ test_report_6h = evaluation_report(
     y_test_prophet[:,:H6].flatten(),
     y_test_hybrid[:, :H6].flatten(),
     label='Test-6h',
-    safety_margin=safety_margin,
+    safety_margin=margin_6h,   # ← smaller margin calibrated on 6h val residuals
 )
-print("\n=== 6-Hour Forecast Metrics ===")
+print("\n=== 6-Hour Forecast Metrics (+ Conservative Forecast) ===")
 print(test_report_6h.to_string(index=False))
 test_report_6h.to_csv(os.path.join(RESULTS_DIR, 'test_metrics_6h.csv'), index=False)
 
@@ -382,8 +401,9 @@ test_report_6h.to_csv(os.path.join(RESULTS_DIR, 'test_metrics_6h.csv'), index=Fa
 # ## Cell 10 — Forecast Plots
 
 # %%
-# Conservative forecast array (LSTM + safety margin)
-y_test_lstm_margin = y_test_lstm + safety_margin
+# Conservative forecast arrays — use separate margins per horizon
+y_test_lstm_margin = y_test_lstm + margin_24h   # for 7-day (24h) plots
+# (6h margin applied later in the 6h rolling section)
 
 # Use test set first window for visualization (first 7 days)
 plot_steps = 96 * 7  # 7 days
@@ -399,7 +419,7 @@ plot_forecast(
     title        = 'Island C (Koh Tao) — 7-Day Forecast (Test Set)',
     save_path    = os.path.join(RESULTS_DIR, 'forecast_7day.png'),
     y_margin     = y_test_lstm_margin.flatten()[:plot_steps],
-    margin_label = f'LSTM+{safety_margin:.2f}MW (90% safe)',
+    margin_label = f'LSTM+{margin_24h:.2f}MW 24h (90% safe)',
 )
 
 # Save forecast data as CSV for interactive visualization later
@@ -441,7 +461,7 @@ y_true_6h       = np.concatenate([y_test_true[i * H6,         :H6] for i in rang
 y_hybrid_6h     = np.concatenate([y_test_hybrid[i * H6,       :H6] for i in range(n_6h_blocks)])
 y_lstm_6h       = np.concatenate([y_test_lstm[i * H6,         :H6] for i in range(n_6h_blocks)])
 y_prophet_6h    = np.concatenate([y_test_prophet[i * H6,      :H6] for i in range(n_6h_blocks)])
-y_lstm_margin_6h = y_lstm_6h + safety_margin
+y_lstm_margin_6h = y_lstm_6h + margin_6h   # smaller 6h-specific margin
 
 # Plot first 2 days (8 blocks × 24 steps = 192 points)
 plot_steps_6h = min(H6 * 8, len(y_true_6h))
@@ -454,7 +474,7 @@ plot_forecast(
     title        = 'Island C (Koh Tao) — 6-Hour Rolling Forecast (Test Set)',
     save_path    = os.path.join(RESULTS_DIR, 'forecast_6h.png'),
     y_margin     = y_lstm_margin_6h[:plot_steps_6h],
-    margin_label = f'LSTM+{safety_margin:.2f}MW (90% safe)',
+    margin_label = f'LSTM+{margin_6h:.2f}MW 6h (90% safe)',
 )
 
 forecast_6h_df = pd.DataFrame({
@@ -486,14 +506,17 @@ with open(os.path.join(MODELS_DIR, 'scaler.pkl'), 'wb') as f:
     pickle.dump(scaler, f)
 print("Scaler saved")
 
-# 4. Save ensemble weights + safety margin
+# 4. Save ensemble weights + safety margins (separate for 24h and 6h)
 with open(os.path.join(MODELS_DIR, 'ensemble_weights.json'), 'w') as f:
     json.dump({
         'w1': w1,
         'w2': w2,
-        'safety_margin_90pct': safety_margin,   # +X MW → forecast > actual ~90% of steps
+        'safety_margin_24h': margin_24h,   # +X MW for 24h forecast → ~90% above actual
+        'safety_margin_6h':  margin_6h,    # +Y MW for  6h forecast → ~90% above actual (smaller)
     }, f, indent=2)
-print(f"Ensemble weights saved: w1={w1:.4f}, w2={w2:.4f}, margin={safety_margin:.4f} MW")
+print(f"Ensemble weights saved: w1={w1:.4f}, w2={w2:.4f}")
+print(f"  margin_24h = +{margin_24h:.4f} MW")
+print(f"  margin_6h  = +{margin_6h:.4f} MW")
 
 # 5. Save feature column list (needed for scaler ordering)
 with open(os.path.join(MODELS_DIR, 'feature_cols.json'), 'w') as f:
@@ -545,7 +568,7 @@ fig.add_trace(go.Scatter(
 ))
 fig.add_trace(go.Scatter(
     x=forecast_df['datetime'], y=forecast_df['lstm_margin'],
-    name='LSTM+Margin (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
+    name='LSTM+Margin 24h (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
     visible='legendonly',   # hidden by default — click legend to show
 ))
 
@@ -620,7 +643,7 @@ fig6h.add_trace(go.Scatter(
 ))
 fig6h.add_trace(go.Scatter(
     x=view_df['datetime'], y=view_df['lstm_margin'],
-    name='LSTM+Margin (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
+    name='LSTM+Margin 6h (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
     visible='legendonly',   # hidden by default — click legend to show
 ))
 
