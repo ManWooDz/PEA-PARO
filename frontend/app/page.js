@@ -43,7 +43,7 @@ export default function Home() {
   } = useDispatch()
 
   const {
-    short, week, hours, setHorizon, loading: fcLoading,
+    fd, week, hours, setHorizon, loading: fcLoading,
   } = useForecast()
 
   const {
@@ -88,7 +88,7 @@ export default function Home() {
           />
         )}
         {active === 'forecast'  && (
-          <Tab3Forecast short={short} week={week} hours={hours} setHorizon={setHorizon} loading={fcLoading} />
+          <Tab3Forecast fd={fd} week={week} hours={hours} setHorizon={setHorizon} loading={fcLoading} />
         )}
         {active === 'alerts'    && (
           <Tab4Alerts activeAlerts={activeAlerts} resolvedAlerts={resolvedAlerts} resolve={resolve} loading={alertLoading} />

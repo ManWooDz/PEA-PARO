@@ -2,21 +2,32 @@
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
-  ReferenceLine, ErrorBar,
+  ReferenceLine, Legend,
 } from 'recharts'
-import { Icon }   from '@/components/shared/Icon'
-import { Dot }    from '@/components/shared/Dot'
+import { Dot } from '@/components/shared/Dot'
 
-const fmt1  = v => (v == null ? '—' : Number(v).toFixed(1))
-const fmt0  = v => (v == null ? '—' : Number(v).toFixed(0))
+// ── Formatters ────────────────────────────────────────────────────────────────
+const fmt1 = v => (v == null ? '—' : Number(v).toFixed(1))
+const fmt0 = v => (v == null ? '—' : Number(v).toFixed(0))
+const fmtB = v =>
+  v == null ? '—' : `฿${Number(v).toLocaleString('th-TH', { maximumFractionDigits: 0 })}`
 
+// ── Color palette ─────────────────────────────────────────────────────────────
+const C = {
+  grid:    '#3b82f6',
+  battery: '#10b981',
+  dieselC: '#f59e0b',
+  dieselA: '#ef4444',
+  safe:    '#f59e0b',
+}
+
+// ── Horizon buttons (only API-supported horizons) ─────────────────────────────
 const HORIZONS = [
-  { h: 6,  label: '6h' },
-  { h: 12, label: '12h' },
+  { h: 6,  label: '6h'  },
   { h: 24, label: '24h' },
-  { h: 48, label: '48h' },
 ]
 
+// ── Tooltip components ────────────────────────────────────────────────────────
 function ForecastTip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -24,8 +35,26 @@ function ForecastTip({ active, payload, label }) {
       <div className="mono text-muted mb-1">{label}</div>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-2">
-          <span style={{ color: p.color }}>●</span>
+          <span style={{ color: p.color ?? p.fill }}>●</span>
           <span className="text-muted">{p.name}</span>
+          <span className="mono">{fmt1(p.value)} MW</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DispatchTip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
+      <div className="mono text-muted mb-1">{label}</div>
+      {payload.map(p => (
+        <div key={p.dataKey} className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1">
+            <span style={{ color: p.fill }}>●</span>
+            <span className="text-muted">{p.name}</span>
+          </div>
           <span className="mono">{fmt1(p.value)} MW</span>
         </div>
       ))}
@@ -51,9 +80,9 @@ function WeekTip({ active, payload, label }) {
   )
 }
 
-/* peak risk badge */
+// ── Badges ────────────────────────────────────────────────────────────────────
 function RiskBadge({ val, cap = 8 }) {
-  const pct = val / cap * 100
+  const pct   = (val / cap) * 100
   const color = pct > 90 ? '#ef4444' : pct > 75 ? '#f59e0b' : '#10b981'
   const label = pct > 90 ? 'HIGH RISK' : pct > 75 ? 'MEDIUM' : 'OK'
   return (
@@ -64,163 +93,273 @@ function RiskBadge({ val, cap = 8 }) {
   )
 }
 
-export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
-  /* short-term chart */
-  const shortData = short?.points?.map(p => ({
-    t:    p.ts?.slice(11, 16) ?? '',
-    Load: +(p.load_mw?.toFixed(2) ?? 0),
-    conf: [(p.load_mw - (p.conf_low ?? p.load_mw * 0.9)).toFixed(2),
-           (( p.conf_high ?? p.load_mw * 1.1) - p.load_mw).toFixed(2)],
+function StrategyBadge({ strategy }) {
+  const map = { 'min-cost': '#3b82f6', reliability: '#10b981', eco: '#8b5cf6', baseline: '#6b7280' }
+  const c   = map[strategy] ?? '#6b7280'
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold mono"
+          style={{ background: `${c}18`, color: c, border: `1px solid ${c}40` }}>
+      {strategy ?? '—'}
+    </span>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
+
+  // ── Chart data ─────────────────────────────────────────────────────────────
+
+  /** 15-min LSTM forecast → AreaChart (all points, thin x-axis labels) */
+  const forecastData = fd?.forecast_15min?.map(p => ({
+    t:    p.datetime?.slice(11, 16) ?? '',
+    Load: +(p.load_mw?.toFixed(2)      ?? 0),
+    Safe: +(p.load_mw_safe?.toFixed(2) ?? 0),
   })) ?? []
 
-  /* 7-day chart */
+  /** Hourly dispatch → stacked BarChart */
+  const dispatchData = fd?.dispatch_hourly?.map(r => ({
+    h:          String(r.hour).padStart(2, '0') + ':00',
+    Grid:       +(r.grid_mw?.toFixed(2)                     ?? 0),
+    Battery:    +(Math.max(0, r.battery_mw ?? 0).toFixed(2)),   // discharge only
+    'Diesel C': +(r.diesel_c_mw?.toFixed(2)                 ?? 0),
+    'Diesel A': +(r.diesel_a_mw?.toFixed(2)                 ?? 0),
+  })) ?? []
+
+  /** 7-day daily forecast → grouped BarChart */
   const weekData = week?.days?.map(d => ({
-    day:  d.date?.slice(5) ?? '',    // MM-DD
-    Peak: +(d.peak_mw?.toFixed(2)  ?? 0),
-    Avg:  +(d.avg_mw?.toFixed(2)   ?? 0),
-    Min:  +(d.min_mw?.toFixed(2)   ?? 0),
+    day:  d.date?.slice(5) ?? '',
+    Peak: +(d.peak_mw?.toFixed(2) ?? 0),
+    Avg:  +(d.avg_mw?.toFixed(2)  ?? 0),
+    Min:  +(d.min_mw?.toFixed(2)  ?? 0),
   })) ?? []
 
-  /* highest upcoming load */
-  const peakPoint = short?.points?.reduce((mx, p) =>
-    (p.load_mw ?? 0) > (mx?.load_mw ?? 0) ? p : mx, null)
+  // ── KPI helpers ────────────────────────────────────────────────────────────
+  const peakSafe = fd?.forecast_15min?.reduce(
+    (mx, p) => Math.max(mx, p.load_mw_safe ?? 0), 0) ?? 0
+  const cost = fd?.cost
 
+  // x-axis label thinning: ~8 labels across the chart
+  const xInterval = forecastData.length > 8 ? Math.floor(forecastData.length / 8) : 0
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
 
       {/* ── horizon selector ── */}
       <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">ช่วงพยากรณ์ · Forecast Horizon</div>
+        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
+          ช่วงพยากรณ์ · Forecast Horizon
+        </div>
         <div className="flex gap-2 flex-wrap">
           {HORIZONS.map(({ h, label }) => (
-            <button key={h} onClick={() => setHorizon(h)}
-                    className="px-4 py-1.5 rounded-lg text-sm border font-medium mono transition cursor-pointer"
-                    style={hours === h
-                      ? { borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }
-                      : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)', color: 'var(--muted)' }}>
+            <button
+              key={h}
+              onClick={() => setHorizon(h)}
+              className="px-4 py-1.5 rounded-lg text-sm border font-medium mono transition cursor-pointer"
+              style={
+                hours === h
+                  ? { borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }
+                  : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)',  color: 'var(--muted)' }
+              }
+            >
               {label}
             </button>
           ))}
         </div>
       </section>
 
-      {/* ── model info card ── */}
-      {short?.model && (
+      {/* ── model / run info ── */}
+      {fd && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">โมเดล · Model Info</div>
+          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
+            โมเดล · LSTM Forecast Info
+          </div>
           <div className="panel rounded-xl p-4 flex flex-wrap gap-6 text-sm">
             <div>
               <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Model</div>
-              <div className="font-semibold mono">{short.model.name ?? 'Hourly-Average'}</div>
+              <div className="font-semibold mono">LSTM · Island C</div>
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">MAE</div>
-              <div className="font-semibold mono">{fmt1(short.model.mae_mw)} MW</div>
+              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Strategy</div>
+              <StrategyBadge strategy={fd.strategy} />
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">RMSE</div>
-              <div className="font-semibold mono">{fmt1(short.model.rmse_mw)} MW</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Confidence</div>
-              <div className="font-semibold mono">±{fmt1(short.model.conf_band_mw)} MW</div>
-            </div>
-            {peakPoint && (
-              <div>
-                <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Peak Forecast</div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold mono">{fmt1(peakPoint.load_mw)} MW</span>
-                  <RiskBadge val={peakPoint.load_mw} />
-                </div>
+              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Safety Margin</div>
+              <div className="font-semibold mono">
+                +{(fd.margin_mw * 1000).toFixed(0)} kW
               </div>
-            )}
+            </div>
+            <div>
+              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Peak (Safe)</div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold mono">{fmt1(peakSafe)} MW</span>
+                <RiskBadge val={peakSafe} />
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Generated</div>
+              <div className="font-semibold mono text-[11px]">
+                {fd.generated_at
+                  ? new Date(fd.generated_at).toLocaleTimeString('th-TH', {
+                      hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
+                    })
+                  : '—'}
+              </div>
+            </div>
           </div>
         </section>
       )}
 
-      {/* ── short-term area chart ── */}
+      {/* ── LSTM forecast chart: raw + safe-margin overlay ── */}
       <section>
         <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-          พยากรณ์โหลดระยะสั้น · Short-Term Load Forecast ({hours}h)
+          พยากรณ์โหลด · LSTM Load Forecast ({hours}h) — 15-min intervals
         </div>
         <div className="panel rounded-xl p-4">
-          {loading && !shortData.length ? (
+          {loading && !forecastData.length ? (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm gap-2">
-              <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
+              <Dot color="var(--primary)" pulse />
+              <span>กำลังคำนวณ LSTM…</span>
             </div>
-          ) : shortData.length > 0 ? (
+          ) : forecastData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={shortData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+              <AreaChart data={forecastData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="fcGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.02} />
                   </linearGradient>
+                  <linearGradient id="safeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.safe} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={C.safe} stopOpacity={0.01} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-                <XAxis dataKey="t" tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} unit=" MW" />
+                <XAxis
+                  dataKey="t"
+                  tick={{ fontSize: 10, fill: 'var(--muted)' }}
+                  tickLine={false}
+                  interval={xInterval}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'var(--muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                  unit=" MW"
+                />
                 <Tooltip content={<ForecastTip />} />
-                <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2"
-                               label={{ value: 'Line 6 Cap 8MW', position: 'insideTopRight', fontSize: 9, fill: '#ef4444' }} />
+                <ReferenceLine
+                  y={8}
+                  stroke="#ef4444"
+                  strokeDasharray="4 2"
+                  label={{ value: 'Line 6 Cap 8 MW', position: 'insideTopRight', fontSize: 9, fill: '#ef4444' }}
+                />
+                {/* Safe (w/ margin) — drawn first so raw is on top */}
                 <Area
-                  type="monotone" dataKey="Load" name="Forecast"
-                  stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 3"
-                  fill="url(#fcGrad)" dot={false} activeDot={{ r: 4 }}
+                  type="monotone"
+                  dataKey="Safe"
+                  name="Safe (w/ margin)"
+                  stroke={C.safe}
+                  strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                  fill="url(#safeGrad)"
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+                {/* Raw LSTM forecast */}
+                <Area
+                  type="monotone"
+                  dataKey="Load"
+                  name="LSTM Forecast"
+                  stroke="var(--primary)"
+                  strokeWidth={2}
+                  fill="url(#fcGrad)"
+                  dot={false}
+                  activeDot={{ r: 4 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[220px] flex items-center justify-center text-muted text-sm">No forecast data</div>
+            <div className="h-[220px] flex items-center justify-center text-muted text-sm">
+              No forecast data
+            </div>
           )}
         </div>
       </section>
 
-      {/* ── hourly table ── */}
-      {short?.points?.length > 0 && (
+      {/* ── Dispatch plan stacked bar chart ── */}
+      {dispatchData.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">ตารางรายชั่วโมง · Hourly Forecast</div>
-          <div className="panel rounded-xl overflow-auto">
-            <table className="w-full text-xs min-w-[480px]">
-              <thead>
-                <tr className="border-b hairline">
-                  {['Timestamp','Load (MW)','Conf Low','Conf High','Line 6 Risk'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-muted eyebrow uppercase font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {short.points.map((p, i) => {
-                  const pct = (p.load_mw / 8) * 100
-                  const color = pct > 90 ? '#ef4444' : pct > 75 ? '#f59e0b' : '#10b981'
-                  return (
-                    <tr key={i} className="border-b hairline last:border-0">
-                      <td className="px-3 py-2 mono text-muted">{p.ts?.slice(11,16) ?? '—'}</td>
-                      <td className="px-3 py-2 mono font-semibold" style={{ color: 'var(--primary)' }}>{fmt1(p.load_mw)}</td>
-                      <td className="px-3 py-2 mono text-muted">{fmt1(p.conf_low)}</td>
-                      <td className="px-3 py-2 mono text-muted">{fmt1(p.conf_high)}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-soft)' }}>
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(pct,100)}%`, background: color }} />
-                          </div>
-                          <span className="mono text-[10px]" style={{ color }}>{fmt0(pct)}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
+            แผนการจ่ายไฟ · 24h Merit-Order Dispatch Plan
+          </div>
+          <div className="panel rounded-xl p-4">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={dispatchData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                <XAxis
+                  dataKey="h"
+                  tick={{ fontSize: 9, fill: 'var(--muted)' }}
+                  tickLine={false}
+                  interval={2}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'var(--muted)' }}
+                  tickLine={false}
+                  axisLine={false}
+                  unit=" MW"
+                />
+                <Tooltip content={<DispatchTip />} />
+                <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+                <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2" />
+                <Bar dataKey="Grid"     stackId="s" fill={C.grid}    name="Grid"     radius={[0,0,0,0]} />
+                <Bar dataKey="Battery"  stackId="s" fill={C.battery} name="Battery"  radius={[0,0,0,0]} />
+                <Bar dataKey="Diesel C" stackId="s" fill={C.dieselC} name="Diesel C" radius={[0,0,0,0]} />
+                <Bar dataKey="Diesel A" stackId="s" fill={C.dieselA} name="Diesel A" radius={[2,2,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
 
-      {/* ── 7-day bar chart ── */}
+      {/* ── Cost breakdown cards ── */}
+      {cost && (
+        <section>
+          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
+            ต้นทุนพลังงาน · Energy Cost Breakdown
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Grid',    val: cost.grid_thb,    color: C.grid    },
+              { label: 'Battery', val: cost.battery_thb, color: C.battery },
+              { label: 'Diesel',  val: cost.diesel_thb,  color: C.dieselC },
+              { label: 'Total',   val: cost.total_thb,   color: 'var(--primary)', bold: true },
+            ].map(({ label, val, color, bold }) => (
+              <div key={label} className="panel rounded-xl p-4 flex flex-col gap-1">
+                <div className="text-[10px] eyebrow uppercase text-muted">{label}</div>
+                <div
+                  className={`mono ${bold ? 'text-base font-bold' : 'text-sm font-semibold'}`}
+                  style={{ color }}
+                >
+                  {fmtB(val)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── 7-day forecast bar chart ── */}
       <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">พยากรณ์ 7 วัน · 7-Day Forecast</div>
+        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
+          พยากรณ์ 7 วัน · 7-Day Forecast
+        </div>
         <div className="panel rounded-xl p-4">
-          {weekData.length > 0 ? (
+          {loading && !weekData.length ? (
+            <div className="h-[200px] flex items-center justify-center text-muted text-sm gap-2">
+              <Dot color="var(--primary)" pulse /> <span>กำลังโหลด…</span>
+            </div>
+          ) : weekData.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={weekData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
@@ -228,13 +367,15 @@ export function Tab3Forecast({ short, week, hours, setHorizon, loading }) {
                 <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} unit=" MW" />
                 <Tooltip content={<WeekTip />} />
                 <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2" />
-                <Bar dataKey="Min"  fill="#334155" radius={[0,0,0,0]} name="Min" />
-                <Bar dataKey="Avg"  fill="var(--primary)" radius={[0,0,0,0]} name="Avg" />
-                <Bar dataKey="Peak" fill="#f59e0b" radius={[2,2,0,0]} name="Peak" />
+                <Bar dataKey="Min"  fill="#334155"         radius={[0,0,0,0]} name="Min" />
+                <Bar dataKey="Avg"  fill="var(--primary)"  radius={[0,0,0,0]} name="Avg" />
+                <Bar dataKey="Peak" fill="#f59e0b"         radius={[2,2,0,0]} name="Peak" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-muted text-sm">No 7-day data</div>
+            <div className="h-[200px] flex items-center justify-center text-muted text-sm">
+              No 7-day data
+            </div>
           )}
         </div>
       </section>

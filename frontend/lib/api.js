@@ -21,6 +21,15 @@ export const fetchCustomDispatch = (body)     => api.post('/api/dispatch/custom'
 export const fetchForecast    = (hours = 24) => api.get(`/api/forecast?hours=${hours}`).then(r => r.data)
 export const fetchForecast7d  = ()           => api.get('/api/forecast/7days').then(r => r.data)
 
+// ── ML Forecast + Dispatch (combined LSTM endpoint) ─────────────────────────
+// timeout: 90s — first call loads the LSTM model + fetches weather data
+export const fetchForecastDispatch = (body = {}) =>
+  api.post('/api/forecast-dispatch', {
+    strategy:   body.strategy   ?? 'min-cost',
+    horizon:    body.horizon    ?? '24h',
+    use_margin: body.use_margin ?? true,
+  }, { timeout: 90000 }).then(r => r.data)
+
 // ── Alerts ──────────────────────────────────────────────────────────────────
 export const fetchAlerts      = ()              => api.get('/api/alerts').then(r => r.data)
 export const resolveAlert     = (id, action)    =>
