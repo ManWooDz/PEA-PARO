@@ -33,13 +33,23 @@ def build_dispatch_plan(
     load_scale: float = 1.0,
     initial_soc_pct: float = 65.0,
     weekday: bool = True,
+    forecast_kw: list[float] | None = None,
 ) -> list[dict]:
     """
     Build a 24-hour hourly dispatch plan.
     Returns list of DispatchRow-compatible dicts (all power values in MW).
+
+    Args:
+        forecast_kw: Optional 24-element list of hourly load values (kW).
+                     When provided, replaces the static ISLAND_C_LOAD_PROFILE.
+                     Use the safety-margin (conservative) forecast so dispatch
+                     never under-provisions supply.
     """
-    # 1. Forecast loads (kW)
-    loads_kw = [_load_at_hour(h, load_scale) for h in range(24)]
+    # 1. Forecast loads (kW) — use real LSTM forecast if provided
+    if forecast_kw is not None and len(forecast_kw) == 24:
+        loads_kw = [float(k) for k in forecast_kw]
+    else:
+        loads_kw = [_load_at_hour(h, load_scale) for h in range(24)]
 
     # 2. Grid allocation per strategy (kW, capped at Line 6 limit)
     if strategy == "min-cost":

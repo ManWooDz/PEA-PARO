@@ -1,0 +1,17 @@
+[
+  "load_c",
+  "temperature_2m",
+  "relativehumidity_2m",
+  "windspeed_10m",
+  "precipitation",
+  "hour_sin",
+  "hour_cos",
+  "dow_sin",
+  "dow_cos",
+  "month_sin",
+  "month_cos",
+  "is_weekend",
+  "is_holiday",
+  "lag_96",
+  "lag_672"
+]

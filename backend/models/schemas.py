@@ -155,3 +155,32 @@ class AlertsResponse(BaseModel):
 
 class ResolveRequest(BaseModel):
     action_taken: str = "operator_confirmed"
+
+
+# ── ML Forecast-Dispatch (combined endpoint) ──────────────────────────────────
+
+class ForecastDispatchRequest(BaseModel):
+    strategy:   str  = Field(default="min-cost",
+                             description="'min-cost' | 'reliability' | 'eco'")
+    horizon:    str  = Field(default="24h",
+                             description="'24h' (96 steps) or '6h' (24 steps)")
+    use_margin: bool = Field(default=True,
+                             description="Apply conservative safety margin to forecast "
+                                         "before building dispatch plan")
+
+
+class ForecastPoint96(BaseModel):
+    """Single 15-min forecast point returned in forecast_15min list."""
+    datetime:      str    # ISO-8601 e.g. "2026-02-15T00:00:00"
+    load_mw:       float  # raw LSTM prediction
+    load_mw_safe:  float  # + safety margin (conservative)
+
+
+class ForecastDispatchResponse(BaseModel):
+    forecast_15min:  list[ForecastPoint96]  # 96 points (24h) or 24 points (6h)
+    dispatch_hourly: list[DispatchRow]      # 24-hour merit-order plan (MW)
+    cost:            CostBreakdown          # total & per-source Token cost
+    margin_mw:       float                  # safety margin applied (0 if use_margin=False)
+    strategy:        str
+    horizon:         str
+    generated_at:    str                    # ISO datetime of when plan was built
