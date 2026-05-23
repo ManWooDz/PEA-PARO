@@ -302,10 +302,13 @@ print(f"Optimal weights — w1 (LSTM): {w1:.4f}  w2 (Prophet): {w2:.4f}")
 y_val_hybrid = ensemble_predict(y_val_lstm, y_val_prophet, w1, w2)
 
 # %% [markdown]
-# ## Cell 9 — Evaluate on Val Set
+# ## Cell 9 — Evaluate on Test Set + Safety Margin Analysis
 
 # %%
-from src.evaluate import evaluation_report, plot_forecast, plot_learning_curves
+from src.evaluate import (
+    evaluation_report, plot_forecast, plot_learning_curves,
+    compute_safety_margin, coverage_analysis,
+)
 
 # Ground truth for test
 dummy_test = np.zeros((y_test.size, n_features))
@@ -313,6 +316,23 @@ dummy_test[:, 0] = y_test.flatten()
 y_test_true = scaler.inverse_transform(dummy_test)[:, 0].reshape(y_test.shape)
 
 y_test_hybrid = ensemble_predict(y_test_lstm, y_test_prophet, w1, w2)
+
+# ---------------------------------------------------------------------------
+# Safety margin: calibrated on VAL set (avoids test leakage)
+# Goal: forecast > actual for ≥90% of 15-min steps so operators never
+#       under-provision — under-forecasting causes power outages on Koh Tao.
+# ---------------------------------------------------------------------------
+COVERAGE_PCT = 0.90   # 90% of steps: forecast > actual
+safety_margin = compute_safety_margin(
+    y_val_true.flatten(), y_val_lstm.flatten(), coverage_pct=COVERAGE_PCT
+)
+print(f"\n{'='*55}")
+print(f"  Safety Margin (calibrated on Val, target {COVERAGE_PCT*100:.0f}% coverage)")
+print(f"{'='*55}")
+print(f"  Additive margin : +{safety_margin:.4f} MW")
+print(f"  Interpretation  : add {safety_margin:.4f} MW to every LSTM forecast")
+print(f"  → ~{COVERAGE_PCT*100:.0f}% of forecasts will be ≥ actual demand")
+print(f"  → reduces power-outage risk from under-forecasting")
 
 # Val metrics
 val_report = evaluation_report(
@@ -322,19 +342,27 @@ val_report = evaluation_report(
 print("\n=== Validation Metrics ===")
 print(val_report.to_string(index=False))
 
-# Test metrics
+# Test metrics — includes LSTM+Margin row
 test_report = evaluation_report(
     y_test_true.flatten(), y_test_lstm.flatten(),
-    y_test_prophet.flatten(), y_test_hybrid.flatten(), label='Test'
+    y_test_prophet.flatten(), y_test_hybrid.flatten(),
+    label='Test',
+    safety_margin=safety_margin,
 )
-print("\n=== Test Metrics ===")
+print("\n=== Test Metrics (+ Conservative Forecast) ===")
 print(test_report.to_string(index=False))
 
-# Save metrics
+# Save metrics (LSTM+Margin row included)
 test_report.to_csv(os.path.join(RESULTS_DIR, 'test_metrics.csv'), index=False)
 
 # Plot learning curves
 plot_learning_curves(history, save_path=os.path.join(RESULTS_DIR, 'learning_curves.png'))
+
+# Coverage sweep: margin (MW) → % of steps above actual
+cov_df = coverage_analysis(y_test_true.flatten(), y_test_lstm.flatten())
+print("\n=== Coverage Analysis (LSTM on Test Set) ===")
+print(cov_df.to_string(index=False))
+print(f"  → Use compute_safety_margin(..., coverage_pct=X) to get the exact margin for target X")
 
 # --- 6-Hour Forecast Metrics (first 24 steps = 6h of each 96-step window) ---
 H6 = 24
@@ -343,7 +371,8 @@ test_report_6h = evaluation_report(
     y_test_lstm[:,   :H6].flatten(),
     y_test_prophet[:,:H6].flatten(),
     y_test_hybrid[:, :H6].flatten(),
-    label='Test-6h'
+    label='Test-6h',
+    safety_margin=safety_margin,
 )
 print("\n=== 6-Hour Forecast Metrics ===")
 print(test_report_6h.to_string(index=False))
@@ -353,28 +382,34 @@ test_report_6h.to_csv(os.path.join(RESULTS_DIR, 'test_metrics_6h.csv'), index=Fa
 # ## Cell 10 — Forecast Plots
 
 # %%
+# Conservative forecast array (LSTM + safety margin)
+y_test_lstm_margin = y_test_lstm + safety_margin
+
 # Use test set first window for visualization (first 7 days)
 plot_steps = 96 * 7  # 7 days
 
 test_index = test.index[lookback: lookback + plot_steps]
 
 plot_forecast(
-    index      = test_index,
-    y_true     = y_test_true.flatten()[:plot_steps],
-    y_hybrid   = y_test_hybrid.flatten()[:plot_steps],
-    y_lstm     = y_test_lstm.flatten()[:plot_steps],
-    y_prophet  = y_test_prophet.flatten()[:plot_steps],
-    title      = 'Island C (Koh Tao) — 7-Day Forecast (Test Set)',
-    save_path  = os.path.join(RESULTS_DIR, 'forecast_7day.png'),
+    index        = test_index,
+    y_true       = y_test_true.flatten()[:plot_steps],
+    y_hybrid     = y_test_hybrid.flatten()[:plot_steps],
+    y_lstm       = y_test_lstm.flatten()[:plot_steps],
+    y_prophet    = y_test_prophet.flatten()[:plot_steps],
+    title        = 'Island C (Koh Tao) — 7-Day Forecast (Test Set)',
+    save_path    = os.path.join(RESULTS_DIR, 'forecast_7day.png'),
+    y_margin     = y_test_lstm_margin.flatten()[:plot_steps],
+    margin_label = f'LSTM+{safety_margin:.2f}MW (90% safe)',
 )
 
 # Save forecast data as CSV for interactive visualization later
 forecast_df = pd.DataFrame({
-    'datetime': test_index,
-    'actual':   y_test_true.flatten()[:plot_steps],
-    'hybrid':   y_test_hybrid.flatten()[:plot_steps],
-    'lstm':     y_test_lstm.flatten()[:plot_steps],
-    'prophet':  y_test_prophet.flatten()[:plot_steps],
+    'datetime':    test_index,
+    'actual':      y_test_true.flatten()[:plot_steps],
+    'hybrid':      y_test_hybrid.flatten()[:plot_steps],
+    'lstm':        y_test_lstm.flatten()[:plot_steps],
+    'prophet':     y_test_prophet.flatten()[:plot_steps],
+    'lstm_margin': y_test_lstm_margin.flatten()[:plot_steps],
 })
 forecast_csv_path = os.path.join(RESULTS_DIR, 'forecast_7day.csv')
 forecast_df.to_csv(forecast_csv_path, index=False)
@@ -384,11 +419,12 @@ print(f"Forecast data saved: {forecast_csv_path}  ({len(forecast_df)} rows)")
 # Use [:, 0] = first-step-ahead prediction per window to avoid overlap
 n_windows = len(y_test_true)
 full_forecast_df = pd.DataFrame({
-    'datetime': test.index[lookback: lookback + n_windows],
-    'actual':   y_test_true[:, 0],
-    'hybrid':   y_test_hybrid[:, 0],
-    'lstm':     y_test_lstm[:, 0],
-    'prophet':  y_test_prophet[:, 0],
+    'datetime':    test.index[lookback: lookback + n_windows],
+    'actual':      y_test_true[:, 0],
+    'hybrid':      y_test_hybrid[:, 0],
+    'lstm':        y_test_lstm[:, 0],
+    'prophet':     y_test_prophet[:, 0],
+    'lstm_margin': y_test_lstm_margin[:, 0],
 })
 full_forecast_df.to_csv(os.path.join(RESULTS_DIR, 'forecast_full_test.csv'), index=False)
 print(f"Full test forecast saved: {len(full_forecast_df)} rows")
@@ -401,29 +437,33 @@ n_6h_blocks = len(y_test_true) // H6
 idx_6h = test.index[lookback: lookback + n_6h_blocks * H6]
 
 # Each block: use predictions starting at stride H6 (independent 6h forecast per block)
-y_true_6h    = np.concatenate([y_test_true[i * H6,    :H6] for i in range(n_6h_blocks)])
-y_hybrid_6h  = np.concatenate([y_test_hybrid[i * H6,  :H6] for i in range(n_6h_blocks)])
-y_lstm_6h    = np.concatenate([y_test_lstm[i * H6,    :H6] for i in range(n_6h_blocks)])
-y_prophet_6h = np.concatenate([y_test_prophet[i * H6, :H6] for i in range(n_6h_blocks)])
+y_true_6h       = np.concatenate([y_test_true[i * H6,         :H6] for i in range(n_6h_blocks)])
+y_hybrid_6h     = np.concatenate([y_test_hybrid[i * H6,       :H6] for i in range(n_6h_blocks)])
+y_lstm_6h       = np.concatenate([y_test_lstm[i * H6,         :H6] for i in range(n_6h_blocks)])
+y_prophet_6h    = np.concatenate([y_test_prophet[i * H6,      :H6] for i in range(n_6h_blocks)])
+y_lstm_margin_6h = y_lstm_6h + safety_margin
 
 # Plot first 2 days (8 blocks × 24 steps = 192 points)
 plot_steps_6h = min(H6 * 8, len(y_true_6h))
 plot_forecast(
-    index     = idx_6h[:plot_steps_6h],
-    y_true    = y_true_6h[:plot_steps_6h],
-    y_hybrid  = y_hybrid_6h[:plot_steps_6h],
-    y_lstm    = y_lstm_6h[:plot_steps_6h],
-    y_prophet = y_prophet_6h[:plot_steps_6h],
-    title     = 'Island C (Koh Tao) — 6-Hour Rolling Forecast (Test Set)',
-    save_path = os.path.join(RESULTS_DIR, 'forecast_6h.png'),
+    index        = idx_6h[:plot_steps_6h],
+    y_true       = y_true_6h[:plot_steps_6h],
+    y_hybrid     = y_hybrid_6h[:plot_steps_6h],
+    y_lstm       = y_lstm_6h[:plot_steps_6h],
+    y_prophet    = y_prophet_6h[:plot_steps_6h],
+    title        = 'Island C (Koh Tao) — 6-Hour Rolling Forecast (Test Set)',
+    save_path    = os.path.join(RESULTS_DIR, 'forecast_6h.png'),
+    y_margin     = y_lstm_margin_6h[:plot_steps_6h],
+    margin_label = f'LSTM+{safety_margin:.2f}MW (90% safe)',
 )
 
 forecast_6h_df = pd.DataFrame({
-    'datetime': idx_6h,
-    'actual':   y_true_6h,
-    'hybrid':   y_hybrid_6h,
-    'lstm':     y_lstm_6h,
-    'prophet':  y_prophet_6h,
+    'datetime':    idx_6h,
+    'actual':      y_true_6h,
+    'hybrid':      y_hybrid_6h,
+    'lstm':        y_lstm_6h,
+    'prophet':     y_prophet_6h,
+    'lstm_margin': y_lstm_margin_6h,
 })
 forecast_6h_df.to_csv(os.path.join(RESULTS_DIR, 'forecast_6h.csv'), index=False)
 print(f"6h forecast saved: {len(forecast_6h_df)} rows  ({n_6h_blocks} blocks × {H6} steps)")
@@ -446,10 +486,14 @@ with open(os.path.join(MODELS_DIR, 'scaler.pkl'), 'wb') as f:
     pickle.dump(scaler, f)
 print("Scaler saved")
 
-# 4. Save ensemble weights
+# 4. Save ensemble weights + safety margin
 with open(os.path.join(MODELS_DIR, 'ensemble_weights.json'), 'w') as f:
-    json.dump({'w1': w1, 'w2': w2}, f, indent=2)
-print(f"Ensemble weights saved: w1={w1:.4f}, w2={w2:.4f}")
+    json.dump({
+        'w1': w1,
+        'w2': w2,
+        'safety_margin_90pct': safety_margin,   # +X MW → forecast > actual ~90% of steps
+    }, f, indent=2)
+print(f"Ensemble weights saved: w1={w1:.4f}, w2={w2:.4f}, margin={safety_margin:.4f} MW")
 
 # 5. Save feature column list (needed for scaler ordering)
 with open(os.path.join(MODELS_DIR, 'feature_cols.json'), 'w') as f:
@@ -498,6 +542,11 @@ fig.add_trace(go.Scatter(
 fig.add_trace(go.Scatter(
     x=forecast_df['datetime'], y=forecast_df['prophet'],
     name='Prophet', line=dict(color='green', width=1.2, dash='dot'),
+))
+fig.add_trace(go.Scatter(
+    x=forecast_df['datetime'], y=forecast_df['lstm_margin'],
+    name='LSTM+Margin (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
+    visible='legendonly',   # hidden by default — click legend to show
 ))
 
 fig.update_layout(
@@ -568,6 +617,11 @@ fig6h.add_trace(go.Scatter(
 fig6h.add_trace(go.Scatter(
     x=view_df['datetime'], y=view_df['prophet'],
     name='Prophet', line=dict(color='green', width=1.2, dash='dot'),
+))
+fig6h.add_trace(go.Scatter(
+    x=view_df['datetime'], y=view_df['lstm_margin'],
+    name='LSTM+Margin (90% safe)', line=dict(color='red', width=1.2, dash='dashdot'),
+    visible='legendonly',   # hidden by default — click legend to show
 ))
 
 fig6h.update_layout(

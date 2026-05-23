@@ -20,14 +20,79 @@ def r2(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(1 - ss_res / ss_tot)
 
 
+def compute_safety_margin(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    coverage_pct: float = 0.90,
+) -> float:
+    """Compute additive safety margin so forecast exceeds actual coverage_pct of the time.
+
+    Calibrate on the *validation* set (not test) to avoid data leakage.
+
+    Logic:
+        errors = y_pred - y_true   (positive = over-predict)
+        We want (errors + margin) > 0  for coverage_pct fraction of points.
+        → margin = -percentile(errors, (1 - coverage_pct) * 100)
+
+    Args:
+        y_true:       Ground truth values (use val or train set for calibration).
+        y_pred:       Model predictions for the same set.
+        coverage_pct: Target fraction where forecast > actual, e.g. 0.90 = 90 %.
+
+    Returns:
+        margin (float, MW): Add this to any future LSTM forecast to achieve
+                            approximately coverage_pct above-actual rate.
+    """
+    errors = y_pred.flatten() - y_true.flatten()   # positive = over-predict
+    percentile_rank = (1.0 - coverage_pct) * 100.0
+    margin = float(-np.percentile(errors, percentile_rank))
+    return margin
+
+
+def coverage_analysis(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    margins: list[float] | None = None,
+) -> pd.DataFrame:
+    """Show above-actual coverage (%) for a sweep of additive safety margins.
+
+    Useful for picking an operating margin: higher coverage → larger margin → higher MAPE.
+
+    Args:
+        y_true:   Ground truth values (typically test set).
+        y_pred:   Base LSTM predictions (no margin applied yet).
+        margins:  Additive offsets (MW) to evaluate.
+                  Default: [0, 0.10, 0.20, 0.30, 0.50, 0.70, 1.00].
+
+    Returns:
+        DataFrame with columns ['Margin (MW)', 'Above-Actual (%)'].
+    """
+    if margins is None:
+        margins = [0.0, 0.10, 0.20, 0.30, 0.50, 0.70, 1.00]
+    errors = y_pred.flatten() - y_true.flatten()
+    rows = []
+    for m in margins:
+        above_pct = float(np.mean(errors + m > 0) * 100)
+        rows.append({'Margin (MW)': round(m, 2), 'Above-Actual (%)': round(above_pct, 1)})
+    return pd.DataFrame(rows)
+
+
 def evaluation_report(
     y_true: np.ndarray,
     y_pred_lstm: np.ndarray,
     y_pred_prophet: np.ndarray,
     y_pred_hybrid: np.ndarray,
     label: str = 'Test',
+    safety_margin: float | None = None,
+    margin_label: str = 'LSTM+Margin',
 ) -> pd.DataFrame:
-    """Return a DataFrame comparing LSTM / Prophet / Hybrid metrics."""
+    """Return a DataFrame comparing LSTM / Prophet / Hybrid metrics.
+
+    Args:
+        safety_margin: If provided, appends a '{margin_label}' row showing metrics
+                       after shifting LSTM predictions up by this additive margin (MW).
+                       Use compute_safety_margin() to derive this value from the val set.
+    """
     rows = []
     for name, y_pred in [('LSTM', y_pred_lstm),
                           ('Prophet', y_pred_prophet),
@@ -38,6 +103,16 @@ def evaluation_report(
             'RMSE':     round(rmse(y_true, y_pred), 4),
             'MAPE (%)': round(mape(y_true, y_pred), 4),
             'R²':       round(r2(y_true, y_pred), 4),
+        })
+    if safety_margin is not None:
+        yt = np.asarray(y_true).flatten()
+        yl_margin = np.asarray(y_pred_lstm).flatten() + safety_margin
+        rows.append({
+            'Model':    margin_label,
+            'Set':      label,
+            'RMSE':     round(rmse(yt, yl_margin), 4),
+            'MAPE (%)': round(mape(yt, yl_margin), 4),
+            'R²':       round(r2(yt, yl_margin), 4),
         })
     return pd.DataFrame(rows)
 
@@ -50,13 +125,23 @@ def plot_forecast(
     y_prophet: np.ndarray,
     title: str = 'Island C — Load Forecast vs Actual',
     save_path: str | None = None,
+    y_margin: np.ndarray | None = None,
+    margin_label: str = 'LSTM+Margin',
 ) -> None:
-    """Plot actual vs all three model predictions."""
+    """Plot actual vs all three model predictions, with optional conservative margin line.
+
+    Args:
+        y_margin:     Optional array (same length as y_true) of conservative LSTM forecast
+                      (i.e. y_lstm + safety_margin). Shown as a red dash-dot line.
+        margin_label: Legend label for the margin line.
+    """
     fig, ax = plt.subplots(figsize=(16, 5))
-    ax.plot(index, y_true,     label='Actual',  color='black',  linewidth=1.5)
-    ax.plot(index, y_hybrid,   label='Hybrid',  color='blue',   linewidth=1.2, linestyle='-')
-    ax.plot(index, y_lstm,     label='LSTM',    color='orange', linewidth=0.9, linestyle='--')
-    ax.plot(index, y_prophet,  label='Prophet', color='green',  linewidth=0.9, linestyle=':')
+    ax.plot(index, y_true,    label='Actual',       color='black',  linewidth=1.5)
+    ax.plot(index, y_hybrid,  label='Hybrid',       color='blue',   linewidth=1.2, linestyle='-')
+    ax.plot(index, y_lstm,    label='LSTM',         color='orange', linewidth=0.9, linestyle='--')
+    ax.plot(index, y_prophet, label='Prophet',      color='green',  linewidth=0.9, linestyle=':')
+    if y_margin is not None:
+        ax.plot(index, y_margin, label=margin_label, color='red',   linewidth=1.2, linestyle='-.')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
     plt.xticks(rotation=30)
