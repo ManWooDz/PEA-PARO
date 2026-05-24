@@ -7,6 +7,7 @@ import {
 import { Icon }        from '@/components/shared/Icon'
 import { Dot }         from '@/components/shared/Dot'
 import { MiniBar }     from '@/components/shared/MiniBar'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 
 /* ── strategy meta ── */
 const STRATEGIES = [
@@ -278,9 +279,7 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
                     </td>
                     <td className="px-3 py-2 mono">{fmt1(r.token_per_hour)}</td>
                     <td className="px-3 py-2">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${r.status === 'ok' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                        {r.status}
-                      </span>
+                      <StatusBadge status={r.status} />
                     </td>
                   </tr>
                 ))}
