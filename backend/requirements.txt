@@ -13,3 +13,4 @@ pytest-asyncio==0.23.6
 # ML inference dependencies (required by backend/ml/predictor.py)
 requests>=2.31.0          # Open-Meteo weather API calls
 tensorflow>=2.15.0        # LSTM model loading & inference (includes Keras 3.x)
+holidays>=0.46            # is_holiday feature in preprocess.py (src/preprocess.py)
