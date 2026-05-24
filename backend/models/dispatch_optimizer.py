@@ -34,6 +34,7 @@ def build_dispatch_plan(
     initial_soc_pct: float = 65.0,
     weekday: bool = True,
     forecast_kw: list[float] | None = None,
+    grid_available_kw: float | None = None,
 ) -> list[dict]:
     """
     Build a 24-hour hourly dispatch plan.
@@ -44,6 +45,9 @@ def build_dispatch_plan(
                      When provided, replaces the static ISLAND_C_LOAD_PROFILE.
                      Use the safety-margin (conservative) forecast so dispatch
                      never under-provisions supply.
+        grid_available_kw: Optional override for grid availability (kW).
+                           If provided, limits grid allocation to this value
+                           (but still capped at physical Line 6 limit of 8 MW).
     """
     # 1. Forecast loads (kW) — use real LSTM forecast if provided
     if forecast_kw is not None and len(forecast_kw) == 24:
@@ -51,16 +55,22 @@ def build_dispatch_plan(
     else:
         loads_kw = [_load_at_hour(h, load_scale) for h in range(24)]
 
-    # 2. Grid allocation per strategy (kW, capped at Line 6 limit)
+    # Determine effective grid limit (practical or physical)
+    from data.seed import PRACTICAL_GRID_KW
+    effective_grid_limit = grid_available_kw if grid_available_kw is not None else PRACTICAL_GRID_KW
+    # Never exceed physical Line 6 limit (8 MW)
+    effective_grid_limit = min(effective_grid_limit, LINE6_LIMIT_KW)
+
+    # 2. Grid allocation per strategy (kW, capped at effective limit)
     if strategy == "min-cost":
-        grid_first = [min(load, LINE6_LIMIT_KW) for load in loads_kw]
+        grid_first = [min(load, effective_grid_limit) for load in loads_kw]
     elif strategy == "reliability":
-        grid_first = [min(load, LINE6_LIMIT_KW * 0.90) for load in loads_kw]
+        grid_first = [min(load, effective_grid_limit * 0.90) for load in loads_kw]
     elif strategy == "eco":
-        grid_first = [min(load * 0.6, LINE6_LIMIT_KW) for load in loads_kw]
+        grid_first = [min(load * 0.6, effective_grid_limit) for load in loads_kw]
     else:
         # baseline / custom
-        grid_first = [min(load * 0.75, LINE6_LIMIT_KW) for load in loads_kw]
+        grid_first = [min(load * 0.75, effective_grid_limit) for load in loads_kw]
 
     battery_shortages = [max(0.0, loads_kw[h] - grid_first[h]) for h in range(24)]
     battery_schedule  = compute_battery_schedule(battery_shortages, initial_soc_pct=initial_soc_pct)
@@ -76,7 +86,7 @@ def build_dispatch_plan(
         bat_kw      = max(0.0, bat["dispatch_kw"])   # positive = discharge only
 
         after_bat   = max(0.0, load_kw - bat_kw)
-        grid_kw     = min(after_bat, LINE6_LIMIT_KW)
+        grid_kw     = min(after_bat, effective_grid_limit)
         after_grid  = max(0.0, after_bat - grid_kw)
 
         # Diesel C (Island C, cheaper) before Diesel A

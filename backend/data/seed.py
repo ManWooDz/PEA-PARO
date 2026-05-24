@@ -27,6 +27,7 @@ LINES = {
 # Cable 6 physical limit = 8 MW, but cascading consumption leaves ~1.3 MW on average.
 # Pass a live value from SCADA to build_dispatch_plan(grid_available_kw=...) to override.
 PRACTICAL_GRID_KW: float = 1_300.0   # kW  (~1.3 MW historical average)
+LINE6_LIMIT_KW_PHYSICAL: float = 8_000.0  # kW  (physical cable 6 limit)
 
 # ── Asset specs ──────────────────────────────────────────────────────────────
 BATTERY_7 = {
