@@ -3,7 +3,7 @@ const STATUS_MAP = {
   normal:     { c: '#10b981', t: 'OK',           th: 'ปกติ' },
   diesel:     { c: '#f59e0b', t: 'DIESEL ON',    th: 'เดินดีเซล' },
   'low-soc':  { c: '#ef4444', t: 'LOW SoC',      th: 'SoC ต่ำ' },
-  'grid-high':{ c: '#a855f7', t: 'GRID HIGH',    th: 'Grid สูง' },
+  'grid-limited':{ c: '#a855f7', t: 'GRID LIMITED',    th: 'Grid จำกัด' },
   'line6-near':{ c: '#f97316',t: 'LINE6 NEAR',   th: 'Line 6 เต็ม' },
 }
 
