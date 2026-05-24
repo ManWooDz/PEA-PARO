@@ -23,6 +23,11 @@ LINES = {
     6: {"name": "Island B–Island C (33kV)",  "limit_mw":  8, "voltage": "33kV"},  # CRITICAL
 }
 
+# Practical grid availability at Island C after upstream consumption by Islands A & B.
+# Cable 6 physical limit = 8 MW, but cascading consumption leaves ~1.3 MW on average.
+# Pass a live value from SCADA to build_dispatch_plan(grid_available_kw=...) to override.
+PRACTICAL_GRID_KW: float = 1_300.0   # kW  (~1.3 MW historical average)
+
 # ── Asset specs ──────────────────────────────────────────────────────────────
 BATTERY_7 = {
     "id": "battery_7",
