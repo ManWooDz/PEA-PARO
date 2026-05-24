@@ -76,7 +76,7 @@ class DispatchRow(BaseModel):
     diesel_c_mw: float             # MW (was diesel_c_kw)
     soc_pct: float                 # % (was battery_soc_pct)
     token_per_hour: float          # Token/hr — unchanged
-    status: Literal["normal", "diesel", "low-soc", "grid-high", "line6-near"]
+    status: Literal["normal", "diesel", "low-soc", "grid-limited", "line6-near"]
     diesel8_units_on: int
     diesel9_units_on: int
 
