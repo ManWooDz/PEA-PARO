@@ -11,7 +11,6 @@ Internal calculations are in kW; output converted to MW.
 grid_available_kw defaults to PRACTICAL_GRID_KW (~1.3 MW) and can be
 overridden at call-time with a live SCADA reading.
 """
-from datetime import datetime
 from data.seed import COST, LINES, PRACTICAL_GRID_KW, ISLAND_C_LOAD_PROFILE, ISLAND_C_PEAK_KW, LINE6_LIMIT_KW_PHYSICAL
 from models.battery import compute_battery_schedule, is_discharge_hour
 from models.diesel import commit_units, make_initial_states, DIESEL_8, DIESEL_9
@@ -78,7 +77,7 @@ def build_dispatch_plan(
     # Battery shortage input = load − grid for discharge hours only.
     # Battery discharges BEFORE Diesel ⑨ during 09:00–21:59.
     battery_shortage = [
-        max(0.0, loads_kw[h] - min(loads_kw[h], grid_cap_kw))
+        max(0.0, loads_kw[h] - grid_cap_kw)
         if is_discharge_hour(h) else 0.0
         for h in range(24)
     ]
@@ -109,6 +108,7 @@ def build_dispatch_plan(
         d9_out, d9_states, d9_units = commit_units(after_bat, DIESEL_9, d9_states)
 
         # 4. Diesel ⑧ (Island A, last resort)
+        # d8 covers both unmet demand and any Diesel ⑨ ramp-rate shortfall on first startup
         d8_remaining = max(0.0, after_bat - d9_out)
         d8_out, d8_states, d8_units = commit_units(d8_remaining, DIESEL_8, d8_states)
 
@@ -152,12 +152,17 @@ def build_dispatch_plan(
 
 
 def compute_plan_cost(rows: list[dict]) -> dict:
-    """Aggregate Token costs from a 24-hour plan (rows values in MW)."""
-    grid_t = sum(r["grid_mw"]            * 1000 * _grid_cost(r["hour"]) for r in rows)
-    bat_t  = sum(max(0.0, r["battery_mw"]) * 1000 * COST["battery"]     for r in rows)
-    da_t   = sum(r["diesel_a_mw"]         * 1000 * COST["diesel_a"]     for r in rows)
-    dc_t   = sum(r["diesel_c_mw"]         * 1000 * COST["diesel_c"]     for r in rows)
-    total  = grid_t + bat_t + da_t + dc_t
+    """Aggregate Token costs from a 24-hour plan (rows values in MW).
+
+    Uses the per-hour token cost already computed by build_dispatch_plan
+    so that weekday/weekend pricing is always consistent.
+    """
+    # Grid cost derived from total minus non-grid components
+    bat_t  = sum(max(0.0, r["battery_mw"]) * 1000 * COST["battery"]  for r in rows)
+    da_t   = sum(r["diesel_a_mw"]         * 1000 * COST["diesel_a"]  for r in rows)
+    dc_t   = sum(r["diesel_c_mw"]         * 1000 * COST["diesel_c"]  for r in rows)
+    total  = sum(r["token_per_hour"]                                   for r in rows)
+    grid_t = max(0.0, total - bat_t - da_t - dc_t)
     return {
         "grid_thb":    round(grid_t,      1),
         "battery_thb": round(bat_t,       1),
