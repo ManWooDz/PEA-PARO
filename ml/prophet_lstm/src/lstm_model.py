@@ -7,25 +7,27 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.regularizers import l2
 
 
-def build_lstm(n_features: int, lookback: int = 192, horizon: int = 96,
+def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
                dropout: float = 0.3, l2_reg: float = 1e-4) -> tf.keras.Model:
     """Build a 2-layer LSTM for multi-step forecasting.
 
     Args:
-        n_features: Number of input features per timestep (17 as of Round 15).
-        lookback:   Input sequence length (192 = 48 h at 15-min, up from 96 in Round 14).
+        n_features: Number of input features per timestep (16 as of Round 16).
+        lookback:   Input sequence length (96 = 24 h at 15-min).
+                    Round 15 tried 192 but hurt performance on limited island data.
         horizon:    Output sequence length (96 = next 24 hours).
         dropout:    Dropout rate after first LSTM layer (0.3).
-                    Layer-2 dropout = dropout * 0.3 (~0.09) — lighter than Round 14's /2.
+                    Layer-2 dropout = dropout * 0.3 (~0.09) — kept from Round 15.
         l2_reg:     L2 regularization strength on LSTM kernel weights.
 
     Returns:
         Compiled Keras Sequential model.
 
-    Changes vs Round 14:
-        - lookback default 96 → 192 (48 h context window)
-        - Layer-2 Dropout dropout/2 → dropout*0.3 (less aggressive on summary layer)
-        - ReduceLROnPlateau patience 10 → 15 (give training more time before LR cut)
+    Changes vs Round 15:
+        - lookback default 192 → 96 (48 h window hurt; too few training samples)
+        - n_features 17 → 16 (lag_288 removed — noise on Koh Tao load pattern)
+        - Layer-2 Dropout dropout*0.3 (0.09) — unchanged from Round 15
+        - ReduceLROnPlateau patience 15 — unchanged from Round 15
     """
     model = Sequential([
         Input(shape=(lookback, n_features)),

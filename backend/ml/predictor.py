@@ -43,7 +43,7 @@ _WEATHER_COLS = [
     "temperature_2m", "relativehumidity_2m", "windspeed_10m", "precipitation"
 ]
 
-LOOKBACK = 192   # 48 h at 15-min resolution (Round 15: doubled context window)
+LOOKBACK = 96    # 24 h at 15-min resolution (Round 16: reverted from 192, too few samples)
 HORIZON  = 96    # forecast 24 h ahead
 
 # Dry-season fallback constants (Jan–Feb, used only when API unreachable)
@@ -182,7 +182,7 @@ class _Predictor:
         with open(artifacts_dir / "feature_cols.json") as f:
             self.feature_cols: list[str] = json.load(f)
 
-        self.n_features = len(self.feature_cols)  # 15
+        self.n_features = len(self.feature_cols)  # 16 as of Round 16
 
         logger.info(
             f"[predictor] Ready — w1={self.w1:.3f} w2={self.w2:.3f} "
@@ -312,7 +312,7 @@ def predict(
         df_hist = load_historical()
         # load_historical returns timestamp as a column; set it as DatetimeIndex
         df_hist = df_hist.set_index("timestamp").sort_index()
-        load_df = df_hist[["load_c_mw"]].tail(900)  # Round 15: LOOKBACK=192, need more history
+        load_df = df_hist[["load_c_mw"]].tail(800)  # covers lag_672 (672) + LOOKBACK (96) + buffer
 
     return _get_predictor().predict(load_df, horizon=horizon)
 

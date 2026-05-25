@@ -10,8 +10,8 @@ FEATURE_COLS = [
     'load_c',
     'temperature_2m', 'relativehumidity_2m', 'windspeed_10m', 'precipitation',
     'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos', 'month_sin', 'month_cos',
-    'is_weekend', 'is_holiday', 'is_tourist_season',  # +1 vs Round 14
-    'lag_96', 'lag_288', 'lag_672',                   # +1 lag_288 vs Round 14
+    'is_weekend', 'is_holiday', 'is_tourist_season',  # +1 vs Round 14 (kept in Round 16)
+    'lag_96', 'lag_672',                              # lag_288 removed in Round 16 (was noise)
 ]
 
 
@@ -64,8 +64,7 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     df['is_tourist_season'] = df.index.month.isin(PEAK_MONTHS).astype(int)
 
     df['lag_96']  = df['load_c'].shift(96)    # 24 h
-    df['lag_288'] = df['load_c'].shift(288)   # 72 h (3 days) — new vs Round 14
-    df['lag_672'] = df['load_c'].shift(672)   # 7 days
+    df['lag_672'] = df['load_c'].shift(672)   # 7 days  (lag_288 dropped in Round 16)
     return df
 
 
