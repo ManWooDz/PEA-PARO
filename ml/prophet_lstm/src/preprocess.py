@@ -65,6 +65,14 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df['lag_96']  = df['load_c'].shift(96)    # 24 h
     df['lag_672'] = df['load_c'].shift(672)   # 7 days  (lag_288 dropped in Round 16)
+
+    # Fill any residual NaN in weather columns (sparse API gaps) BEFORE dropna.
+    # lag_96/lag_672 intentionally left NaN here — dropna(subset=FEATURE_COLS) removes them.
+    # Without this, a single missing weather obs survives into X_train/X_val → NaN loss
+    # that clipnorm cannot fix (NaN propagates through LSTM cell state, clipping is undefined).
+    WEATHER_COLS = ['temperature_2m', 'relativehumidity_2m', 'windspeed_10m', 'precipitation']
+    df[WEATHER_COLS] = df[WEATHER_COLS].ffill().bfill()
+
     return df
 
 
