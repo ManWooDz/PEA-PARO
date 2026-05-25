@@ -17,7 +17,7 @@ def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
                     Round 15 tried 192 but hurt performance on limited island data.
         horizon:    Output sequence length (96 = next 24 hours).
         dropout:    Dropout rate after first LSTM layer (0.3).
-                    Layer-2 dropout = dropout/2 (0.15) — reverted to Round 14 level for stability.
+                    Layer-2 dropout = dropout*0.3 (0.09).
         l2_reg:     L2 regularization strength on LSTM kernel weights.
 
     Returns:
@@ -26,10 +26,9 @@ def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
     Changes vs Round 15:
         - lookback default 192 → 96 (48 h window hurt; too few training samples)
         - n_features 17 → 16 (lag_288 removed — noise on Koh Tao load pattern)
-        - Layer-2 Dropout dropout*0.3 (0.09) → dropout/2 (0.15): lighter dropout caused
-          Adam v̂ collapse → NaN loss at epoch 14–34; reverted for stability
-        - Adam epsilon 1e-7 → 1e-4: prevents denominator collapse when v̂ near zero
-        - clipnorm=1.0 retained
+        - Layer-2 Dropout: kept at dropout*0.3 (0.09) — best results in Round 16.3
+        - Adam lr 0.001 → 0.0005: lower LR is the reliable fix for mid-training NaN
+        - clipnorm=1.0 retained (belt-and-suspenders)
         - ReduceLROnPlateau patience 15 — unchanged from Round 15
     """
     model = Sequential([
@@ -37,11 +36,11 @@ def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
         LSTM(100, return_sequences=True, kernel_regularizer=l2(l2_reg)),
         Dropout(dropout),                  # 0.30 — same as Round 14
         LSTM(100, return_sequences=False, kernel_regularizer=l2(l2_reg)),
-        Dropout(dropout / 2),              # 0.15 — reverted from Round 15's dropout*0.3=0.09
+        Dropout(dropout * 0.3),            # 0.09 — Round 16.3 gave best results with this
         Dense(horizon),
     ])
     model.compile(
-        optimizer=Adam(learning_rate=0.001, epsilon=1e-4, clipnorm=1.0),
+        optimizer=Adam(learning_rate=0.0005, clipnorm=1.0),
         loss='mse',
     )
     return model
