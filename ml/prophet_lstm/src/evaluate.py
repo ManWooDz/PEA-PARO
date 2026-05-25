@@ -84,14 +84,20 @@ def evaluation_report(
     y_pred_hybrid: np.ndarray,
     label: str = 'Test',
     safety_margin: float | None = None,
+    y_pred_margin: np.ndarray | None = None,
     margin_label: str = 'LSTM+Margin',
 ) -> pd.DataFrame:
     """Return a DataFrame comparing LSTM / Prophet / Hybrid metrics.
 
     Args:
-        safety_margin: If provided, appends a '{margin_label}' row showing metrics
-                       after shifting LSTM predictions up by this additive margin (MW).
-                       Use compute_safety_margin() to derive this value from the val set.
+        safety_margin:  If provided, appends a '{margin_label}' row showing metrics
+                        after shifting LSTM predictions up by this flat additive margin (MW).
+                        Use compute_safety_margin() to derive this value from the val set.
+        y_pred_margin:  Pre-computed LSTM+margin predictions (already margin-applied,
+                        same shape as y_pred_lstm after flattening).  Takes priority over
+                        safety_margin.  Use this for per-band margins (Round 16.7+):
+                        caller builds np.hstack([lstm[:,:H6]+m6h, lstm[:,H6:]+m6_24h])
+                        before passing here.
     """
     rows = []
     for name, y_pred in [('LSTM', y_pred_lstm),
@@ -104,7 +110,18 @@ def evaluation_report(
             'MAPE (%)': round(mape(y_true, y_pred), 4),
             'R²':       round(r2(y_true, y_pred), 4),
         })
-    if safety_margin is not None:
+    # Per-band pre-computed margin (Round 16.7+) takes priority over flat margin
+    if y_pred_margin is not None:
+        yt = np.asarray(y_true).flatten()
+        yl_margin = np.asarray(y_pred_margin).flatten()
+        rows.append({
+            'Model':    margin_label,
+            'Set':      label,
+            'RMSE':     round(rmse(yt, yl_margin), 4),
+            'MAPE (%)': round(mape(yt, yl_margin), 4),
+            'R²':       round(r2(yt, yl_margin), 4),
+        })
+    elif safety_margin is not None:
         yt = np.asarray(y_true).flatten()
         yl_margin = np.asarray(y_pred_lstm).flatten() + safety_margin
         rows.append({

@@ -174,10 +174,12 @@ class _Predictor:
 
         with open(artifacts_dir / "ensemble_weights.json") as f:
             w = json.load(f)
-        self.w1          = float(w["w1"])
-        self.w2          = float(w["w2"])
-        self.margin_24h  = float(w.get("safety_margin_24h", 0.0))
-        self.margin_6h   = float(w.get("safety_margin_6h",  0.0))
+        self.w1             = float(w["w1"])
+        self.w2             = float(w["w2"])
+        self.margin_6h      = float(w.get("safety_margin_6h",      0.0))
+        self.margin_6h_24h  = float(w.get("safety_margin_6h_24h",  # Round 16.7: per-band
+                              w.get("safety_margin_24h",  0.0)))    # fallback to old key
+        self.margin_24h     = self.margin_6h_24h   # backward compat alias
 
         with open(artifacts_dir / "feature_cols.json") as f:
             self.feature_cols: list[str] = json.load(f)
@@ -186,7 +188,8 @@ class _Predictor:
 
         logger.info(
             f"[predictor] Ready — w1={self.w1:.3f} w2={self.w2:.3f} "
-            f"margin_24h=+{self.margin_24h:.3f} MW  margin_6h=+{self.margin_6h:.3f} MW"
+            f"margin_6h=+{self.margin_6h:.3f} MW  "
+            f"margin_6h_24h=+{self.margin_6h_24h:.3f} MW  (Round 16.7 per-band)"
         )
 
     # ── Public method ─────────────────────────────────────────────────────────
@@ -210,8 +213,7 @@ class _Predictor:
               { 'datetime': ISO str, 'load_mw': float, 'load_mw_safe': float }
             Length = 96 (24h) or 24 (6h).
         """
-        H      = 96 if horizon == "24h" else 24
-        margin = self.margin_24h if horizon == "24h" else self.margin_6h
+        H = 96 if horizon == "24h" else 24
 
         # 1. Build full feature matrix
         df = self._build_features(load_df)
@@ -236,8 +238,18 @@ class _Predictor:
         y_mw        = self.scaler.inverse_transform(dummy)[:, 0]   # (96,) MW
 
         # 5. Post-process
-        y_mw  = np.maximum(y_mw,  0.0)          # no negative load
-        y_safe = y_mw + margin
+        y_mw = np.maximum(y_mw, 0.0)            # no negative load
+        # Round 16.7: per-band safety margin
+        #   steps  0-23 (0-6h)  → margin_6h       (smaller, well-calibrated)
+        #   steps 24-95 (6-24h) → margin_6h_24h   (larger, calibrated on 6-24h val residuals)
+        if horizon == "24h":
+            _H6 = 24
+            y_safe = np.concatenate([
+                y_mw[:_H6] + self.margin_6h,
+                y_mw[_H6:] + self.margin_6h_24h,
+            ])
+        else:
+            y_safe = y_mw + self.margin_6h
 
         # 6. Build output timestamps (immediately after last known timestamp)
         last_ts  = df.index[-1]
