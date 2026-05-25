@@ -37,7 +37,7 @@ def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
         Dropout(dropout * 0.3),            # 0.09 — was dropout/2=0.15 in Round 14
         Dense(horizon),
     ])
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
+    model.compile(optimizer=Adam(learning_rate=0.001, clipnorm=1.0), loss='mse')
     return model
 
 
