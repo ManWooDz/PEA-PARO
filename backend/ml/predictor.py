@@ -43,7 +43,7 @@ _WEATHER_COLS = [
     "temperature_2m", "relativehumidity_2m", "windspeed_10m", "precipitation"
 ]
 
-LOOKBACK = 96    # 24 h at 15-min resolution
+LOOKBACK = 192   # 48 h at 15-min resolution (Round 15: doubled context window)
 HORIZON  = 96    # forecast 24 h ahead
 
 # Dry-season fallback constants (Jan–Feb, used only when API unreachable)
@@ -222,10 +222,10 @@ class _Predictor:
                 f"got {len(df)}.  Provide more history (≥ 768 rows)."
             )
 
-        # 2. Scale last 96 rows → (1, 96, 15)
+        # 2. Scale last LOOKBACK rows → (1, LOOKBACK, n_features)
         tail96   = df[self.feature_cols].tail(LOOKBACK).values.astype("float32")
-        X_scaled = self.scaler.transform(tail96)               # (96, 15)
-        X_in     = X_scaled.reshape(1, LOOKBACK, self.n_features)  # (1, 96, 15)
+        X_scaled = self.scaler.transform(tail96)               # (LOOKBACK, n_features)
+        X_in     = X_scaled.reshape(1, LOOKBACK, self.n_features)  # (1, LOOKBACK, n_features)
 
         # 3. LSTM inference
         y_scaled = self.lstm.predict(X_in, verbose=0)          # (1, 96)
@@ -312,7 +312,7 @@ def predict(
         df_hist = load_historical()
         # load_historical returns timestamp as a column; set it as DatetimeIndex
         df_hist = df_hist.set_index("timestamp").sort_index()
-        load_df = df_hist[["load_c_mw"]].tail(800)
+        load_df = df_hist[["load_c_mw"]].tail(900)  # Round 15: LOOKBACK=192, need more history
 
     return _get_predictor().predict(load_df, horizon=horizon)
 
@@ -360,7 +360,12 @@ def _load_lstm_weights(keras_path: Path) -> "tf.keras.Model":
     from src.lstm_model import build_lstm  # type: ignore
 
     # 1. Rebuild identical architecture from source
-    model = build_lstm(n_features=15, lookback=LOOKBACK, horizon=HORIZON, dropout=0.3)
+    # n_features is read dynamically from feature_cols.json so this stays correct
+    # after retraining with a different feature set (e.g. Round 15: 15 → 17).
+    _feature_cols_path = keras_path.parent / "feature_cols.json"
+    with open(_feature_cols_path) as _f:
+        _n_features = len(json.load(_f))
+    model = build_lstm(n_features=_n_features, lookback=LOOKBACK, horizon=HORIZON, dropout=0.3)
     model.compile(optimizer="adam", loss="mse")   # required before load_weights
 
     # 2. Extract model.weights.h5 from the .keras ZIP and load

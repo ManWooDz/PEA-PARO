@@ -10,7 +10,8 @@ FEATURE_COLS = [
     'load_c',
     'temperature_2m', 'relativehumidity_2m', 'windspeed_10m', 'precipitation',
     'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos', 'month_sin', 'month_cos',
-    'is_weekend', 'is_holiday', 'lag_96', 'lag_672'
+    'is_weekend', 'is_holiday', 'is_tourist_season',  # +1 vs Round 14
+    'lag_96', 'lag_288', 'lag_672',                   # +1 lag_288 vs Round 14
 ]
 
 
@@ -56,8 +57,15 @@ def add_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     th_hols = holidays.Thailand(years=list(range(df.index.year.min(),
                                                  df.index.year.max() + 1)))
     df['is_holiday'] = [int(d in th_hols) for d in df.index.date]
-    df['lag_96']  = df['load_c'].shift(96)
-    df['lag_672'] = df['load_c'].shift(672)
+
+    # Koh Tao tourist season: Nov–Feb (high season, dry, diving peak) = 1, else 0.
+    # Correlated with elevated load from resorts, dive schools, and ferry traffic.
+    PEAK_MONTHS = {11, 12, 1, 2}
+    df['is_tourist_season'] = df.index.month.isin(PEAK_MONTHS).astype(int)
+
+    df['lag_96']  = df['load_c'].shift(96)    # 24 h
+    df['lag_288'] = df['load_c'].shift(288)   # 72 h (3 days) — new vs Round 14
+    df['lag_672'] = df['load_c'].shift(672)   # 7 days
     return df
 
 

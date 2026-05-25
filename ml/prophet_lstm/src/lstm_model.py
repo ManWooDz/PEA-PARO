@@ -7,26 +7,32 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.regularizers import l2
 
 
-def build_lstm(n_features: int, lookback: int = 96, horizon: int = 96,
+def build_lstm(n_features: int, lookback: int = 192, horizon: int = 96,
                dropout: float = 0.3, l2_reg: float = 1e-4) -> tf.keras.Model:
     """Build a 2-layer LSTM for multi-step forecasting.
 
     Args:
-        n_features: Number of input features per timestep (15 in this project).
-        lookback:   Input sequence length (96 = 24 hours at 15-min resolution).
+        n_features: Number of input features per timestep (17 as of Round 15).
+        lookback:   Input sequence length (192 = 48 h at 15-min, up from 96 in Round 14).
         horizon:    Output sequence length (96 = next 24 hours).
-        dropout:    Dropout rate after first LSTM layer.
+        dropout:    Dropout rate after first LSTM layer (0.3).
+                    Layer-2 dropout = dropout * 0.3 (~0.09) — lighter than Round 14's /2.
         l2_reg:     L2 regularization strength on LSTM kernel weights.
 
     Returns:
         Compiled Keras Sequential model.
+
+    Changes vs Round 14:
+        - lookback default 96 → 192 (48 h context window)
+        - Layer-2 Dropout dropout/2 → dropout*0.3 (less aggressive on summary layer)
+        - ReduceLROnPlateau patience 10 → 15 (give training more time before LR cut)
     """
     model = Sequential([
         Input(shape=(lookback, n_features)),
         LSTM(100, return_sequences=True, kernel_regularizer=l2(l2_reg)),
-        Dropout(dropout),
+        Dropout(dropout),                  # 0.30 — same as Round 14
         LSTM(100, return_sequences=False, kernel_regularizer=l2(l2_reg)),
-        Dropout(dropout / 2),
+        Dropout(dropout * 0.3),            # 0.09 — was dropout/2=0.15 in Round 14
         Dense(horizon),
     ])
     model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
@@ -48,7 +54,7 @@ def train_lstm(
         Keras History object (use history.history to plot loss curves).
     """
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose=1),
+        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=15, verbose=1),
         EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True, verbose=1),
     ]
     history = model.fit(
