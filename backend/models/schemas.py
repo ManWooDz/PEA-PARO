@@ -36,6 +36,18 @@ class EventsResponse(BaseModel):
     events: list[EventEntry]
 
 
+class WeatherPoint(BaseModel):
+    ts: str                          # ISO hour
+    solar_irradiance_w_m2: float
+    cloud_cover_pct: float
+
+
+class WeatherResponse(BaseModel):
+    lat: float
+    lon: float
+    points: list[WeatherPoint]       # next 24 hours hourly
+
+
 class DieselUnitStatus(BaseModel):
     asset: Literal["diesel_8", "diesel_9"]
     unit_id: int
