@@ -18,7 +18,7 @@ import { useAlerts }   from '@/hooks/useAlerts'
 
 export default function Home() {
   /* ── UI state ── */
-  const [active,     setActive]     = useState('realtime')
+  const [active,     setActive]     = useState('liveops')
   const [theme,      setTheme]      = useState('light')
   const [toast,      setToast_]     = useState(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -77,7 +77,7 @@ export default function Home() {
           </div>
         )}
 
-        {active === 'realtime'  && (
+        {active === 'liveops'   && (
           <Tab1Dashboard rt={rt} history={history} energyMix={energyMix} delta={delta} />
         )}
         {active === 'dispatch'  && (
