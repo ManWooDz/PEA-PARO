@@ -12,6 +12,7 @@ const api = axios.create({
 export const fetchRealtime      = () => api.get('/api/realtime').then(r => r.data)
 export const fetchLoadHistory   = () => api.get('/api/realtime/load-history').then(r => r.data)
 export const fetchEnergyMix     = () => api.get('/api/realtime/energy-mix').then(r => r.data)
+export const fetchEvents        = () => api.get('/api/realtime/events').then(r => r.data)
 
 // ── Dispatch ────────────────────────────────────────────────────────────────
 export const fetchDispatch       = (strategy) => api.get(`/api/dispatch/${strategy}`).then(r => r.data)
