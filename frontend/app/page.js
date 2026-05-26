@@ -6,9 +6,6 @@ import { TabBar }      from '@/components/layout/TabBar'
 import { Toast }       from '@/components/layout/Toast'
 import { ExportModal } from '@/components/layout/ExportModal'
 
-import { OperationalPanel } from '@/components/operational/OperationalPanel'
-import { AlarmTicker }      from '@/components/operational/AlarmTicker'
-
 import { Tab1LiveOps }   from '@/components/tabs/Tab1LiveOps'
 import { Tab2Dispatch }  from '@/components/tabs/Tab2Dispatch'
 import { Tab3Forecast }  from '@/components/tabs/Tab3Forecast'
@@ -77,13 +74,7 @@ export default function Home() {
         lastUpdated={lastReceived}
       />
 
-      {/* Zone 2: Alarm ticker — full-width */}
-      <AlarmTicker
-        activeAlerts={activeAlerts}
-        onClick={(id) => jumpTo('alerts', { alertId: id })}
-      />
-
-      {/* Offline banner — between ticker and operational panel */}
+      {/* Offline banner */}
       {rtErr && (
         <div className="border-b hairline px-4 py-2 text-sm flex items-center gap-2"
              style={{ background: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.3)' }}>
@@ -93,28 +84,19 @@ export default function Home() {
         </div>
       )}
 
-      {/* Zone 3: Persistent Operational Panel */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-        <OperationalPanel
-          rt={rt}
-          offline={!!rtErr}
-          onAssetClick={(id) => jumpTo('liveops', { assetId: id })}
-        />
-      </div>
-
-      {/* Zone 4: Tab bar */}
       <TabBar
         active={active}
         setActive={setActive}
         alertCount={activeAlerts.length}
       />
 
-      {/* Zone 5: Switchable detail content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {active === 'liveops' && (
           <Tab1LiveOps
             rt={rt} history={history} energyMix={energyMix} delta={delta}
+            activeAlerts={activeAlerts}
             focusedAssetId={focusedAssetId} onAssetClick={setFocusedAsset}
+            onAlertClick={(id) => jumpTo('alerts', { alertId: id })}
           />
         )}
         {active === 'dispatch' && (
