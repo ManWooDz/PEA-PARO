@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Icon }        from '@/components/shared/Icon'
 import { LevelBadge }  from '@/components/shared/StatusBadge'
 import { Dot }         from '@/components/shared/Dot'
+import { RecommendedActionPanel } from '@/components/operational/RecommendedActionPanel'
 
 const LEVEL_ORDER = { high: 0, medium: 1, low: 2, resolved: 3 }
 
@@ -22,7 +23,7 @@ const SOURCE_LABEL = {
   system:   'ระบบ',
 }
 
-function AlertCard({ alert, onResolve }) {
+function AlertCard({ alert, onResolve, onSelect, isSelected }) {
   const [note, setNote]     = useState('')
   const [open, setOpen]     = useState(false)
 
@@ -30,8 +31,15 @@ function AlertCard({ alert, onResolve }) {
   const levelColor = { high: '#ef4444', medium: '#f59e0b', low: 'var(--primary)', resolved: '#64748b' }[alert.level] ?? '#64748b'
 
   return (
-    <div className="panel rounded-xl overflow-hidden transition"
-         style={{ borderLeft: `3px solid ${levelColor}` }}>
+    <article
+      onClick={onSelect}
+      className="panel rounded-xl overflow-hidden cursor-pointer transition hover:opacity-95"
+      style={{
+        borderLeft: `3px solid ${levelColor}`,
+        borderColor: isSelected ? 'var(--primary)' : undefined,
+        borderWidth: isSelected ? '2px' : '1px',
+        borderStyle: 'solid',
+      }}>
       <div className="p-4 flex items-start gap-3">
         {/* level dot */}
         <div className="mt-0.5 flex-shrink-0">
@@ -76,7 +84,7 @@ function AlertCard({ alert, onResolve }) {
         {/* actions */}
         {!isResolved && (
           <button
-            onClick={() => setOpen(v => !v)}
+            onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
             className="flex-shrink-0 px-2 py-1 rounded text-xs border cursor-pointer transition"
             style={{ borderColor: 'var(--border-soft)', color: 'var(--muted)' }}>
             {open ? 'ยกเลิก' : 'แก้ไข'}
@@ -86,15 +94,16 @@ function AlertCard({ alert, onResolve }) {
 
       {/* resolve panel */}
       {open && !isResolved && (
-        <div className="px-4 pb-4 pt-0 border-t hairline flex items-center gap-2">
+        <div className="px-4 pb-4 pt-0 border-t hairline flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <input
             type="text" placeholder="หมายเหตุการแก้ไข (optional)"
             value={note} onChange={e => setNote(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
             className="flex-1 px-3 py-1.5 rounded text-xs panel-2 border hairline"
             style={{ color: 'var(--text)', background: 'var(--surface-2)' }}
           />
           <button
-            onClick={() => { onResolve(alert.id, note); setOpen(false) }}
+            onClick={(e) => { e.stopPropagation(); onResolve(alert.id, note); setOpen(false) }}
             className="px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 cursor-pointer"
             style={{ background: '#10b981', color: '#0b1428' }}>
             <Icon.Check width="12" height="12" />
@@ -108,15 +117,17 @@ function AlertCard({ alert, onResolve }) {
           หมายเหตุ: {alert.resolved_note}
         </div>
       )}
-    </div>
+    </article>
   )
 }
 
-export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
+export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading, focusedAlertId, setFocusedAlertId }) {
   const [showResolved, setShowResolved] = useState(false)
 
   const sorted = [...activeAlerts].sort((a, b) =>
     (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9))
+
+  const selectedAlert = sorted.find(a => a.id === focusedAlertId) ?? sorted[0] ?? null
 
   const highCount   = activeAlerts.filter(a => a.level === 'high').length
   const mediumCount = activeAlerts.filter(a => a.level === 'medium').length
@@ -165,10 +176,19 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
             <div className="text-xs text-muted">ระบบทำงานปกติ · All systems nominal</div>
           </div>
         ) : (
-          <div className="space-y-3">
-            {sorted.map(a => (
-              <AlertCard key={a.id} alert={a} onResolve={resolve} />
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+            <div className="space-y-3">
+              {sorted.map(a => (
+                <AlertCard
+                  key={a.id}
+                  alert={a}
+                  onResolve={resolve}
+                  onSelect={() => setFocusedAlertId?.(a.id)}
+                  isSelected={selectedAlert?.id === a.id}
+                />
+              ))}
+            </div>
+            <RecommendedActionPanel alert={selectedAlert} />
           </div>
         )}
       </section>
