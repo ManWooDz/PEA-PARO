@@ -2,10 +2,10 @@
 import { Icon } from '@/components/shared/Icon'
 
 const TABS = [
-  { id: 'liveops',  th: 'ภาพรวมระบบ',    en: 'Live Operations',   icon: Icon.Gauge },
-  { id: 'dispatch', th: 'แผนการจ่ายไฟ',  en: 'Dispatch Schedule', icon: Icon.Calendar },
-  { id: 'forecast', th: 'พยากรณ์',       en: 'Forecast',          icon: Icon.ChartBar },
-  { id: 'alerts',   th: 'เตือนภัย',       en: 'Early Warning',     icon: Icon.Bell },
+  { id: 'liveops',  th: 'หน้าหลัก',       en: 'Real-time Dashboard', icon: Icon.Gauge    },
+  { id: 'dispatch', th: 'แผนการจ่ายไฟ', en: 'Optimal Dispatch',     icon: Icon.Calendar },
+  { id: 'forecast', th: 'พยากรณ์โหลด',  en: 'Load Forecast',        icon: Icon.ChartBar },
+  { id: 'alerts',   th: 'การแจ้งเตือน',  en: 'Early Warning & Alerts', icon: Icon.Bell  },
 ]
 
 export function TabBar({ active, setActive, alertCount }) {

@@ -29,8 +29,8 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
         {/* Left: logo + SCADA */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0"
-                 style={{ background: 'linear-gradient(135deg,#740460 0%,#c7911b 100%)', color: 'white' }}>
+            <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0 bg-gradient"
+                 style={{ color: 'white' }}>
               <Icon.Bolt width="20" height="20" />
             </div>
             <div>
@@ -40,7 +40,7 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
           </div>
           <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l hairline">
             <Dot color="#10b981" pulse />
-            <span className="text-xs text-muted">SCADA · Online</span>
+            <span className="text-xs text-muted">SCADA Link · Online</span>
             <span className="text-xs text-muted mono ml-2">33kV / 50.0 Hz</span>
           </div>
         </div>
@@ -83,8 +83,8 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
               <Icon.User width="16" height="16" />
             </div>
             <div className="text-right hidden md:block">
-              <div className="text-xs font-medium">Eng. Operator</div>
-              <div className="text-[10.5px] text-muted thai">วิศวกร · PEA</div>
+              <div className="text-xs font-medium">Eng. S. Khamphasit</div>
+              <div className="text-[10.5px] text-muted thai">วิศวกร · Surat Region</div>
             </div>
           </div>
         </div>
