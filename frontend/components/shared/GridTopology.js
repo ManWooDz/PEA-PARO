@@ -53,7 +53,7 @@ function LineBar({ line }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function GridTopology({ lines = [] }) {
+export function GridTopology({ lines = [], onAssetClick, focusedAssetId = null }) {
   const seg1 = lines.filter((l) => [1, 2, 3].includes(l.id)); // Mainland → Island A
   const seg2 = lines.filter((l) => [4, 5].includes(l.id)); // Island A → Island B
   const seg3 = lines.filter((l) => l.id === 6); // Island B → Island C (CRITICAL)
@@ -68,7 +68,7 @@ export function GridTopology({ lines = [] }) {
   const u6 = seg3[0]?.utilization_pct ?? 0;
 
   // ── SVG layout constants ─────────────────────────────────────────────────
-  // viewBox: 640 × 96
+  // viewBox: 640 × 108  (extended from 96 to make room for asset circles)
   const NW = 106,
     NH = 42,
     NRX = 7;
@@ -91,6 +91,21 @@ export function GridTopology({ lines = [] }) {
   const mid2 = (x2l + x2r) / 2; // 319
   const mid3 = (x3l + x3r) / 2; // 491
 
+  // ── Flow animation helper (faster when stressed) ────────────────────────
+  const flowAnim = (status) => {
+    const speedMs =
+      status === "critical" ? 600 : status === "warning" ? 1200 : 2400;
+    return {
+      strokeDasharray: "6 4",
+      animation: `flow ${speedMs}ms linear infinite`,
+    };
+  };
+
+  // ── Node styling helper for focus highlight ─────────────────────────────
+  const nodeStroke = (id, dflt) =>
+    focusedAssetId === id ? "var(--primary)" : dflt;
+  const nodeWidth = (id, dflt) => (focusedAssetId === id ? 2.5 : dflt);
+
   return (
     <div className="panel rounded-xl p-4">
       <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
@@ -99,7 +114,14 @@ export function GridTopology({ lines = [] }) {
 
       {/* ── SVG diagram ── */}
       <div className="overflow-x-auto mb-4">
-        <svg viewBox="0 0 640 96" className="w-full" style={{ minWidth: 380 }}>
+        <svg viewBox="0 0 640 108" className="w-full" style={{ minWidth: 380 }}>
+          <style jsx>{`
+            @keyframes flow {
+              from { stroke-dashoffset: 10; }
+              to   { stroke-dashoffset: 0;  }
+            }
+          `}</style>
+
           {/* ── Arrow-head marker definitions ── */}
           <defs>
             {Object.entries(C).map(([k, v]) => (
@@ -120,272 +142,423 @@ export function GridTopology({ lines = [] }) {
           {/* ══════════════════════════════════════════════════════════════════
               Segment 1 — Mainland → Island A   (Lines 1 / 2 / 3)
           ══════════════════════════════════════════════════════════════════ */}
-          <line
-            x1={x1l + 2} y1={LY} x2={x1r - 9} y2={LY}
-            stroke={C[s1]} strokeWidth={2.5}
-            markerEnd={`url(#arw-${s1})`}
-          />
-          {/* Flow badge */}
-          <rect
-            x={mid1 - 26}
-            y={LY - 25}
-            width={52}
-            height={15}
-            rx={3}
-            fill="var(--bg)"
-            stroke={`${C[s1]}40`}
-            strokeWidth={1}
-          />
-          <text
-            x={mid1}
-            y={LY - 14}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="600"
-            fill={C[s1]}
+          <g
+            onClick={() => onAssetClick?.("line_1_2_3")}
+            style={{ cursor: "pointer" }}
           >
-            {f1.toFixed(1)} MW
-          </text>
-          {/* Segment label below */}
-          <text
-            x={mid1}
-            y={LY + 20}
-            textAnchor="middle"
-            fontSize="8"
-            fill="var(--muted)"
-          >
-            L1/2/3 · 115kV
-          </text>
+            <line
+              x1={x1l + 2}
+              y1={LY}
+              x2={x1r - 9}
+              y2={LY}
+              stroke={C[s1]}
+              strokeWidth={focusedAssetId === "line_1_2_3" ? 3.5 : 2.5}
+              markerEnd={`url(#arw-${s1})`}
+              style={flowAnim(s1)}
+            />
+            {/* Flow badge */}
+            <rect
+              x={mid1 - 26}
+              y={LY - 25}
+              width={52}
+              height={15}
+              rx={3}
+              fill="var(--bg)"
+              stroke={`${C[s1]}40`}
+              strokeWidth={1}
+            />
+            <text
+              x={mid1}
+              y={LY - 14}
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="600"
+              fill={C[s1]}
+            >
+              {f1.toFixed(1)} MW
+            </text>
+            {/* Segment label below */}
+            <text
+              x={mid1}
+              y={LY + 20}
+              textAnchor="middle"
+              fontSize="8"
+              fill="var(--muted)"
+            >
+              L1/2/3 · 115kV
+            </text>
+          </g>
 
           {/* ══════════════════════════════════════════════════════════════════
               Segment 2 — Island A → Island B   (Lines 4 / 5)
           ══════════════════════════════════════════════════════════════════ */}
-          <line
-            x1={x2l + 2} y1={LY} x2={x2r - 9} y2={LY}
-            stroke={C[s2]} strokeWidth={2.5}
-            markerEnd={`url(#arw-${s2})`}
-          />
-          <rect
-            x={mid2 - 26}
-            y={LY - 25}
-            width={52}
-            height={15}
-            rx={3}
-            fill="var(--bg)"
-            stroke={`${C[s2]}40`}
-            strokeWidth={1}
-          />
-          <text
-            x={mid2}
-            y={LY - 14}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="600"
-            fill={C[s2]}
+          <g
+            onClick={() => onAssetClick?.("line_4_5")}
+            style={{ cursor: "pointer" }}
           >
-            {f2.toFixed(1)} MW
-          </text>
-          <text
-            x={mid2}
-            y={LY + 20}
-            textAnchor="middle"
-            fontSize="8"
-            fill="var(--muted)"
-          >
-            L4/5 · 115/33kV
-          </text>
+            <line
+              x1={x2l + 2}
+              y1={LY}
+              x2={x2r - 9}
+              y2={LY}
+              stroke={C[s2]}
+              strokeWidth={focusedAssetId === "line_4_5" ? 3.5 : 2.5}
+              markerEnd={`url(#arw-${s2})`}
+              style={flowAnim(s2)}
+            />
+            <rect
+              x={mid2 - 26}
+              y={LY - 25}
+              width={52}
+              height={15}
+              rx={3}
+              fill="var(--bg)"
+              stroke={`${C[s2]}40`}
+              strokeWidth={1}
+            />
+            <text
+              x={mid2}
+              y={LY - 14}
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="600"
+              fill={C[s2]}
+            >
+              {f2.toFixed(1)} MW
+            </text>
+            <text
+              x={mid2}
+              y={LY + 20}
+              textAnchor="middle"
+              fontSize="8"
+              fill="var(--muted)"
+            >
+              L4/5 · 115/33kV
+            </text>
+          </g>
 
           {/* ══════════════════════════════════════════════════════════════════
               Segment 3 — Island B → Island C   (Line 6 — CRITICAL 8 MW cap)
           ══════════════════════════════════════════════════════════════════ */}
-          {/* Main line */}
-          <line
-            x1={x3l + 2}
-            y1={LY}
-            x2={x3r - 9}
-            y2={LY}
-            stroke={C[s3]}
-            strokeWidth={2.5}
-            markerEnd={`url(#arw-${s3})`}
-          />
-          {/* Flow badge (slightly wider for "X.X / 8 MW") */}
-          <rect
-            x={mid3 - 32}
-            y={LY - 26}
-            width={64}
-            height={16}
-            rx={3}
-            fill="var(--bg)"
-            stroke={`${C[s3]}55`}
-            strokeWidth={1.5}
-          />
-          <text
-            x={mid3}
-            y={LY - 14}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="700"
-            fill={C[s3]}
+          <g
+            onClick={() => onAssetClick?.("line_6")}
+            style={{ cursor: "pointer" }}
           >
-            {f3.toFixed(1)} / 8 MW
-          </text>
-          <text
-            x={mid3}
-            y={LY + 20}
-            textAnchor="middle"
-            fontSize="8"
-            fontWeight="600"
-            fill={C[s3]}
-          >
-            L6 · {u6.toFixed(0)}% used
-          </text>
+            {/* Main line — animated + red glow when critical */}
+            <line
+              x1={x3l + 2}
+              y1={LY}
+              x2={x3r - 9}
+              y2={LY}
+              stroke={C[s3]}
+              strokeWidth={focusedAssetId === "line_6" ? 3.5 : 2.5}
+              markerEnd={`url(#arw-${s3})`}
+              style={{
+                ...flowAnim(s3),
+                filter:
+                  s3 === "critical"
+                    ? "drop-shadow(0 0 4px #ef4444)"
+                    : "none",
+              }}
+            />
+            {/* Flow badge (slightly wider for "X.X / 8 MW") */}
+            <rect
+              x={mid3 - 32}
+              y={LY - 26}
+              width={64}
+              height={16}
+              rx={3}
+              fill="var(--bg)"
+              stroke={`${C[s3]}55`}
+              strokeWidth={1.5}
+            />
+            <text
+              x={mid3}
+              y={LY - 14}
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="700"
+              fill={C[s3]}
+            >
+              {f3.toFixed(1)} / 8 MW
+            </text>
+            <text
+              x={mid3}
+              y={LY + 20}
+              textAnchor="middle"
+              fontSize="8"
+              fontWeight="600"
+              fill={C[s3]}
+            >
+              L6 · {u6.toFixed(0)}% used
+            </text>
+          </g>
 
           {/* ══════════════════════════════════════════════════════════════════
               NODE BOXES
           ══════════════════════════════════════════════════════════════════ */}
 
           {/* Mainland */}
-          <rect
-            x={NX.mainland}
-            y={NY}
-            width={NW}
-            height={NH}
-            rx={NRX}
-            fill="var(--surface-2)"
-            stroke="var(--border-soft)"
-            strokeWidth={1.5}
-          />
-          <text
-            x={NCX("mainland")}
-            y={NY + 15}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="var(--text)"
+          <g
+            onClick={() => onAssetClick?.("mainland")}
+            style={{ cursor: "pointer" }}
           >
-            Mainland
-          </text>
-          <text
-            x={NCX("mainland")}
-            y={NY + 30}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--muted)"
-          >
-            Grid Source
-          </text>
+            <rect
+              x={NX.mainland}
+              y={NY}
+              width={NW}
+              height={NH}
+              rx={NRX}
+              fill="var(--surface-2)"
+              stroke={nodeStroke("mainland", "var(--border-soft)")}
+              strokeWidth={nodeWidth("mainland", 1.5)}
+            />
+            <text
+              x={NCX("mainland")}
+              y={NY + 15}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="700"
+              fill="var(--text)"
+              style={{ pointerEvents: "none" }}
+            >
+              Mainland
+            </text>
+            <text
+              x={NCX("mainland")}
+              y={NY + 30}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--muted)"
+              style={{ pointerEvents: "none" }}
+            >
+              Grid Source
+            </text>
+          </g>
 
           {/* Island A */}
-          <rect
-            x={NX.islandA}
-            y={NY}
-            width={NW}
-            height={NH}
-            rx={NRX}
-            fill="var(--surface-2)"
-            stroke="var(--border-soft)"
-            strokeWidth={1.5}
-          />
-          <text
-            x={NCX("islandA")}
-            y={NY + 15}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="var(--text)"
+          <g
+            onClick={() => onAssetClick?.("island_a")}
+            style={{ cursor: "pointer" }}
           >
-            Island A
-          </text>
-          <text
-            x={NCX("islandA")}
-            y={NY + 30}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--muted)"
-          >
-            Bat#7 · Diesel#8
-          </text>
+            <rect
+              x={NX.islandA}
+              y={NY}
+              width={NW}
+              height={NH}
+              rx={NRX}
+              fill="var(--surface-2)"
+              stroke={nodeStroke("island_a", "var(--border-soft)")}
+              strokeWidth={nodeWidth("island_a", 1.5)}
+            />
+            <text
+              x={NCX("islandA")}
+              y={NY + 15}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="700"
+              fill="var(--text)"
+              style={{ pointerEvents: "none" }}
+            >
+              Island A
+            </text>
+            <text
+              x={NCX("islandA")}
+              y={NY + 30}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--muted)"
+              style={{ pointerEvents: "none" }}
+            >
+              Bat#7 · Diesel#8
+            </text>
+          </g>
 
           {/* Island B */}
-          <rect
-            x={NX.islandB}
-            y={NY}
-            width={NW}
-            height={NH}
-            rx={NRX}
-            fill="var(--surface-2)"
-            stroke="var(--border-soft)"
-            strokeWidth={1.5}
-          />
-          <text
-            x={NCX("islandB")}
-            y={NY + 15}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="var(--text)"
+          <g
+            onClick={() => onAssetClick?.("island_b")}
+            style={{ cursor: "pointer" }}
           >
-            Island B
-          </text>
-          <text
-            x={NCX("islandB")}
-            y={NY + 30}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--muted)"
-          >
-            Transit
-          </text>
+            <rect
+              x={NX.islandB}
+              y={NY}
+              width={NW}
+              height={NH}
+              rx={NRX}
+              fill="var(--surface-2)"
+              stroke={nodeStroke("island_b", "var(--border-soft)")}
+              strokeWidth={nodeWidth("island_b", 1.5)}
+            />
+            <text
+              x={NCX("islandB")}
+              y={NY + 15}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="700"
+              fill="var(--text)"
+              style={{ pointerEvents: "none" }}
+            >
+              Island B
+            </text>
+            <text
+              x={NCX("islandB")}
+              y={NY + 30}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--muted)"
+              style={{ pointerEvents: "none" }}
+            >
+              Transit
+            </text>
+          </g>
 
-          {/* Island C — highlighted with primary accent */}
-          <rect
-            x={NX.islandC}
-            y={NY}
-            width={NW}
-            height={NH}
-            rx={NRX}
-            fill="var(--primary)"
-            fillOpacity={0.12}
-            stroke="var(--primary)"
-            strokeWidth={2}
-          />
-          <text
-            x={NCX("islandC")}
-            y={NY + 15}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="var(--primary)"
+          {/* Island C — highlighted with primary accent (always critical) */}
+          <g
+            onClick={() => onAssetClick?.("island_c")}
+            style={{ cursor: "pointer" }}
           >
-            Island C
-          </text>
-          <text
-            x={NCX("islandC")}
-            y={NY + 30}
-            textAnchor="middle"
-            fontSize="9"
-            fill="var(--muted)"
-          >
-            D#9 · 8MW cap
-          </text>
+            <rect
+              x={NX.islandC}
+              y={NY}
+              width={NW}
+              height={NH}
+              rx={NRX}
+              fill="var(--primary)"
+              fillOpacity={0.12}
+              stroke="var(--primary)"
+              strokeWidth={focusedAssetId === "island_c" ? 2.5 : 2}
+            />
+            <text
+              x={NCX("islandC")}
+              y={NY + 15}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="700"
+              fill="var(--primary)"
+              style={{ pointerEvents: "none" }}
+            >
+              Island C
+            </text>
+            <text
+              x={NCX("islandC")}
+              y={NY + 30}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--muted)"
+              style={{ pointerEvents: "none" }}
+            >
+              D#9 · 8MW cap
+            </text>
 
-          {/* Line 6 utilisation bar embedded in Island C node */}
-          <rect
-            x={NX.islandC + 8}
-            y={NY + NH - 5}
-            width={NW - 16}
-            height={3}
-            rx={1.5}
-            fill="var(--border-soft)"
-          />
-          <rect
-            x={NX.islandC + 8}
-            y={NY + NH - 5}
-            width={Math.max(0, Math.min(NW - 16, ((NW - 16) * u6) / 100))}
-            height={3}
-            rx={1.5}
-            fill={C[s3]}
-          />
+            {/* Line 6 utilisation bar embedded in Island C node */}
+            <rect
+              x={NX.islandC + 8}
+              y={NY + NH - 5}
+              width={NW - 16}
+              height={3}
+              rx={1.5}
+              fill="var(--border-soft)"
+            />
+            <rect
+              x={NX.islandC + 8}
+              y={NY + NH - 5}
+              width={Math.max(
+                0,
+                Math.min(NW - 16, ((NW - 16) * u6) / 100),
+              )}
+              height={3}
+              rx={1.5}
+              fill={C[s3]}
+            />
+          </g>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              ASSET CIRCLES — Battery #7 / Diesel #8 (Island A), Diesel #9 (Island C)
+          ══════════════════════════════════════════════════════════════════ */}
+
+          {/* Battery #7 — Island A */}
+          <g
+            onClick={() => onAssetClick?.("battery_7")}
+            style={{ cursor: "pointer" }}
+          >
+            <circle
+              cx={NX.islandA + NW / 2 - 22}
+              cy={NY + NH + 12}
+              r={6}
+              fill="#10b981"
+              stroke={
+                focusedAssetId === "battery_7" ? "var(--primary)" : "none"
+              }
+              strokeWidth={focusedAssetId === "battery_7" ? 2 : 0}
+            />
+            <text
+              x={NX.islandA + NW / 2 - 22}
+              y={NY + NH + 15}
+              textAnchor="middle"
+              fontSize={7}
+              fontWeight="700"
+              fill="#fff"
+              style={{ pointerEvents: "none" }}
+            >
+              B7
+            </text>
+          </g>
+
+          {/* Diesel #8 — Island A */}
+          <g
+            onClick={() => onAssetClick?.("diesel_8")}
+            style={{ cursor: "pointer" }}
+          >
+            <circle
+              cx={NX.islandA + NW / 2 + 22}
+              cy={NY + NH + 12}
+              r={6}
+              fill="#f59e0b"
+              stroke={
+                focusedAssetId === "diesel_8" ? "var(--primary)" : "none"
+              }
+              strokeWidth={focusedAssetId === "diesel_8" ? 2 : 0}
+            />
+            <text
+              x={NX.islandA + NW / 2 + 22}
+              y={NY + NH + 15}
+              textAnchor="middle"
+              fontSize={7}
+              fontWeight="700"
+              fill="#fff"
+              style={{ pointerEvents: "none" }}
+            >
+              D8
+            </text>
+          </g>
+
+          {/* Diesel #9 — Island C */}
+          <g
+            onClick={() => onAssetClick?.("diesel_9")}
+            style={{ cursor: "pointer" }}
+          >
+            <circle
+              cx={NX.islandC + NW / 2}
+              cy={NY + NH + 12}
+              r={6}
+              fill="#ef4444"
+              stroke={
+                focusedAssetId === "diesel_9" ? "var(--primary)" : "none"
+              }
+              strokeWidth={focusedAssetId === "diesel_9" ? 2 : 0}
+            />
+            <text
+              x={NX.islandC + NW / 2}
+              y={NY + NH + 15}
+              textAnchor="middle"
+              fontSize={7}
+              fontWeight="700"
+              fill="#fff"
+              style={{ pointerEvents: "none" }}
+            >
+              D9
+            </text>
+          </g>
         </svg>
       </div>
 
