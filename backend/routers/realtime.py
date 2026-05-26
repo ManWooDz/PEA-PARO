@@ -6,11 +6,15 @@ GET /api/realtime
 GET /api/realtime/load-history
 GET /api/realtime/energy-mix
 """
+from collections import deque
 from datetime import datetime
+import random
+
 from fastapi import APIRouter
 from models.schemas import (
     RealtimeResponse, RealtimeKPI, LineStatus, SourceCard, DieselUnitStatus,
     LoadHistoryResponse, LoadPoint, EnergyMixResponse, EnergyMixPoint,
+    EventsResponse, EventEntry,
 )
 from data.seed import LINES
 from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost
@@ -19,6 +23,25 @@ from models.diesel import DIESEL_8, DIESEL_9
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
 
 LINE6_LIMIT_MW = LINES[6]["limit_mw"]   # 8 MW
+
+
+_EVENT_LOG: deque = deque(maxlen=20)
+
+
+def _push_event(severity: str, asset: str, message: str) -> None:
+    _EVENT_LOG.appendleft({
+        "ts": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "severity": severity,
+        "asset": asset,
+        "message": message,
+    })
+
+
+# Seed with a few synthetic startup events
+if not _EVENT_LOG:
+    _push_event("info",  "system",    "PEA-PARO online")
+    _push_event("info",  "battery_7", "BESS in standby")
+    _push_event("warn",  "line_6",    "Utilization briefly hit 78 %")
 
 
 def _line_status(pct: float) -> str:
@@ -50,6 +73,16 @@ def _split_diesel_units(asset_id: str, total_kw: float, spec: dict) -> list[dict
 def get_realtime():
     now = datetime.now()
     s   = get_current_state()   # time-shifted replay from real CSV
+
+    if random.random() < 0.20:
+        candidates = [
+            ("info",  "diesel_9", "Unit-1 generating 1.8 MW"),
+            ("warn",  "line_6",  f"L6 utilization {(s['line6_mw']/8*100):.0f} %"),
+            ("info",  "battery_7", f"BESS discharging at {abs(s['battery_mw']):.1f} MW"),
+        ]
+        sev, ast, msg = random.choice(candidates)
+        _push_event(sev, ast, msg)
+
     blended = get_blended_cost(s)
 
     load_mw  = s["load_c_mw"]
@@ -147,6 +180,11 @@ def get_realtime():
         status       = overall_status,
         server_time  = ts_str,
     )
+
+
+@router.get("/events", response_model=EventsResponse)
+def get_events():
+    return EventsResponse(events=[EventEntry(**e) for e in list(_EVENT_LOG)])
 
 
 @router.get("/load-history", response_model=LoadHistoryResponse)

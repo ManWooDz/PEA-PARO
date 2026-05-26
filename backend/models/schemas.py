@@ -25,6 +25,17 @@ class SourceCard(BaseModel):
     color: str
 
 
+class EventEntry(BaseModel):
+    ts: str                                       # ISO datetime
+    severity: Literal["info", "warn", "critical"]
+    asset: str                                    # e.g. "diesel_9", "line_6", "battery_7"
+    message: str                                  # human-readable
+
+
+class EventsResponse(BaseModel):
+    events: list[EventEntry]
+
+
 class DieselUnitStatus(BaseModel):
     asset: Literal["diesel_8", "diesel_9"]
     unit_id: int
