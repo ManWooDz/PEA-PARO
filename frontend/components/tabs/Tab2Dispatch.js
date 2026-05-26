@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine,
+  Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, ReferenceArea,
 } from 'recharts'
 import { Icon }        from '@/components/shared/Icon'
 import { Dot }         from '@/components/shared/Dot'
@@ -201,6 +201,11 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                {/* Charge window 22:00–08:59 (light blue) */}
+                <ReferenceArea x1={0}  x2={9}    fill="#3b82f6" fillOpacity={0.06} />
+                <ReferenceArea x1={22} x2={23.5} fill="#3b82f6" fillOpacity={0.06} />
+                {/* Discharge window 09:00–21:59 (light orange) */}
+                <ReferenceArea x1={9}  x2={22}   fill="#f59e0b" fillOpacity={0.06} />
                 <XAxis dataKey="h" tickFormatter={h => `${h}h`}
                        tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} unit=" MW" />
@@ -216,6 +221,16 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm">No plan data</div>
           )}
+          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted">
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-2" style={{ background: 'rgba(59,130,246,0.18)' }} />
+              Battery charge window (22:00–08:59)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-2" style={{ background: 'rgba(245,158,11,0.18)' }} />
+              Battery discharge window (09:00–21:59)
+            </span>
+          </div>
         </div>
       </section>
 
