@@ -3,11 +3,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchRealtime, fetchLoadHistory, fetchEnergyMix } from '@/lib/api'
 
 export function useRealtime() {
-  const [data,       setData]       = useState(null)
-  const [history,    setHistory]    = useState(null)
-  const [energyMix,  setEnergyMix]  = useState(null)
-  const [error,      setError]      = useState(null)
-  const [prevLoad,   setPrevLoad]   = useState(null)
+  const [data,         setData]         = useState(null)
+  const [history,      setHistory]      = useState(null)
+  const [energyMix,    setEnergyMix]    = useState(null)
+  const [error,        setError]        = useState(null)
+  const [prevLoad,     setPrevLoad]     = useState(null)
+  const [lastReceived, setLastReceived] = useState(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -23,6 +24,7 @@ export function useRealtime() {
       setHistory(hist)
       setEnergyMix(mix)
       setError(null)
+      setLastReceived(new Date().toISOString())
     } catch (e) {
       setError(e.message)
     }
@@ -38,5 +40,5 @@ export function useRealtime() {
     ? data.kpi.island_c_load_mw - prevLoad
     : null
 
-  return { data, history, energyMix, error, delta, refresh }
+  return { data, history, energyMix, error, delta, refresh, lastReceived }
 }

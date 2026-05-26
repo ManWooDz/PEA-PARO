@@ -13,7 +13,7 @@ function formatDateTime(d) {
   return { date: `${dd}/${mm}/${yy}`, time: `${hh}:${mi}:${ss}` }
 }
 
-export function TopBar({ theme, setTheme, onExport }) {
+export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
   const [now, setNow] = useState(null)
   useEffect(() => {
     setNow(new Date())
@@ -22,6 +22,7 @@ export function TopBar({ theme, setTheme, onExport }) {
   }, [])
 
   const { date, time } = now ? formatDateTime(now) : { date: '—', time: '--:--:--' }
+  const isStale = lastUpdated && now && ((now.getTime() - new Date(lastUpdated).getTime()) > 10000)
   return (
     <header className="border-b hairline topbar sticky top-0 z-40">
       <div className="px-6 h-16 flex items-center justify-between">
@@ -46,12 +47,17 @@ export function TopBar({ theme, setTheme, onExport }) {
 
         {/* Right: clock + controls */}
         <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <div className="text-[10.5px] uppercase eyebrow text-muted">Server Time</div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-sm font-semibold mono">{time}</span>
-              <span className="text-xs text-muted thai">{date} (พ.ศ.)</span>
+          <div className="flex items-center gap-2">
+            <div className="text-right hidden sm:block">
+              <div className="text-[10.5px] uppercase eyebrow text-muted">Server Time</div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-sm font-semibold mono">{time}</span>
+                <span className="text-xs text-muted thai">{date} (พ.ศ.)</span>
+              </div>
             </div>
+            {isStale && (
+              <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#f59e0b' }} title="Data stale (>10s)" />
+            )}
           </div>
 
           <div className="flex items-center gap-2 ml-2 pl-3 border-l hairline">

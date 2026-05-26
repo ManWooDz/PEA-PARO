@@ -52,7 +52,7 @@ export default function Home() {
   }, [])
 
   /* ── data hooks ── */
-  const { data: rt, history, energyMix, error: rtErr, delta } = useRealtime()
+  const { data: rt, history, energyMix, error: rtErr, delta, lastReceived } = useRealtime()
 
   const {
     plans, activeId, loading: dispLoading,
@@ -74,6 +74,7 @@ export default function Home() {
         theme={theme}
         setTheme={setTheme}
         onExport={() => setExportOpen(true)}
+        lastUpdated={lastReceived}
       />
 
       {/* Zone 2: Alarm ticker — full-width */}
@@ -82,10 +83,21 @@ export default function Home() {
         onClick={(id) => jumpTo('alerts', { alertId: id })}
       />
 
+      {/* Offline banner — between ticker and operational panel */}
+      {rtErr && (
+        <div className="border-b hairline px-4 py-2 text-sm flex items-center gap-2"
+             style={{ background: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.3)' }}>
+          <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#ef4444' }} />
+          <span style={{ color: '#ef4444', fontWeight: 600 }}>BACKEND DISCONNECTED</span>
+          <span className="text-muted">— last data {rt?.server_time ?? '—'} · {rtErr}</span>
+        </div>
+      )}
+
       {/* Zone 3: Persistent Operational Panel */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
         <OperationalPanel
           rt={rt}
+          offline={!!rtErr}
           onAssetClick={(id) => jumpTo('liveops', { assetId: id })}
         />
       </div>
@@ -99,17 +111,6 @@ export default function Home() {
 
       {/* Zone 5: Switchable detail content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {rtErr && (
-          <div className="mb-4 px-4 py-3 rounded-lg text-sm"
-               style={{
-                 color: '#f87171',
-                 background: 'rgba(239,68,68,0.08)',
-                 border: '1px solid rgba(239,68,68,0.25)',
-               }}>
-            ⚠ API error: {rtErr}
-          </div>
-        )}
-
         {active === 'liveops' && (
           <Tab1LiveOps
             rt={rt} history={history} energyMix={energyMix} delta={delta}
