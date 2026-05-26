@@ -8,6 +8,8 @@ import { Icon }        from '@/components/shared/Icon'
 import { Dot }         from '@/components/shared/Dot'
 import { MiniBar }     from '@/components/shared/MiniBar'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { ApplyPlanDialog } from '@/components/operational/ApplyPlanDialog'
+import { useApplyPlan }    from '@/hooks/useApplyPlan'
 
 /* ── strategy meta ── */
 const STRATEGIES = [
@@ -79,8 +81,25 @@ function WindowRow({ label, value, onChange, color }) {
   )
 }
 
-export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomCfg, loading }) {
+export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomCfg, loading, activePlanId, setActivePlanId }) {
   const [showCustom, setShowCustom] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const { apply, submitting } = useApplyPlan()
+
+  const handleConfirmApply = async () => {
+    try {
+      const result = await apply({
+        strategy: activeId,
+        horizon_hours: 24,
+        custom_cfg: activeId === 'custom' ? customCfg : null,
+      })
+      setActivePlanId?.(result.plan_id)
+      setDialogOpen(false)
+    } catch (e) {
+      console.error('Apply failed:', e)
+      setDialogOpen(false)
+    }
+  }
 
   const plan = plans[activeId]
 
@@ -185,6 +204,20 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
                 <div className="text-xs text-muted">{c.unit}/day</div>
               </div>
             ))}
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => setDialogOpen(true)}
+              className="px-4 py-2 rounded text-sm font-semibold cursor-pointer hover:opacity-90"
+              style={{ background: 'var(--primary)', color: '#fff' }}
+            >
+              ▶ Apply Plan
+            </button>
+            {activePlanId && (
+              <span className="text-xs mono" style={{ color: '#10b981' }}>
+                ● Active plan: {String(activePlanId).slice(0, 8)}
+              </span>
+            )}
           </div>
         </section>
       )}
@@ -303,6 +336,14 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
           </div>
         </section>
       )}
+
+      <ApplyPlanDialog
+        open={dialogOpen}
+        strategy={activeId}
+        onConfirm={handleConfirmApply}
+        onCancel={() => setDialogOpen(false)}
+        submitting={submitting}
+      />
 
     </div>
   )
