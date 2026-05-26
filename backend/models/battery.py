@@ -39,7 +39,7 @@ def compute_battery_schedule(
     for h, shortage_kw in enumerate(hourly_shortage_kw):
         if is_discharge_hour(h) and shortage_kw > 0:
             # Discharge: limited by shortage, power rating, SoC, daily budget
-            available_kwh = soc_kwh - capacity_kwh * 0.10  # keep 10% reserve
+            available_kwh = soc_kwh - capacity_kwh * 0.20  # PEA constraint: 20% floor
             budget_left_kwh = max_daily_kwh - discharged_today_kwh
             dispatch_kw = min(
                 shortage_kw,
@@ -53,8 +53,8 @@ def compute_battery_schedule(
             discharged_today_kwh += dispatch_kw
             action = "discharge" if dispatch_kw > 0 else "idle"
         elif is_charge_hour(h):
-            # Charge at constant rate if SoC < 95%
-            headroom_kwh = capacity_kwh * 0.95 - soc_kwh
+            # Charge at constant rate if SoC < 80%
+            headroom_kwh = capacity_kwh * 0.80 - soc_kwh   # PEA constraint: 80% ceiling
             charge_kw = min(max_power_kw * 0.5, headroom_kwh)  # charge at 50% power
             charge_kw = max(0.0, charge_kw)
             dispatch_kw = -charge_kw  # negative = charging
