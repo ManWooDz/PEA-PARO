@@ -25,12 +25,21 @@ class SourceCard(BaseModel):
     color: str
 
 
+class DieselUnitStatus(BaseModel):
+    asset: Literal["diesel_8", "diesel_9"]
+    unit_id: int
+    on: bool
+    output_mw: float
+    cooldown_remaining_min: int
+
+
 # ── Tab 1 realtime ───────────────────────────────────────────────────────────
 class RealtimeKPI(BaseModel):
     island_c_load_mw: float
     line6_util_pct: float          # frontend: kpi.line6_util_pct
     battery_soc_pct: float
     battery_soc_mwh: float         # frontend: kpi.battery_soc_mwh
+    blended_cost_token_per_kwh: float
     warning_level: Literal["normal", "watch", "high"]
     warning_label_th: str
     risk_score: int
@@ -40,6 +49,7 @@ class RealtimeResponse(BaseModel):
     kpi: RealtimeKPI
     lines: list[LineStatus]
     sources: list[SourceCard]
+    diesel_units: list[DieselUnitStatus]
     status: str                    # frontend: rt.status → "normal"|"warning"|"critical"
     server_time: str
 

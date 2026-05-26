@@ -24,8 +24,15 @@ def commit_units(
     Given required_kw of diesel needed, commit/decommit units greedily.
     Returns (actual_kw_dispatched, updated_states, unit_schedule_list).
 
-    unit_schedule_list: [{unit_id, on, output_kw}]
+    unit_schedule_list: [{unit_id, on, output_kw, cooldown_remaining_min}]
     """
+    def _cooldown_min(state, asset_min_down_min: float) -> int:
+        if state.on:
+            return 0
+        min_down_h = asset_min_down_min / 60
+        remaining_h = max(0.0, min_down_h - state.hours_off)
+        return int(round(remaining_h * 60))
+
     max_per_unit_kw = asset["capacity_per_unit_mw"] * 1000
     min_down_h = asset["min_down_time_min"] / 60
     max_up_h = asset["max_up_time_hr"]
@@ -52,6 +59,7 @@ def commit_units(
                 "unit_id": state.unit_id,
                 "on": state.on,
                 "output_kw": round(state.current_output_kw, 1),
+                "cooldown_remaining_min": _cooldown_min(state, asset["min_down_time_min"]),
             })
             continue
 
@@ -67,6 +75,7 @@ def commit_units(
                     "unit_id": state.unit_id,
                     "on": False,
                     "output_kw": 0.0,
+                    "cooldown_remaining_min": _cooldown_min(state, asset["min_down_time_min"]),
                 })
                 continue
 
@@ -101,6 +110,7 @@ def commit_units(
             "unit_id": state.unit_id,
             "on": state.on,
             "output_kw": round(state.current_output_kw, 1),
+            "cooldown_remaining_min": _cooldown_min(state, asset["min_down_time_min"]),
         })
 
     return round(total_dispatched, 1), states, schedule
