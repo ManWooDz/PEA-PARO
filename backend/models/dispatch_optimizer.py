@@ -73,11 +73,19 @@ def build_dispatch_plan(
     else:
         loads_kw = [_load_at_hour(h, load_scale) for h in range(24)]
 
+    # ── Solar generation (when has_solar=True): mock 0.8 MWp diurnal curve ───
+    # Bell curve peaking at noon, zero at night — matches Open-Meteo's typical shape
+    solar_kw = [0.0] * 24
+    if has_solar:
+        for h in range(24):
+            # 0 at midnight, peak at hour 12, 0 again after sunset
+            solar_kw[h] = max(0.0, 800.0 * max(0.0, 1 - ((h - 12) / 6) ** 2))
+
     # ── Battery schedule ─────────────────────────────────────────────────────
-    # Battery shortage input = load − grid for discharge hours only.
+    # Battery shortage input = (load − solar) − grid for discharge hours only.
     # Battery discharges BEFORE Diesel ⑨ during 09:00–21:59.
     battery_shortage = [
-        max(0.0, loads_kw[h] - grid_cap_kw)
+        max(0.0, max(0.0, loads_kw[h] - solar_kw[h]) - grid_cap_kw)
         if is_discharge_hour(h) else 0.0
         for h in range(24)
     ]
@@ -93,9 +101,12 @@ def build_dispatch_plan(
     for h in range(24):
         load_kw = loads_kw[h]
 
+        # Subtract solar (treated as load reduction)
+        net_load_kw = max(0.0, load_kw - solar_kw[h])
+
         # 1. Grid — capped at practical (and strategy-adjusted) limit
-        grid_kw = min(load_kw, grid_cap_kw)
-        after_grid = max(0.0, load_kw - grid_kw)
+        grid_kw = min(net_load_kw, grid_cap_kw)
+        after_grid = max(0.0, net_load_kw - grid_kw)
 
         # 2. Battery — discharge only during 09:00–21:59
         bat = battery_schedule[h]
@@ -141,6 +152,7 @@ def build_dispatch_plan(
             "battery_mw":       round(bat["dispatch_kw"] / 1000, 3),   # +/- MW
             "diesel_a_mw":      round(d8_out / 1000, 3),
             "diesel_c_mw":      round(d9_out / 1000, 3),
+            "solar_mw":         round(solar_kw[h] / 1000, 3),
             "soc_pct":          round(bat["soc_pct"], 1),
             "token_per_hour":   round(token_hr, 1),
             "status":           status,

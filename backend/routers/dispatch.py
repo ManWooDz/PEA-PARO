@@ -46,13 +46,13 @@ def get_active_plan():
 
 
 @router.get("/api/dispatch/{strategy}", response_model=DispatchPlan)
-def get_dispatch(strategy: str):
+def get_dispatch(strategy: str, has_solar: bool = False):
     if strategy not in VALID_STRATEGIES:
         raise HTTPException(
             status_code=404,
             detail=f"Unknown strategy '{strategy}'. Valid: {VALID_STRATEGIES}",
         )
-    rows_raw = build_dispatch_plan(strategy=strategy)
+    rows_raw = build_dispatch_plan(strategy=strategy, has_solar=has_solar)
     cost_raw = compute_plan_cost(rows_raw)
     return DispatchPlan(
         strategy=strategy,

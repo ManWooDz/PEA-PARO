@@ -17,7 +17,7 @@ from models.schemas import (
     EventsResponse, EventEntry,
 )
 from data.seed import LINES
-from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost
+from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost, get_solar_mw_now
 from models.diesel import DIESEL_8, DIESEL_9
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
@@ -84,6 +84,7 @@ def get_realtime():
         _push_event(sev, ast, msg)
 
     blended = get_blended_cost(s)
+    solar_mw = get_solar_mw_now()
 
     load_mw  = s["load_c_mw"]
     soc_pct  = s["soc_pct"]
@@ -112,6 +113,7 @@ def get_realtime():
         battery_soc_pct  = round(soc_pct, 1),
         battery_soc_mwh  = round(soc_mwh, 2),
         blended_cost_token_per_kwh = blended,
+        solar_mw         = solar_mw,
         warning_level    = warn,
         warning_label_th = warn_th,
         risk_score       = risk,

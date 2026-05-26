@@ -305,6 +305,33 @@ def get_blended_cost(state: dict) -> float:
     return round(cost, 3)
 
 
+def get_solar_mw_now() -> float:
+    """
+    Estimate current solar generation in MW for a 0.8 MWp PV array
+    using the most recent solar_irradiance_w_m2 from /api/weather.
+    Returns 0 at night (or when weather is unavailable).
+    """
+    try:
+        # Read from the in-memory weather cache populated by routers/weather.py
+        from routers.weather import _CACHE
+        data = _CACHE.get("data")
+        if not data or not data.points:
+            return 0.0
+        # Find the hourly entry closest to "now"
+        from datetime import datetime
+        now_hour = datetime.now().strftime("%Y-%m-%dT%H:00")
+        match = next(
+            (p for p in data.points if p.ts >= now_hour),
+            data.points[0] if data.points else None
+        )
+        if not match:
+            return 0.0
+        # 0.8 MWp peak; irradiance in W/m^2 (1000 W/m^2 = full peak)
+        return round(match.solar_irradiance_w_m2 / 1000.0 * 0.8, 3)
+    except Exception:
+        return 0.0
+
+
 def get_hourly_profile_for_c() -> dict[int, dict]:
     """
     Return per-hour statistics for Island C load (used by forecasting).

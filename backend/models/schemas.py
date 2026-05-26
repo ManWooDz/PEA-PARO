@@ -63,6 +63,7 @@ class RealtimeKPI(BaseModel):
     battery_soc_pct: float
     battery_soc_mwh: float         # frontend: kpi.battery_soc_mwh
     blended_cost_token_per_kwh: float
+    solar_mw: float = 0.0                # NEW: derived from /api/weather
     warning_level: Literal["normal", "watch", "high"]
     warning_label_th: str
     risk_score: int
@@ -107,6 +108,7 @@ class DispatchRow(BaseModel):
     battery_mw: float              # MW +discharge/-charge (was battery_kw)
     diesel_a_mw: float             # MW (was diesel_a_kw)
     diesel_c_mw: float             # MW (was diesel_c_kw)
+    solar_mw: float = 0.0          # NEW: 0 unless has_solar=True
     soc_pct: float                 # % (was battery_soc_pct)
     token_per_hour: float          # Token/hr — unchanged
     status: Literal["normal", "diesel", "low-soc", "grid-limited", "line6-near"]
