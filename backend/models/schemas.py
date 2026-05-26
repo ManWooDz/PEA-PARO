@@ -217,3 +217,16 @@ class ForecastDispatchResponse(BaseModel):
     strategy:        str
     horizon:         str
     generated_at:    str                    # ISO datetime of when plan was built
+
+
+class ApplyPlanRequest(BaseModel):
+    strategy: str                          # 'baseline' | 'min-cost' | 'reliability' | 'eco' | 'custom'
+    horizon_hours: int = 24
+    custom_cfg: dict | None = None
+
+
+class ApplyPlanResponse(BaseModel):
+    plan_id: str                           # uuid4 hex (12 chars)
+    strategy: str
+    applied_at: str                        # ISO datetime
+    message: str

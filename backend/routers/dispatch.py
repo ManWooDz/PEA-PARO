@@ -4,17 +4,45 @@ GET  /api/dispatch/{strategy}       — pre-built strategies (static profile)
 POST /api/dispatch/custom           — custom plan with sliders
 POST /api/forecast-dispatch         — LSTM forecast → merit-order dispatch plan
 """
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from models.schemas import (
     DispatchPlan, DispatchRow, CostBreakdown, CustomPlanRequest,
     ForecastDispatchRequest, ForecastDispatchResponse, ForecastPoint96,
+    ApplyPlanRequest, ApplyPlanResponse,
 )
 from models.dispatch_optimizer import build_dispatch_plan, compute_plan_cost
 
 router = APIRouter(tags=["dispatch"])
 
+_ACTIVE_PLAN: dict | None = None
+
 VALID_STRATEGIES = {"baseline", "min-cost", "reliability", "eco"}
+
+
+@router.post("/api/dispatch/apply", response_model=ApplyPlanResponse)
+def apply_plan(req: ApplyPlanRequest):
+    global _ACTIVE_PLAN
+    plan_id = uuid.uuid4().hex[:12]
+    applied_at = datetime.now().isoformat(timespec="seconds")
+    _ACTIVE_PLAN = {
+        "plan_id":   plan_id,
+        "strategy":  req.strategy,
+        "applied_at": applied_at,
+        "horizon_hours": req.horizon_hours,
+    }
+    return ApplyPlanResponse(
+        plan_id=plan_id,
+        strategy=req.strategy,
+        applied_at=applied_at,
+        message=f"Dispatch plan '{req.strategy}' applied for {req.horizon_hours}h horizon.",
+    )
+
+
+@router.get("/api/dispatch/active")
+def get_active_plan():
+    return _ACTIVE_PLAN or {"plan_id": None, "strategy": None}
 
 
 @router.get("/api/dispatch/{strategy}", response_model=DispatchPlan)
