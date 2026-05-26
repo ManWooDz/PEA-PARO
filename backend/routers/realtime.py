@@ -9,11 +9,12 @@ GET /api/realtime/energy-mix
 from datetime import datetime
 from fastapi import APIRouter
 from models.schemas import (
-    RealtimeResponse, RealtimeKPI, LineStatus, SourceCard,
+    RealtimeResponse, RealtimeKPI, LineStatus, SourceCard, DieselUnitStatus,
     LoadHistoryResponse, LoadPoint, EnergyMixResponse, EnergyMixPoint,
 )
 from data.seed import LINES
-from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix
+from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost
+from models.diesel import DIESEL_8, DIESEL_9
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
 
@@ -26,10 +27,30 @@ def _line_status(pct: float) -> str:
     return "normal"
 
 
+def _split_diesel_units(asset_id: str, total_kw: float, spec: dict) -> list[dict]:
+    """Distribute aggregate diesel kW across N units for the realtime UI display.
+    Treats a unit as ON when > 50 kW is assigned. Adds a small mock cooldown
+    for unit-2 of D#8 occasionally to make the demo visually richer."""
+    n_units = spec["units"]
+    per_unit_max = spec["capacity_per_unit_mw"] * 1000
+    units = []
+    remaining = total_kw
+    for i in range(n_units):
+        if remaining > 50:
+            out = min(remaining, per_unit_max)
+            units.append({"unit_id": i + 1, "on": True, "output_mw": round(out / 1000, 2), "cooldown_remaining_min": 0})
+            remaining -= out
+        else:
+            cd = 7 if (asset_id == "diesel_8" and i == 1 and total_kw > 100) else 0
+            units.append({"unit_id": i + 1, "on": False, "output_mw": 0.0, "cooldown_remaining_min": cd})
+    return units
+
+
 @router.get("", response_model=RealtimeResponse)
 def get_realtime():
     now = datetime.now()
     s   = get_current_state()   # time-shifted replay from real CSV
+    blended = get_blended_cost(s)
 
     load_mw  = s["load_c_mw"]
     soc_pct  = s["soc_pct"]
@@ -57,9 +78,17 @@ def get_realtime():
         line6_util_pct   = round(l6_util, 1),
         battery_soc_pct  = round(soc_pct, 1),
         battery_soc_mwh  = round(soc_mwh, 2),
+        blended_cost_token_per_kwh = blended,
         warning_level    = warn,
         warning_label_th = warn_th,
         risk_score       = risk,
+    )
+
+    d8_kw = s["diesel_a_mw"] * 1000
+    d9_kw = s["diesel_c_mw"] * 1000
+    diesel_units = (
+        [DieselUnitStatus(asset="diesel_8", **u) for u in _split_diesel_units("diesel_8", d8_kw, DIESEL_8)]
+        + [DieselUnitStatus(asset="diesel_9", **u) for u in _split_diesel_units("diesel_9", d9_kw, DIESEL_9)]
     )
 
     # Line statuses from real CSV state
@@ -111,11 +140,12 @@ def get_realtime():
     ]
 
     return RealtimeResponse(
-        kpi         = kpi,
-        lines       = lines,
-        sources     = sources,
-        status      = overall_status,
-        server_time = ts_str,
+        kpi          = kpi,
+        lines        = lines,
+        sources      = sources,
+        diesel_units = diesel_units,
+        status       = overall_status,
+        server_time  = ts_str,
     )
 
 

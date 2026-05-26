@@ -280,6 +280,31 @@ def get_recent_12h_mix() -> list[dict]:
     return records
 
 
+def get_blended_cost(state: dict) -> float:
+    """
+    Load-weighted average cost (Token/kWh) of current generation mix.
+    state must be the dict returned by get_current_state().
+    """
+    from data.seed import COST
+    from datetime import datetime
+    grid_mw    = max(0.0, state.get("line6_mw", 0.0))
+    battery_mw = max(0.0, state.get("battery_mw", 0.0))  # positive = discharging
+    d8_mw      = max(0.0, state.get("diesel_a_mw", 0.0))
+    d9_mw      = max(0.0, state.get("diesel_c_mw", 0.0))
+    total      = grid_mw + battery_mw + d8_mw + d9_mw
+    if total < 0.01:
+        return 0.0
+    h = datetime.now().hour
+    grid_rate = COST["grid_peak"] if 9 <= h < 22 else COST["grid_offpeak"]
+    cost = (
+        grid_mw    * grid_rate +
+        battery_mw * COST["battery"] +
+        d8_mw      * COST["diesel_a"] +
+        d9_mw      * COST["diesel_c"]
+    ) / total
+    return round(cost, 3)
+
+
 def get_hourly_profile_for_c() -> dict[int, dict]:
     """
     Return per-hour statistics for Island C load (used by forecasting).
