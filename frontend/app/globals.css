@@ -1,70 +1,70 @@
-/* Force CSS Reload - 2 */
+/* PEA-PARO · standalone-style reskin (sky/indigo on slate) */
 @import "tailwindcss";
 
-/* ── PEA-PARO Design Tokens
-     Main:      #74045F  rgb(116,4,95)   — deep magenta
-     Secondary: #C7911B  rgb(199,145,27) — golden amber
-   ────────────────────────────────────────────────────────────────────
-   DARK:  deep-magenta family backgrounds (bg comes from Main)
-   LIGHT: warm golden family backgrounds  (bg comes from Secondary)
+/* ── Design tokens
+     Primary:   #0ea5e9 (sky-500)
+     Secondary: #6366f1 (indigo-500)
+     Gradient:  sky → indigo (used on logo + accents)
    ─────────────────────────────────────────────────────────────────── */
 
 /* ── DARK theme (default) ──────────────────────────────────────────── */
 :root {
-  /* Backgrounds — sleek neutral dark (brighter than pure black)       */
-  --bg:          #18181b;   /* medium dark grey background             */
-  --surface:     #27272a;   /* elevated dark panel                     */
-  --surface-2:   #3f3f46;   /* card insets / secondary surface         */
-  --topbar:      #18181b;   /* header                                  */
-  --tabbar:      #27272a;   /* nav                                     */
+  /* Backgrounds — slate dark with bluish tone                          */
+  --bg:          #0f172a;   /* slate-900                                */
+  --surface:     #1e293b;   /* slate-800 — panels                       */
+  --surface-2:   #334155;   /* slate-700 — insets / secondary surface   */
+  --topbar:      #0f172a;   /* header same as bg                        */
+  --tabbar:      #1e293b;   /* nav uses panel color                     */
 
-  /* Borders — neutral grey                                            */
-  --border:      #52525b;
-  --border-soft: #3f3f46;
+  /* Borders                                                            */
+  --border:      #475569;   /* slate-600                                */
+  --border-soft: #334155;   /* slate-700                                */
 
-  /* Text — crisp white and neutral greys                              */
-  --text:        #fafafa;   /* clean white                             */
-  --muted:       #d4d4d8;   /* light grey (zinc-300)                   */
-  --muted-2:     #a1a1aa;   /* medium grey (zinc-400)                  */
-  --muted-3:     #71717a;   /* dark grey (zinc-500)                    */
+  /* Text                                                               */
+  --text:        #f1f5f9;   /* slate-100                                */
+  --muted:       #cbd5e1;   /* slate-300                                */
+  --muted-2:     #94a3b8;   /* slate-400                                */
+  --muted-3:     #64748b;   /* slate-500                                */
 
-  /* Chart grid / tooltip                                              */
-  --grid-line:   #3f3f46;
-  --tip-bg:      #18181b;
-  --row-hover:   rgba(116,4,95,0.15); /* tinted with Main palette color */
+  /* Chart grid / tooltip                                               */
+  --grid-line:   #334155;
+  --tip-bg:      #0f172a;
+  --row-hover:   rgba(14,165,233,0.10);
 
-  /* Brand accents — staying true to the requested palette             */
-  --primary:     #ff5ee2;   /* brightened Main (magenta) for dark bg   */
-  --secondary:   #c7911b;   /* Secondary (golden amber)                */
+  /* Brand accents — sky + indigo                                       */
+  --primary:     #0ea5e9;   /* sky-500                                  */
+  --secondary:   #6366f1;   /* indigo-500                               */
+  --gradient:    linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
 }
 
 /* ── LIGHT theme ───────────────────────────────────────────────────── */
 body.theme-light {
-  /* Backgrounds — white background with grey panels                  */
-  --bg:          #ffffff;   /* pure white background                   */
-  --surface:     #f4f4f5;   /* light grey panel surface                */
-  --surface-2:   #e4e4e7;   /* secondary grey inset                    */
-  --topbar:      #ffffff;   /* white header                            */
-  --tabbar:      #f4f4f5;   /* light grey tabbar                       */
+  /* Backgrounds — clean white with slate accents                       */
+  --bg:          #ffffff;
+  --surface:     #f8fafc;   /* slate-50                                 */
+  --surface-2:   #f1f5f9;   /* slate-100                                */
+  --topbar:      #ffffff;
+  --tabbar:      #f8fafc;
 
-  /* Borders — soft grey                                               */
-  --border:      #d4d4d8;
-  --border-soft: #e4e4e7;
+  /* Borders                                                            */
+  --border:      #cbd5e1;   /* slate-300                                */
+  --border-soft: #e2e8f0;   /* slate-200                                */
 
-  /* Text                                                              */
-  --text:        #261c05;   /* very dark warm brown-black              */
-  --muted:       #735616;   /* golden-brown                            */
-  --muted-2:     #997522;   /* medium golden-brown                     */
-  --muted-3:     #bf9b45;
+  /* Text                                                               */
+  --text:        #0f172a;   /* slate-900                                */
+  --muted:       #475569;   /* slate-600                                */
+  --muted-2:     #64748b;   /* slate-500                                */
+  --muted-3:     #94a3b8;   /* slate-400                                */
 
-  /* Chart grid / tooltip                                              */
-  --grid-line:   #e4e4e7;
+  /* Chart grid / tooltip                                               */
+  --grid-line:   #e2e8f0;
   --tip-bg:      #ffffff;
-  --row-hover:   rgba(199,145,27,0.15);
+  --row-hover:   rgba(14,165,233,0.08);
 
-  /* Brand accents                                                    */
-  --primary:     #74045f;   /* Main color (deep magenta)               */
-  --secondary:   #c7911b;   /* Secondary color (amber)                 */
+  /* Brand accents — keep sky/indigo                                    */
+  --primary:     #0284c7;   /* sky-600 (darker for contrast on white)   */
+  --secondary:   #4f46e5;   /* indigo-600                               */
+  --gradient:    linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────── */
@@ -82,8 +82,10 @@ body {
   --color-ems-text:    var(--text);
   --color-ems-muted:   var(--muted);
   --color-primary:     var(--primary);
+  --color-secondary:   var(--secondary);
   --color-bess:        #10b981;
-  --color-diesel-a:    #f59e0b;
+  --color-solar:       #f59e0b;
+  --color-diesel-a:    #f97316;
   --color-diesel-c:    #ef4444;
   --color-grid-line:   var(--grid-line);
   --font-sans:         'Prompt', 'Noto Sans Thai', system-ui, sans-serif;
@@ -99,17 +101,27 @@ body {
 .hairline { border-color: var(--border-soft) !important; }
 .topbar   { background: var(--topbar); }
 .tabbar   { background: var(--tabbar); }
+
 .text-default { color: var(--text); }
 .text-muted   { color: var(--muted); }
 .text-muted-2 { color: var(--muted-2); }
 
-/* Light theme — Tailwind class overrides (text contrast on golden bg) */
-body.theme-light .text-slate-300 { color: #735616 !important; }
-body.theme-light .text-slate-400 { color: #997522 !important; }
-body.theme-light .text-slate-500 { color: #bf9b45 !important; }
-body.theme-light .text-white     { color: #261c05 !important; }
-body.theme-light nav.tabbar .text-muted   { color: #735616 !important; }
-body.theme-light nav.tabbar .text-muted-2 { color: #997522 !important; }
+/* Brand gradient utilities                                              */
+.bg-gradient   { background: var(--gradient); }
+.text-gradient {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+/* Light theme — Tailwind class overrides (slate-tinted text on light bg) */
+body.theme-light .text-slate-300 { color: #475569 !important; }
+body.theme-light .text-slate-400 { color: #64748b !important; }
+body.theme-light .text-slate-500 { color: #94a3b8 !important; }
+body.theme-light .text-white     { color: #0f172a !important; }
+body.theme-light nav.tabbar .text-muted   { color: #475569 !important; }
+body.theme-light nav.tabbar .text-muted-2 { color: #64748b !important; }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────── */
 .scrollbar::-webkit-scrollbar         { width: 8px; height: 8px; }
