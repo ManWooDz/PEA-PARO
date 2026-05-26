@@ -31,6 +31,9 @@ export const fetchForecastDispatch = (body = {}) =>
     use_margin: body.use_margin ?? true,
   }, { timeout: 90000 }).then(r => r.data)
 
+// ── Weather ─────────────────────────────────────────────────────────────────
+export const fetchWeather = () => api.get('/api/weather').then(r => r.data)
+
 // ── Alerts ──────────────────────────────────────────────────────────────────
 export const fetchAlerts      = ()              => api.get('/api/alerts').then(r => r.data)
 export const resolveAlert     = (id, action)    =>

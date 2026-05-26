@@ -1,10 +1,12 @@
 'use client'
+import { useState } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
-  ReferenceLine, Legend,
+  ReferenceLine, Legend, Line,
 } from 'recharts'
 import { Dot } from '@/components/shared/Dot'
+import { useWeather } from '@/hooks/useWeather'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt1 = v => (v == null ? '—' : Number(v).toFixed(1))
@@ -107,6 +109,17 @@ function StrategyBadge({ strategy }) {
 // ── Main component ────────────────────────────────────────────────────────────
 export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
 
+  // ── Solar/weather overlay state ────────────────────────────────────────────
+  const [showWeather, setShowWeather] = useState(false)
+  const { weather } = useWeather()
+
+  // Build hour-of-day map of solar irradiance
+  const solarByHour = {}
+  weather?.points?.forEach(p => {
+    const hh = p.ts.slice(11, 13)
+    solarByHour[hh] = p.solar_irradiance_w_m2
+  })
+
   // ── Chart data ─────────────────────────────────────────────────────────────
 
   /** 15-min LSTM forecast → AreaChart (all points, thin x-axis labels) */
@@ -115,6 +128,12 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
     Load: +(p.load_mw?.toFixed(2)      ?? 0),
     Safe: +(p.load_mw_safe?.toFixed(2) ?? 0),
   })) ?? []
+
+  // Augment chart data with solar values (matched by hour, t is "HH:MM")
+  const chartData = forecastData.map(d => ({
+    ...d,
+    solar: solarByHour[d.t?.slice(0, 2)] ?? null,
+  }))
 
   /** Hourly dispatch → stacked BarChart */
   const dispatchData = fd?.dispatch_hourly?.map(r => ({
@@ -216,6 +235,20 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
           พยากรณ์โหลด · LSTM Load Forecast ({hours}h) — 15-min intervals
         </div>
         <div className="panel rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase eyebrow text-muted">Forecast vs cap</div>
+            <button
+              onClick={() => setShowWeather(v => !v)}
+              className="text-xs px-2.5 py-1 rounded border cursor-pointer transition hover:opacity-80"
+              style={{
+                borderColor: showWeather ? '#f59e0b' : 'var(--border-soft)',
+                background:  showWeather ? 'rgba(245,158,11,0.10)' : 'var(--surface-2)',
+                color:       showWeather ? '#f59e0b' : 'var(--muted)',
+              }}
+            >
+              ☀️ Show Solar / Weather Trend
+            </button>
+          </div>
           {loading && !forecastData.length ? (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm gap-2">
               <Dot color="var(--primary)" pulse />
@@ -223,7 +256,7 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
             </div>
           ) : forecastData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={forecastData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="fcGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.3} />
@@ -247,6 +280,16 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
                   axisLine={false}
                   unit=" MW"
                 />
+                {showWeather && (
+                  <>
+                    <YAxis yAxisId="solar" orientation="right"
+                           tick={{ fontSize: 10, fill: '#f59e0b' }} tickLine={false} axisLine={false}
+                           unit=" W/m²" domain={[0, 1000]} />
+                    <Line yAxisId="solar" type="monotone" dataKey="solar"
+                          stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 3"
+                          dot={false} name="Solar irradiance" />
+                  </>
+                )}
                 <Tooltip content={<ForecastTip />} />
                 <ReferenceLine
                   y={8}
