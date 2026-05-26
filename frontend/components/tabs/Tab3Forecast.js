@@ -107,7 +107,7 @@ function StrategyBadge({ strategy }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
+export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour }) {
 
   // ── Solar/weather overlay state ────────────────────────────────────────────
   const [showWeather, setShowWeather] = useState(false)
@@ -297,6 +297,14 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading }) {
                   strokeDasharray="4 2"
                   label={{ value: 'Line 6 Cap 8 MW', position: 'insideTopRight', fontSize: 9, fill: '#ef4444' }}
                 />
+                {focusedHour != null && (
+                  <ReferenceLine
+                    x={`${String(focusedHour).padStart(2, '0')}:00`}
+                    stroke="#f59e0b"
+                    strokeDasharray="3 3"
+                    label={{ value: `from Dispatch h${focusedHour}`, position: 'top', fontSize: 10, fill: '#f59e0b' }}
+                  />
+                )}
                 {/* Safe (w/ margin) — drawn first so raw is on top */}
                 <Area
                   type="monotone"

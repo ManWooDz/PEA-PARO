@@ -81,7 +81,7 @@ function WindowRow({ label, value, onChange, color }) {
   )
 }
 
-export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomCfg, loading, activePlanId, setActivePlanId }) {
+export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomCfg, loading, activePlanId, setActivePlanId, onHourClick }) {
   const [showCustom, setShowCustom] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const { apply, submitting } = useApplyPlan()
@@ -312,7 +312,9 @@ export function Tab2Dispatch({ plans, activeId, applyPlan, customCfg, setCustomC
               </thead>
               <tbody>
                 {plan.rows.map((r, i) => (
-                  <tr key={i} className="border-b hairline last:border-0 hover:opacity-80">
+                  <tr key={i}
+                      onClick={() => onHourClick?.(r.hour)}
+                      className="border-b hairline last:border-0 hover:opacity-80 cursor-pointer">
                     <td className="px-3 py-2 mono">{String(r.hour).padStart(2,'0')}:00</td>
                     <td className="px-3 py-2 mono">{fmt1(r.load_mw)}</td>
                     <td className="px-3 py-2 mono" style={{ color: 'var(--primary)' }}>{fmt1(r.grid_mw)}</td>
