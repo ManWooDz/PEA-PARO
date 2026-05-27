@@ -77,11 +77,11 @@ export default function Home() {
 
       {/* Offline banner */}
       {rtErr && (
-        <div className="border-b hairline px-4 py-2 text-sm flex items-center gap-2"
-             style={{ background: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.3)' }}>
-          <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#ef4444' }} />
-          <span style={{ color: '#ef4444', fontWeight: 600 }}>BACKEND DISCONNECTED</span>
-          <span className="text-muted">— last data {rt?.server_time ?? '—'} · {rtErr}</span>
+        <div className="border-b hairline px-4 py-2 text-sm flex items-center gap-2 bg-red-500/10 backdrop-blur-sm"
+             style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
+          <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+          <span className="text-red-500 font-semibold thai">ขาดการเชื่อมต่อกับเซิร์ฟเวอร์</span>
+          <span className="text-muted thai">— ข้อมูลล่าสุด {rt?.server_time ?? '—'} · {rtErr}</span>
         </div>
       )}
 
@@ -122,6 +122,7 @@ export default function Home() {
             activeAlerts={activeAlerts} resolvedAlerts={resolvedAlerts}
             resolve={resolve} loading={alertLoading}
             focusedAlertId={focusedAlertId} setFocusedAlertId={setFocusedAlert}
+            onViewDispatch={() => setActive('dispatch')}
           />
         )}
       </main>

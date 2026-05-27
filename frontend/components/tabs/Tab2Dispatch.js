@@ -50,7 +50,7 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
 
   return (
     <div>
-      <div className="text-[10px] uppercase eyebrow text-muted mb-1.5">Source Mix · 24h</div>
+      <div className="text-xs uppercase eyebrow text-muted mb-1.5 thai">สัดส่วนพลังงาน · 24 ชม.</div>
 
       {/* Stacked bar */}
       <div className="h-2 rounded-full overflow-hidden flex" style={{ background: 'var(--surface-2)' }}>
@@ -71,16 +71,16 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
               <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
               {!compact && <span className="text-[9px] text-muted truncate">{s.sub}</span>}
               {showRadio && s.radio && s.totalMwh > 0.05 && (
-                <span title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม" className="text-[10px]">📻</span>
+                <i className="fa-solid fa-radio text-[10px]"
+                   title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม"
+                   style={{ color: s.color }} />
               )}
             </div>
             <span className="mono text-muted text-right" title="Total energy delivered in 24h">{s.totalMwh.toFixed(1)} <span className="text-[9px]">MWh</span></span>
             <span className="mono text-muted text-right" title="Peak instantaneous output">peak {s.peak.toFixed(1)} <span className="text-[9px]">MW</span></span>
-            {!compact && (
-              <span className="mono text-[10px] text-muted text-right whitespace-nowrap" title="Active hours window">
-                {s.win ? `${String(s.win[0]).padStart(2,'0')}–${String(s.win[1] + 1).padStart(2,'0')}h · ${s.win[2]}h on` : '—'}
+              <span className="mono text-[11px] text-muted text-right whitespace-nowrap" title="Active hours window">
+                {s.win ? `${String(s.win[0]).padStart(2,'0')}–${String(s.win[1] + 1).padStart(2,'0')}h · เดินเครื่อง ${s.win[2]} ชม.` : '—'}
               </span>
-            )}
           </div>
         ))}
       </div>
@@ -131,33 +131,32 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-base thai font-semibold" style={{ color: strat.color }}>{strat.th}</div>
-          <div className="text-[10px] uppercase eyebrow text-muted">{strat.en}</div>
         </div>
         {isActive && (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase eyebrow"
-                style={{ background: `${strat.color}22`, color: strat.color }}>Active</span>
+          <span className="px-1.5 py-0.5 rounded text-[11px] font-bold uppercase eyebrow thai"
+                style={{ background: `${strat.color}22`, color: strat.color }}>กำลังใช้งาน</span>
         )}
       </div>
       <div className="text-xs text-muted thai mt-1">{strat.desc}</div>
 
       <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div>
-          <div className="mono font-semibold text-base">{fmt2(dieselMwh)} <span className="text-[10px] text-muted">MWh diesel</span></div>
-          <div className="text-[10px] text-muted">SoC end · <span className="mono">{fmt1(socEnd)}%</span></div>
+          <div className="mono font-semibold text-base">{fmt2(dieselMwh)} <span className="text-[11px] text-muted thai">MWh ดีเซล</span></div>
+          <div className="text-[11px] text-muted thai">SoC สุดท้าย · <span className="mono">{fmt1(socEnd)}%</span></div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase eyebrow text-muted">Total Cost · 24h</div>
+          <div className="text-[11px] uppercase eyebrow text-muted thai">ต้นทุนรวม · 24 ชม.</div>
           <div className="mono font-semibold text-base">{fmtBaht(totalCost)}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase eyebrow text-muted">Net (Rev − Cost)</div>
+          <div className="text-[11px] uppercase eyebrow text-muted thai">กำไรสุทธิ (รายได้ - ต้นทุน)</div>
           <div className="mono font-semibold" style={{ color: net >= 0 ? '#10b981' : '#ef4444' }}>
             {net >= 0 ? '+' : ''}{fmtBaht(net)}
           </div>
         </div>
         {strat.id !== 'baseline' && baselineCost > 0 && (
           <div className="text-right">
-            <div className="text-[10px] uppercase eyebrow text-muted">Vs Baseline</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">เทียบกับแผนพื้นฐาน</div>
             <div className="mono font-semibold" style={{ color: vsBaseline <= 0 ? '#10b981' : '#ef4444' }}>
               {vsBaseline >= 0 ? '+' : '−'}{(Math.abs(vsBaseline) / 1000).toFixed(1)}k · {vsBaseline >= 0 ? '+' : '−'}{Math.abs(vsBaselinePct).toFixed(1)}%
             </div>
@@ -176,28 +175,28 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
 // ── Slider row in Custom Dispatch ──────────────────────────────────
 function SliderRow({ label, sub, color, value, onChange, window, onWindow }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[120px_1fr_180px] gap-3 items-center py-3 border-b hairline last:border-0">
-      <div>
-        <div className="text-sm font-medium" style={{ color }}>{label}</div>
-        <div className="text-[10px] text-muted">{sub}</div>
+    <div className="grid grid-cols-1 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,160px)] gap-3 items-center py-3 border-b hairline last:border-0">
+      <div className="min-w-0">
+        <div className="text-sm font-medium truncate" style={{ color }}>{label}</div>
+        <div className="text-[10px] text-muted truncate">{sub}</div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <input type="range" min={0} max={100} value={value}
-               className="tk flex-1"
+               className="tk flex-1 min-w-0"
                onChange={e => onChange(parseInt(e.target.value))} />
-        <span className="mono text-sm font-semibold w-12 text-right" style={{ color }}>{value}%</span>
+        <span className="mono text-sm font-semibold w-10 text-right flex-shrink-0" style={{ color }}>{value}%</span>
       </div>
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-[10px] uppercase eyebrow text-muted">Hours</span>
+      <div className="flex items-center gap-1 text-xs min-w-0 justify-end">
         <select value={window[0]} onChange={e => onWindow([parseInt(e.target.value), window[1]])}
-                className="panel-2 border hairline rounded px-1.5 py-0.5 mono text-xs">
-          {Array.from({length: 25}, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
+                className="panel-2 border hairline rounded px-1 py-0.5 mono text-[11px] min-w-0">
+          {Array.from({length: 25}, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
         </select>
-        <span className="text-muted">→</span>
+        <span className="text-muted text-[10px]">→</span>
         <select value={window[1]} onChange={e => onWindow([window[0], parseInt(e.target.value)])}
-                className="panel-2 border hairline rounded px-1.5 py-0.5 mono text-xs">
-          {Array.from({length: 25}, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
+                className="panel-2 border hairline rounded px-1 py-0.5 mono text-[11px] min-w-0">
+          {Array.from({length: 25}, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
         </select>
+        <span className="text-muted text-[10px] flex-shrink-0">h</span>
       </div>
     </div>
   )
@@ -275,8 +274,8 @@ export function Tab2Dispatch({
       {/* ── Header ── */}
       <section className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[10.5px] uppercase eyebrow text-muted">แผนการจ่ายไฟ · MILP Rolling Horizon</div>
-          <h1 className="text-xl font-semibold mt-0.5">Optimal Dispatch · 24h</h1>
+          <div className="text-xs uppercase eyebrow text-muted thai">แผนการจ่ายไฟ · MILP Rolling Horizon</div>
+          <h1 className="text-xl font-semibold mt-0.5 thai">การจ่ายไฟที่เหมาะสม · 24 ชม.</h1>
           <div className="text-xs text-muted mt-1 thai">
             ดีเซล <span className="mono">฿15/kWh</span> · ขาย <span className="mono">฿{SALE_BAHT_PER_KWH}/kWh</span> ·
             ดีเซลทุก kWh <span style={{ color: '#ef4444' }} className="mono">ขาดทุน ฿11</span>
@@ -288,7 +287,7 @@ export function Tab2Dispatch({
       <section className="panel rounded-xl p-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="text-[10.5px] uppercase eyebrow text-muted">Solar Scenario</div>
+            <div className="text-xs uppercase eyebrow text-muted thai">สถานการณ์ Solar</div>
             <div className="text-xs text-muted mt-0.5 thai">เปรียบเทียบเกาะปัจจุบัน vs หลังติดตั้ง PV</div>
           </div>
           <div className="flex gap-2">
@@ -297,14 +296,14 @@ export function Tab2Dispatch({
                     style={!hasSolar
                       ? { borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)', fontWeight: 600 }
                       : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)', color: 'var(--muted)' }}>
-              <span className="thai">ไม่มี Solar</span> <span className="text-[10px] ml-1">(current)</span>
+              <span className="thai">ไม่มี Solar</span> <span className="text-[11px] ml-1">(ปัจจุบัน)</span>
             </button>
             <button onClick={() => setHasSolar(true)}
                     className="px-4 py-2 rounded-lg text-sm border cursor-pointer transition hover:opacity-90"
                     style={hasSolar
                       ? { borderColor: '#f59e0b', background: 'rgba(245,158,11,0.10)', color: '#f59e0b', fontWeight: 600 }
                       : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)', color: 'var(--muted)' }}>
-              ☀️ <span className="thai">มี Solar</span> <span className="text-[10px] ml-1">(0.8 MWp)</span>
+              ☀️ <span className="thai">มี Solar</span> <span className="text-[11px] ml-1">(0.8 MWp)</span>
             </button>
           </div>
         </div>
@@ -326,15 +325,15 @@ export function Tab2Dispatch({
           <div>
             <div className="flex items-center gap-2">
               <Icon.Sliders width="16" height="16" />
-              <span className="text-base font-semibold thai">แผนกำหนดเอง · Custom Dispatch</span>
+              <span className="text-base font-semibold thai">แผนกำหนดเอง</span>
             </div>
-            <div className="text-[10.5px] uppercase eyebrow text-muted mt-1">Share % per source + Active hours</div>
+            <div className="text-xs uppercase eyebrow text-muted mt-1 thai">สัดส่วนต่อแหล่งจ่ายไฟ + ช่วงเวลาทำงาน</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase eyebrow text-muted">Custom Plan Cost</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">ต้นทุนแผนกำหนดเอง</div>
             <div className="text-lg font-bold mono">{fmtBaht(customCost)}</div>
             <div className="text-[11px] mono" style={{ color: customNet >= 0 ? '#10b981' : '#ef4444' }}>
-              net {customNet >= 0 ? '+' : ''}{fmtBaht(customNet)}
+              สุทธิ {customNet >= 0 ? '+' : ''}{fmtBaht(customNet)}
             </div>
           </div>
         </div>
@@ -387,8 +386,9 @@ export function Tab2Dispatch({
                            borderColor: activeId === 'custom' ? 'var(--primary)' : 'var(--border-soft)' }}>
             ใช้แผนกำหนดเอง · Use Custom
           </button>
-          <div className="text-[10px] text-muted thai">
-            📻 = แหล่งที่ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม (BESS / Diesel)
+          <div className="text-[10px] text-muted thai flex items-center gap-1.5">
+            <i className="fa-solid fa-radio" />
+            : แหล่งที่ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม (BESS / Diesel)
           </div>
         </div>
       </section>
@@ -396,10 +396,10 @@ export function Tab2Dispatch({
       {/* ── 24h Dispatch Chart ── */}
       <section>
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-          <div className="text-[10.5px] uppercase eyebrow text-muted">แผนการจ่ายไฟ 24 ชม. · 24-Hour Dispatch Plan</div>
+          <div className="text-xs uppercase eyebrow text-muted thai">แผนการจ่ายไฟ 24 ชั่วโมง</div>
           <button onClick={() => setDialogOpen(true)}
-                  className="px-4 py-2 rounded text-sm font-semibold cursor-pointer hover:opacity-90 bg-gradient" style={{ color: '#fff' }}>
-            ▶ Apply Plan
+                  className="px-4 py-2 rounded text-sm font-semibold cursor-pointer hover:opacity-90 bg-gradient thai" style={{ color: '#fff' }}>
+            ▶ นำแผนไปใช้
           </button>
         </div>
         {activePlanId && (
@@ -437,14 +437,14 @@ export function Tab2Dispatch({
             <div className="h-[260px] flex items-center justify-center text-muted text-sm">No plan data</div>
           )}
 
-          <div className="flex items-center gap-4 mt-2 text-[10px] text-muted flex-wrap">
+          <div className="flex items-center gap-4 mt-2 text-xs text-muted flex-wrap thai">
             <span className="flex items-center gap-1">
               <span className="inline-block w-3 h-2" style={{ background: 'rgba(59,130,246,0.18)' }} />
-              Battery charge window (22:00–08:59)
+              ช่วงเวลาชาร์จแบตเตอรี่ (22:00–08:59)
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-3 h-2" style={{ background: 'rgba(245,158,11,0.18)' }} />
-              Battery discharge window (09:00–21:59)
+              ช่วงเวลาจ่ายไฟแบตเตอรี่ (09:00–21:59)
             </span>
           </div>
         </div>
@@ -453,13 +453,27 @@ export function Tab2Dispatch({
       {/* ── Hourly table ── */}
       {rows.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">ตารางรายชั่วโมง · Hourly Table</div>
+          <div className="text-xs uppercase eyebrow text-muted mb-3 thai">ตารางรายชั่วโมง</div>
           <div className="panel rounded-xl overflow-auto">
-            <table className="w-full text-xs min-w-[640px]">
+            <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '11%' }} />{/* เวลา */}
+                <col style={{ width: '10%' }} />{/* โหลด */}
+                <col style={{ width: '10%' }} />{/* Grid */}
+                <col style={{ width: '10%' }} />{/* Solar */}
+                <col style={{ width: '10%' }} />{/* BESS */}
+                <col style={{ width: '10%' }} />{/* D #8 */}
+                <col style={{ width: '10%' }} />{/* D #9 */}
+                <col style={{ width: '10%' }} />{/* SoC */}
+                <col style={{ width: '19%' }} />{/* สถานะ — takes remaining */}
+              </colgroup>
               <thead>
                 <tr className="border-b hairline">
-                  {['Hour','Load','Grid','Solar','BESS','D #8','D #9','SoC','Status'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-muted eyebrow uppercase font-medium">{h}</th>
+                  {['เวลา','โหลด','Grid','Solar','BESS','D #8','D #9','SoC','สถานะ'].map((h, idx) => (
+                    <th key={h}
+                        className={`px-3 py-2 text-muted eyebrow uppercase font-medium thai ${idx === 8 ? 'text-right' : 'text-left'}`}>
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -476,8 +490,8 @@ export function Tab2Dispatch({
                     <td className="px-3 py-2 mono" style={{ color: '#f97316' }}>{fmt1(r.diesel_a_mw)}</td>
                     <td className="px-3 py-2 mono" style={{ color: '#ef4444' }}>{fmt1(r.diesel_c_mw)}</td>
                     <td className="px-3 py-2 mono">{fmt1(r.soc_pct)}%</td>
-                    <td className="px-3 py-2">
-                      <span className="px-1.5 py-0.5 rounded text-[10px]"
+                    <td className="px-3 py-2 text-right">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] inline-block"
                             style={{ background: r.status === 'normal' ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)',
                                      color:      r.status === 'normal' ? '#10b981' : '#f59e0b' }}>
                         {r.status}

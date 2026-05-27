@@ -15,11 +15,9 @@ const LEVEL_META = {
 function levelBadge(level) {
   const m = LEVEL_META[level] ?? LEVEL_META.low
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px]"
           style={{ background: `${m.color}22`, color: m.color }}>
       <span className="thai font-semibold">{m.th}</span>
-      <span className="text-muted">·</span>
-      <span className="uppercase eyebrow">{m.en}</span>
     </span>
   )
 }
@@ -39,9 +37,9 @@ function ChannelRow({ icon: I, name, sub, status, color }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate">{name}</div>
-        <div className="text-[11px] text-muted truncate">{sub}</div>
+        <div className="text-xs text-muted truncate">{sub}</div>
       </div>
-      <span className="text-[10px] mono px-2 py-0.5 rounded-full"
+      <span className="text-[11px] mono px-2 py-0.5 rounded-full"
             style={{ background: `${sMeta.color}22`, color: sMeta.color }}>
         {status}
       </span>
@@ -57,12 +55,12 @@ function LogRow({ alert }) {
       <td className="px-3 py-2">{levelBadge(alert.level)}</td>
       <td className="px-3 py-2 text-xs">
         <div className="font-medium thai">{alert.title}</div>
-        {alert.detail && <div className="text-[11px] text-muted mt-0.5 thai">{alert.detail}</div>}
+        {alert.detail && <div className="text-xs text-muted mt-0.5 thai">{alert.detail}</div>}
       </td>
       <td className="px-3 py-2">
-        <span className="text-[10px] uppercase eyebrow"
+        <span className="text-[11px] uppercase eyebrow thai"
               style={{ color: alert.status === 'resolved' ? '#10b981' : '#f59e0b' }}>
-          {alert.status === 'resolved' ? 'RESOLVED' : 'OPEN'}
+          {alert.status === 'resolved' ? 'แก้ไขแล้ว' : 'เปิดอยู่'}
         </span>
       </td>
     </tr>
@@ -70,7 +68,7 @@ function LogRow({ alert }) {
 }
 
 // ── Spotlight (top) alert card ──────────────────────────────────────
-function SpotlightAlert({ alert, onResolve }) {
+function SpotlightAlert({ alert, onResolve, onViewDispatch }) {
   if (!alert) {
     return (
       <div className="panel rounded-xl p-6 flex flex-col items-center text-center gap-2">
@@ -79,7 +77,7 @@ function SpotlightAlert({ alert, onResolve }) {
           <Icon.Check width="24" height="24" />
         </div>
         <div className="font-medium thai">ไม่มีการแจ้งเตือนที่ใช้งานอยู่</div>
-        <div className="text-xs text-muted">ระบบทำงานปกติ · All systems nominal</div>
+        <div className="text-xs text-muted thai">ระบบทำงานปกติ</div>
       </div>
     )
   }
@@ -92,10 +90,8 @@ function SpotlightAlert({ alert, onResolve }) {
       <div className="flex items-center gap-2 flex-wrap">
         <Dot color={m.color} pulse={alert.level === 'high'} />
         <span className="thai font-semibold" style={{ color: m.color }}>{m.th}</span>
-        <span className="text-muted">·</span>
-        <span className="text-[10px] uppercase eyebrow" style={{ color: m.color }}>{m.en}</span>
         <span className="mono text-muted text-xs ml-2">{alert.time}</span>
-        <span className="text-muted text-xs">· Alert #{alert.id}</span>
+        <span className="text-muted text-xs thai">· การแจ้งเตือน #{alert.id}</span>
       </div>
 
       <h3 className="text-base font-semibold mt-2 thai leading-snug">{alert.title}</h3>
@@ -104,26 +100,26 @@ function SpotlightAlert({ alert, onResolve }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
         {alert.forecast_peak_mw != null && (
           <div className="panel-2 rounded-lg p-3">
-            <div className="text-[10px] uppercase eyebrow text-muted">Forecast Peak</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">พยากรณ์โหลดสูงสุด</div>
             <div className="text-base font-bold mono" style={{ color: m.color }}>
               {alert.forecast_peak_mw.toFixed(2)} MW
             </div>
-            <div className="text-[10px] text-muted">19:00–21:00</div>
+            <div className="text-[11px] text-muted">19:00–21:00</div>
           </div>
         )}
         {alert.battery_soc_pct != null && (
           <div className="panel-2 rounded-lg p-3">
-            <div className="text-[10px] uppercase eyebrow text-muted">BESS SoC @ peak</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">SoC แบตเตอรี่ @ จุดสูงสุด</div>
             <div className="text-base font-bold mono" style={{ color: m.color }}>
               {alert.battery_soc_pct.toFixed(0)}%
             </div>
-            <div className="text-[10px] text-muted">below 20% floor</div>
+            <div className="text-[11px] text-muted thai">ต่ำกว่าเกณฑ์ 20%</div>
           </div>
         )}
         {alert.recommended_action && (
           <div className="panel-2 rounded-lg p-3">
-            <div className="text-[10px] uppercase eyebrow text-muted">Recommended</div>
-            <div className="text-sm font-medium mt-0.5">{alert.recommended_action}</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">ข้อเสนอแนะ</div>
+            <div className="text-sm font-medium mt-0.5 thai">{alert.recommended_action}</div>
           </div>
         )}
       </div>
@@ -136,7 +132,7 @@ function SpotlightAlert({ alert, onResolve }) {
           <span className="thai">ยืนยันเดินเครื่องดีเซล</span>
         </button>
         <button className="px-3 py-2 rounded text-sm border hairline cursor-pointer hover:opacity-80 inline-flex items-center gap-2 panel-2"
-                onClick={(e) => e.preventDefault()}>
+                onClick={() => onViewDispatch?.()}>
           <Icon.Calendar width="14" height="14" />
           <span className="thai">ดู Dispatch Plan</span>
         </button>
@@ -151,7 +147,7 @@ function SpotlightAlert({ alert, onResolve }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────
-export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
+export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading, onViewDispatch }) {
   const [filter, setFilter] = useState('all')
 
   const allAlerts = [...(activeAlerts ?? []), ...(resolvedAlerts ?? [])]
@@ -188,8 +184,8 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
       {/* ── Header ── */}
       <section className="flex items-end justify-between flex-wrap gap-2">
         <div>
-          <div className="text-[10.5px] uppercase eyebrow text-muted">การแจ้งเตือน · Early Warning System</div>
-          <h1 className="text-xl font-semibold mt-0.5">Alerts & Operator Actions</h1>
+          <div className="text-xs uppercase eyebrow text-muted thai">ระบบแจ้งเตือนล่วงหน้า</div>
+          <h1 className="text-xl font-semibold mt-0.5 thai">การแจ้งเตือนและการจัดการ</h1>
         </div>
         <div className="text-xs text-muted">
           <span className="thai">รีเฟรชอัตโนมัติ</span> · <span className="mono">3s</span>
@@ -198,12 +194,12 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
 
       {/* ── Top alert + Notification channels + Summary ── */}
       <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
-        <SpotlightAlert alert={top} onResolve={resolve} />
+        <SpotlightAlert alert={top} onResolve={resolve} onViewDispatch={onViewDispatch} />
 
         <div className="space-y-4">
           {/* Notification Channels */}
           <div className="panel rounded-xl p-4">
-            <div className="text-[10.5px] uppercase eyebrow text-muted mb-2">Notification Channels</div>
+            <div className="text-xs uppercase eyebrow text-muted mb-2 thai">ช่องทางการแจ้งเตือน</div>
             <div>
               <ChannelRow icon={Icon.Mail}  name="LINE Notify API"     sub="15 ผู้รับ · ทีมปฏิบัติการเกาะเต่า" status="CONNECTED" color="#06b6d4" />
               <ChannelRow icon={Icon.Send}  name="SMS Gateway (AIS)"    sub="8 หมายเลข · ผู้บริหาร PEA"        status="CONNECTED" color="#10b981" />
@@ -213,17 +209,17 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
 
           {/* Alert summary */}
           <div className="panel rounded-xl p-4">
-            <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">Alert Summary · Today</div>
+            <div className="text-xs uppercase eyebrow text-muted mb-3 thai">สรุปการแจ้งเตือน · วันนี้</div>
             <div className="grid grid-cols-4 gap-2">
               {[
-                { label: 'HIGH',     count: highCount,     color: '#ef4444' },
-                { label: 'WATCH',    count: mediumCount,   color: '#f59e0b' },
-                { label: 'INFO',     count: lowCount,      color: '#3b82f6' },
-                { label: 'RESOLVED', count: resolvedCount, color: '#10b981' },
+                { label: 'เสี่ยงสูง',     count: highCount,     color: '#ef4444' },
+                { label: 'เฝ้าระวัง',    count: mediumCount,   color: '#f59e0b' },
+                { label: 'แจ้งเตือน',     count: lowCount,      color: '#3b82f6' },
+                { label: 'แก้ไขแล้ว', count: resolvedCount, color: '#10b981' },
               ].map(({ label, count, color }) => (
                 <div key={label} className="text-center">
                   <div className="text-2xl font-bold mono" style={{ color }}>{count}</div>
-                  <div className="text-[9px] uppercase eyebrow text-muted mt-0.5">{label}</div>
+                  <div className="text-[10px] uppercase eyebrow text-muted mt-0.5 thai">{label}</div>
                 </div>
               ))}
             </div>
@@ -235,8 +231,8 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
       <section>
         <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
           <div className="flex items-baseline gap-3">
-            <div className="text-[10.5px] uppercase eyebrow text-muted">Alert Log · <span className="thai">ประวัติการแจ้งเตือน</span></div>
-            <span className="text-xs text-muted mono">{filtered.length} entries</span>
+            <div className="text-xs uppercase eyebrow text-muted thai">ประวัติการแจ้งเตือน</div>
+            <span className="text-xs text-muted mono">{filtered.length} รายการ</span>
           </div>
           <div className="flex flex-wrap gap-1">
             {FILTERS.map(f => {
