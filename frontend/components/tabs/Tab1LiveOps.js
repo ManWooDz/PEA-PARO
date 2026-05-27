@@ -411,18 +411,18 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   fill="url(#loadGrad)"
                   dot={false}
                   connectNulls={false}
-                  activeDot={(p) =>
-                    p.payload?.actual == null ? null : (
-                      <circle
-                        cx={p.cx}
-                        cy={p.cy}
-                        r={4}
-                        fill="var(--primary)"
-                        stroke="var(--bg)"
-                        strokeWidth={2}
-                      />
-                    )
-                  }
+                  activeDot={(p) => {
+                    // Hide the activeDot entirely when this series has no
+                    // value at the hovered x. Returning null can be ignored
+                    // by recharts — an invisible circle with r=0 is robust.
+                    const hasValue =
+                      p?.payload?.actual != null && p?.value != null;
+                    if (!hasValue) return <circle r={0} />;
+                    return (
+                      <circle cx={p.cx} cy={p.cy} r={4}
+                        fill="var(--primary)" stroke="var(--bg)" strokeWidth={2} />
+                    );
+                  }}
                 />
                 <Area
                   type="monotone"
@@ -435,12 +435,15 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   dot={false}
                   connectNulls={false}
                   isAnimationActive={false}
-                  activeDot={(p) =>
-                    p.payload?.forecast == null ? null : (
+                  activeDot={(p) => {
+                    const hasValue =
+                      p?.payload?.forecast != null && p?.value != null;
+                    if (!hasValue) return <circle r={0} />;
+                    return (
                       <circle cx={p.cx} cy={p.cy} r={4}
                         fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2} />
-                    )
-                  }
+                    );
+                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>
