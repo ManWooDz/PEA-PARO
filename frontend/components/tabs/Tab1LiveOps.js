@@ -11,8 +11,6 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Legend,
-  ComposedChart,
-  Customized,
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
@@ -373,7 +371,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
           </div>
           {loadData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart
+              <AreaChart
                 data={loadData}
                 margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
                 onMouseMove={(e) => setHoverT(e?.activeLabel ?? null)}
@@ -422,11 +420,11 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   unit=" MW"
                 />
                 <Tooltip content={<LoadTip />} />
-                {/* Both Areas have activeDot disabled — recharts snaps
-                    Actual's hover dot to the anchor when hovering the
-                    Forecast region, which is wrong. The Tooltip's colored
-                    bullet (●) next to each row already indicates which
-                    series the visible value belongs to. */}
+                {/* `dot` function renders once per data point — recharts gives
+                    us cx/cy already computed by its scale. We return an
+                    invisible r=0 circle for all points EXCEPT the one being
+                    hovered (and only if its value is non-null).
+                    This sidesteps recharts' activeDot snap-to-anchor bug. */}
                 <Area
                   type="monotone"
                   dataKey="actual"
@@ -434,9 +432,21 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   stroke="var(--primary)"
                   strokeWidth={2}
                   fill="url(#loadGrad)"
-                  dot={false}
-                  activeDot={false}
                   connectNulls={false}
+                  activeDot={false}
+                  dot={(props) => {
+                    const isHover = props.payload?.t === hoverT;
+                    const hasValue = props.payload?.actual != null;
+                    if (!isHover || !hasValue)
+                      return <circle key={`a-${props.index}`} r={0} />;
+                    return (
+                      <circle
+                        key={`a-${props.index}`}
+                        cx={props.cx} cy={props.cy} r={4}
+                        fill="var(--primary)" stroke="var(--bg)" strokeWidth={2}
+                      />
+                    );
+                  }}
                 />
                 <Area
                   type="monotone"
@@ -446,42 +456,24 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   strokeWidth={2}
                   strokeDasharray="5 3"
                   fill="url(#fcGrad)"
-                  dot={false}
-                  activeDot={false}
                   connectNulls={false}
                   isAnimationActive={false}
-                />
-                {/* Custom hover dots — render directly via xScale/yScale so we
-                    can place each dot at the EXACT hovered x without recharts'
-                    activeDot snap-to-anchor behaviour. */}
-                <Customized
-                  component={(rp) => {
-                    if (!hoverT) return null;
-                    const row = loadData.find((d) => d.t === hoverT);
-                    if (!row) return null;
-                    const xMap = rp?.xAxisMap;
-                    const yMap = rp?.yAxisMap;
-                    if (!xMap || !yMap) return null;
-                    const xAxis = xMap[Object.keys(xMap)[0]];
-                    const yAxis = yMap[Object.keys(yMap)[0]];
-                    if (typeof xAxis?.scale !== "function" || typeof yAxis?.scale !== "function") return null;
-                    const cx = xAxis.scale(row.t);
-                    if (typeof cx !== "number" || Number.isNaN(cx)) return null;
+                  activeDot={false}
+                  dot={(props) => {
+                    const isHover = props.payload?.t === hoverT;
+                    const hasValue = props.payload?.forecast != null;
+                    if (!isHover || !hasValue)
+                      return <circle key={`f-${props.index}`} r={0} />;
                     return (
-                      <g pointerEvents="none">
-                        {row.actual != null && (
-                          <circle cx={cx} cy={yAxis.scale(row.actual)} r={4}
-                                  fill="var(--primary)" stroke="var(--bg)" strokeWidth={2} />
-                        )}
-                        {row.forecast != null && (
-                          <circle cx={cx} cy={yAxis.scale(row.forecast)} r={4}
-                                  fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2} />
-                        )}
-                      </g>
+                      <circle
+                        key={`f-${props.index}`}
+                        cx={props.cx} cy={props.cy} r={4}
+                        fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2}
+                      />
                     );
                   }}
                 />
-              </ComposedChart>
+              </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm">
