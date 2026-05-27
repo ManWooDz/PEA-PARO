@@ -12,6 +12,7 @@
   "month_cos",
   "is_weekend",
   "is_holiday",
+  "is_tourist_season",
   "lag_96",
   "lag_672"
 ]
