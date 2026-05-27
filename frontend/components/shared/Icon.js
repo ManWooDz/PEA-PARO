@@ -1,20 +1,57 @@
 'use client'
-// Font Awesome–backed icon set. All icons keep the original API
-// (width/height/className/style props) so existing call-sites work unchanged.
+// Font Awesome via the official React package — tree-shaken SVG icons,
+// no DOM mutation, no CDN dependency, no React reconciler conflicts.
 //
-// Width/height map to fontSize on the underlying <i> element since
-// Font Awesome icons are CSS-driven, not SVG-sized.
-//
-// Make sure the FA kit script is loaded in app/layout.js head.
+// Each icon is imported explicitly (only what we use is bundled).
+// API kept identical to the old Icon component so call-sites work unchanged:
+//   <Icon.Bolt width="20" height="20" style={{ color: '...' }} />
 
-const makeIcon = (faClass) =>
-  function FaIcon({ width = 16, height, className = '', style = {}, ...rest }) {
-    // Prefer width; if height is given and differs, take whichever is larger
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faBolt,
+  faGaugeHigh,
+  faBatteryThreeQuarters,
+  faSun,
+  faMoon,
+  faTriangleExclamation,
+  faBell,
+  faPlug,
+  faGasPump,
+  faRadio,
+  faChartColumn,
+  faArrowTrendUp,
+  faArrowTrendDown,
+  faCalendarDays,
+  faCheck,
+  faPaperPlane,
+  faArrowsRotate,
+  faDownload,
+  faSliders,
+  faXmark,
+  faWandMagicSparkles,
+  faEnvelope,
+  faFileLines,
+  faUser,
+  faMap,
+  faWifi,
+  faCoins,
+  faChevronDown,
+} from '@fortawesome/free-solid-svg-icons'
+
+// Disable FA's global CSS injection — Next.js handles CSS itself.
+import { config } from '@fortawesome/fontawesome-svg-core'
+import '@fortawesome/fontawesome-svg-core/styles.css'
+config.autoAddCss = false
+
+const makeIcon = (faIcon) =>
+  function FaIcon({ width = 16, height, className = '', style = {}, title, ...rest }) {
     const size = Number(width) || Number(height) || 16
     return (
-      <i
-        className={`${faClass} ${className}`.trim()}
-        style={{ fontSize: `${size}px`, lineHeight: 1, ...style }}
+      <FontAwesomeIcon
+        icon={faIcon}
+        className={className}
+        style={{ fontSize: `${size}px`, width: '1em', height: '1em', ...style }}
+        title={title}
         {...rest}
       />
     )
@@ -22,48 +59,48 @@ const makeIcon = (faClass) =>
 
 export const Icon = {
   // ── Core / brand ──────────────────────────────────────────────────
-  Bolt:        makeIcon('fa-solid fa-bolt'),
+  Bolt:        makeIcon(faBolt),
 
   // ── KPI / status ──────────────────────────────────────────────────
-  Gauge:       makeIcon('fa-solid fa-gauge-high'),
-  Battery:     makeIcon('fa-solid fa-battery-three-quarters'),
-  Sun:         makeIcon('fa-solid fa-sun'),
-  Moon:        makeIcon('fa-solid fa-moon'),
-  Alert:       makeIcon('fa-solid fa-triangle-exclamation'),
-  Bell:        makeIcon('fa-solid fa-bell'),
+  Gauge:       makeIcon(faGaugeHigh),
+  Battery:     makeIcon(faBatteryThreeQuarters),
+  Sun:         makeIcon(faSun),
+  Moon:        makeIcon(faMoon),
+  Alert:       makeIcon(faTriangleExclamation),
+  Bell:        makeIcon(faBell),
 
   // ── Grid topology / assets ────────────────────────────────────────
-  Cable:       makeIcon('fa-solid fa-plug'),
-  Engine:      makeIcon('fa-solid fa-gas-pump'),
-  Radio:       makeIcon('fa-solid fa-radio'),
+  Cable:       makeIcon(faPlug),
+  Engine:      makeIcon(faGasPump),
+  Radio:       makeIcon(faRadio),
 
   // ── Charts / data ─────────────────────────────────────────────────
-  ChartBar:    makeIcon('fa-solid fa-chart-column'),
-  TrendUp:     makeIcon('fa-solid fa-arrow-trend-up'),
-  TrendDown:   makeIcon('fa-solid fa-arrow-trend-down'),
+  ChartBar:    makeIcon(faChartColumn),
+  TrendUp:     makeIcon(faArrowTrendUp),
+  TrendDown:   makeIcon(faArrowTrendDown),
 
   // ── Time / scheduling ─────────────────────────────────────────────
-  Calendar:    makeIcon('fa-solid fa-calendar-days'),
+  Calendar:    makeIcon(faCalendarDays),
 
   // ── Actions ───────────────────────────────────────────────────────
-  Check:       makeIcon('fa-solid fa-check'),
-  Send:        makeIcon('fa-solid fa-paper-plane'),
-  Refresh:     makeIcon('fa-solid fa-arrows-rotate'),
-  Download:    makeIcon('fa-solid fa-download'),
-  Sliders:     makeIcon('fa-solid fa-sliders'),
-  X:           makeIcon('fa-solid fa-xmark'),
-  Wand:        makeIcon('fa-solid fa-wand-magic-sparkles'),
+  Check:       makeIcon(faCheck),
+  Send:        makeIcon(faPaperPlane),
+  Refresh:     makeIcon(faArrowsRotate),
+  Download:    makeIcon(faDownload),
+  Sliders:     makeIcon(faSliders),
+  X:           makeIcon(faXmark),
+  Wand:        makeIcon(faWandMagicSparkles),
 
   // ── Communication / files ─────────────────────────────────────────
-  Mail:        makeIcon('fa-solid fa-envelope'),
-  File:        makeIcon('fa-solid fa-file-lines'),
+  Mail:        makeIcon(faEnvelope),
+  File:        makeIcon(faFileLines),
 
   // ── Identity / map ────────────────────────────────────────────────
-  User:        makeIcon('fa-solid fa-user'),
-  Map:         makeIcon('fa-solid fa-map'),
-  Wifi:        makeIcon('fa-solid fa-wifi'),
+  User:        makeIcon(faUser),
+  Map:         makeIcon(faMap),
+  Wifi:        makeIcon(faWifi),
 
   // ── Misc ──────────────────────────────────────────────────────────
-  Coin:        makeIcon('fa-solid fa-coins'),
-  ChevronDown: makeIcon('fa-solid fa-chevron-down'),
+  Coin:        makeIcon(faCoins),
+  ChevronDown: makeIcon(faChevronDown),
 }
