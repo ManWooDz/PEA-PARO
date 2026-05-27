@@ -25,18 +25,17 @@ export function TabBar({ active, setActive, alertCount }) {
             <I width="16" height="16" />
             <div className="flex items-baseline gap-1.5">
               <span className="thai font-medium">{t.th}</span>
-              <span className="text-[10.5px] uppercase eyebrow text-muted hidden md:inline">{t.en}</span>
             </div>
             {t.id === 'alerts' && alertCount > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold"
+              <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-xs font-semibold"
                     style={{ background: '#ef4444', color: '#fff' }}>{alertCount}</span>
             )}
           </button>
         )
       })}
-      <div className="ml-auto flex items-center gap-2 text-xs text-muted">
+      <div className="ml-auto flex items-center gap-2 text-xs text-muted thai">
         <Icon.Refresh width="14" height="14" />
-        <span className="mono hidden sm:inline">Auto-refresh 3s</span>
+        <span className="hidden sm:inline">รีเฟรชอัตโนมัติ 15 นาที</span>
       </div>
     </nav>
   )

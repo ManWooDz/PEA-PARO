@@ -32,7 +32,8 @@ export function useRealtime() {
 
   useEffect(() => {
     refresh()
-    const id = setInterval(refresh, 3000)
+    // 15-minute interval matches the underlying CSV data granularity (Δt = 15min)
+    const id = setInterval(refresh, 15 * 60 * 1000)
     return () => clearInterval(id)
   }, [refresh])
 

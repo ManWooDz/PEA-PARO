@@ -218,26 +218,34 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
       actual: +(p.load_mw?.toFixed(2) ?? 0),
     })) ?? [];
 
-  // Build a 6-hour forecast tail by sampling the same hour-of-day from history
-  // (a quick mock — the proper LSTM forecast lives in the Forecast tab)
+  // Build a 6-hour forecast tail by sampling the same hour-of-day from history.
+  // The KEY for continuity: the last actual point must also carry a `forecast`
+  // value (= its own actual). Then both lines share that point, with the
+  // Forecast line starting exactly where Actual ends — no gap.
   const lastEntry = historyData[historyData.length - 1];
-  const forecastTail = [];
+  const merged =
+    lastEntry == null
+      ? historyData
+      : historyData.map((d, i) =>
+          i === historyData.length - 1
+            ? { ...d, forecast: d.actual }
+            : d,
+        );
   if (lastEntry) {
     const lastHour = lastEntry.hour;
     for (let i = 1; i <= 6; i++) {
       const futureHour = (lastHour + i) % 24;
       const sample = historyData.find((d) => d.hour === futureHour);
       const base = sample?.actual ?? lastEntry.actual;
-      forecastTail.push({
+      merged.push({
         t: `${String(futureHour).padStart(2, "0")}:00`,
         hour: futureHour,
+        actual: null,
         forecast: +(base * (0.95 + Math.random() * 0.1)).toFixed(2),
       });
     }
-    // Anchor: duplicate the last actual point so the forecast line starts where actual ends
-    forecastTail.unshift({ ...lastEntry, forecast: lastEntry.actual });
   }
-  const loadData = [...historyData, ...forecastTail.slice(1)];
+  const loadData = merged;
 
   // ── Energy mix chart data ──
   const mixData =
@@ -523,7 +531,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
               5 Sources · 6 Lines · 33kV
             </div>
           </div>
-          <span className="text-xs text-muted">Auto · 3s</span>
+          <span className="text-xs text-muted">Auto · 15 min</span>
         </div>
 
         <div className="mt-2">

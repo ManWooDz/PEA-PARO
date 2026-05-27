@@ -22,7 +22,8 @@ export function useAlerts() {
 
   useEffect(() => {
     load()
-    const id = setInterval(load, 10000)
+    // 15-minute interval — matches realtime data cadence
+    const id = setInterval(load, 15 * 60 * 1000)
     return () => clearInterval(id)
   }, [load])
 

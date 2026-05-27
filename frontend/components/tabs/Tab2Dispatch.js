@@ -457,21 +457,16 @@ export function Tab2Dispatch({
           <div className="panel rounded-xl overflow-auto">
             <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '11%' }} />{/* เวลา */}
-                <col style={{ width: '10%' }} />{/* โหลด */}
-                <col style={{ width: '10%' }} />{/* Grid */}
-                <col style={{ width: '10%' }} />{/* Solar */}
-                <col style={{ width: '10%' }} />{/* BESS */}
-                <col style={{ width: '10%' }} />{/* D #8 */}
-                <col style={{ width: '10%' }} />{/* D #9 */}
-                <col style={{ width: '10%' }} />{/* SoC */}
-                <col style={{ width: '19%' }} />{/* สถานะ — takes remaining */}
+                {/* 9 columns, equal 11.111% each — total exactly 100% */}
+                {Array(9).fill(0).map((_, i) => (
+                  <col key={i} style={{ width: `${100 / 9}%` }} />
+                ))}
               </colgroup>
               <thead>
                 <tr className="border-b hairline">
                   {['เวลา','โหลด','Grid','Solar','BESS','D #8','D #9','SoC','สถานะ'].map((h, idx) => (
                     <th key={h}
-                        className={`px-3 py-2 text-muted eyebrow uppercase font-medium thai ${idx === 8 ? 'text-right' : 'text-left'}`}>
+                        className={`px-2 py-2 text-muted eyebrow uppercase font-medium thai ${idx === 0 ? 'text-left' : 'text-center'}`}>
                       {h}
                     </th>
                   ))}
@@ -482,15 +477,15 @@ export function Tab2Dispatch({
                   <tr key={i}
                       onClick={() => onHourClick?.(r.hour)}
                       className="border-b hairline last:border-0 hover:opacity-80 cursor-pointer">
-                    <td className="px-3 py-2 mono">{String(r.hour).padStart(2,'0')}:00</td>
-                    <td className="px-3 py-2 mono">{fmt1(r.load_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: 'var(--primary)' }}>{fmt1(r.grid_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: '#f59e0b' }}>{fmt1(r.solar_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: '#10b981' }}>{fmt1(r.battery_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: '#f97316' }}>{fmt1(r.diesel_a_mw)}</td>
-                    <td className="px-3 py-2 mono" style={{ color: '#ef4444' }}>{fmt1(r.diesel_c_mw)}</td>
-                    <td className="px-3 py-2 mono">{fmt1(r.soc_pct)}%</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-2 py-2 mono text-left">{String(r.hour).padStart(2,'0')}:00</td>
+                    <td className="px-2 py-2 mono text-center">{fmt1(r.load_mw)}</td>
+                    <td className="px-2 py-2 mono text-center" style={{ color: 'var(--primary)' }}>{fmt1(r.grid_mw)}</td>
+                    <td className="px-2 py-2 mono text-center" style={{ color: '#f59e0b' }}>{fmt1(r.solar_mw)}</td>
+                    <td className="px-2 py-2 mono text-center" style={{ color: '#10b981' }}>{fmt1(r.battery_mw)}</td>
+                    <td className="px-2 py-2 mono text-center" style={{ color: '#f97316' }}>{fmt1(r.diesel_a_mw)}</td>
+                    <td className="px-2 py-2 mono text-center" style={{ color: '#ef4444' }}>{fmt1(r.diesel_c_mw)}</td>
+                    <td className="px-2 py-2 mono text-center">{fmt1(r.soc_pct)}%</td>
+                    <td className="px-2 py-2 text-center">
                       <span className="px-1.5 py-0.5 rounded text-[10px] inline-block"
                             style={{ background: r.status === 'normal' ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)',
                                      color:      r.status === 'normal' ? '#10b981' : '#f59e0b' }}>

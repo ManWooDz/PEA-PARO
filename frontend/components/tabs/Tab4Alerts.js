@@ -188,7 +188,7 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading, onV
           <h1 className="text-xl font-semibold mt-0.5 thai">การแจ้งเตือนและการจัดการ</h1>
         </div>
         <div className="text-xs text-muted">
-          <span className="thai">รีเฟรชอัตโนมัติ</span> · <span className="mono">3s</span>
+          <span className="thai">รีเฟรชอัตโนมัติ</span> · <span className="mono">15 min</span>
         </div>
       </section>
 
