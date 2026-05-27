@@ -15,7 +15,8 @@ export const fetchEnergyMix     = () => api.get('/api/realtime/energy-mix').then
 export const fetchEvents        = () => api.get('/api/realtime/events').then(r => r.data)
 
 // ── Dispatch ────────────────────────────────────────────────────────────────
-export const fetchDispatch       = (strategy) => api.get(`/api/dispatch/${strategy}`).then(r => r.data)
+export const fetchDispatch       = (strategy, hasSolar = false) =>
+  api.get(`/api/dispatch/${strategy}`, { params: { has_solar: hasSolar } }).then(r => r.data)
 export const fetchCustomDispatch = (body)     => api.post('/api/dispatch/custom', body).then(r => r.data)
 export const applyDispatchPlan = (payload) => api.post('/api/dispatch/apply', payload).then(r => r.data)
 
