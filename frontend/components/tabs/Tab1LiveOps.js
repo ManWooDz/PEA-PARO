@@ -428,6 +428,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   fill="url(#fcGrad)"
                   dot={false}
                   connectNulls={false}
+                  isAnimationActive={false}
                 />
               </AreaChart>
             </ResponsiveContainer>

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
-  ReferenceLine, Legend, Line,
+  ReferenceLine, Legend, Line, ComposedChart,
 } from 'recharts'
 import { Dot } from '@/components/shared/Dot'
 import { useWeather } from '@/hooks/useWeather'
@@ -166,8 +166,8 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
 
       {/* ── horizon selector ── */}
       <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-          ช่วงพยากรณ์ · Forecast Horizon
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          ช่วงพยากรณ์
         </div>
         <div className="flex gap-2 flex-wrap">
           {HORIZONS.map(({ h, label }) => (
@@ -190,34 +190,34 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
       {/* ── model / run info ── */}
       {fd && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-            โมเดล · LSTM Forecast Info
+          <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+            ข้อมูลโมเดลพยากรณ์ LSTM
           </div>
           <div className="panel rounded-xl p-4 flex flex-wrap gap-6 text-sm">
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Model</div>
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">โมเดล</div>
               <div className="font-semibold mono">LSTM · Island C</div>
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Strategy</div>
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">กลยุทธ์</div>
               <StrategyBadge strategy={fd.strategy} />
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Safety Margin</div>
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">ส่วนเผื่อความปลอดภัย</div>
               <div className="font-semibold mono">
                 +{(fd.margin_mw * 1000).toFixed(0)} kW
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Peak (Safe)</div>
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">โหลดสูงสุด (ปลอดภัย)</div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold mono">{fmt1(peakSafe)} MW</span>
                 <RiskBadge val={peakSafe} />
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-muted eyebrow uppercase mb-0.5">Generated</div>
-              <div className="font-semibold mono text-[11px]">
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">สร้างเมื่อ</div>
+              <div className="font-semibold mono text-xs">
                 {fd.generated_at
                   ? new Date(fd.generated_at).toLocaleTimeString('th-TH', {
                       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
@@ -231,22 +231,22 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
 
       {/* ── LSTM forecast chart: raw + safe-margin overlay ── */}
       <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-          พยากรณ์โหลด · LSTM Load Forecast ({hours}h) — 15-min intervals
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          พยากรณ์โหลด LSTM ({hours} ชม.) — ทุก 15 นาที
         </div>
         <div className="panel rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase eyebrow text-muted">Forecast vs cap</div>
+            <div className="text-[11px] uppercase eyebrow text-muted thai">พยากรณ์เทียบกับความจุ</div>
             <button
               onClick={() => setShowWeather(v => !v)}
-              className="text-xs px-2.5 py-1 rounded border cursor-pointer transition hover:opacity-80"
+              className="text-xs px-2.5 py-1 rounded border cursor-pointer transition hover:opacity-80 thai"
               style={{
                 borderColor: showWeather ? '#f59e0b' : 'var(--border-soft)',
                 background:  showWeather ? 'rgba(245,158,11,0.10)' : 'var(--surface-2)',
                 color:       showWeather ? '#f59e0b' : 'var(--muted)',
               }}
             >
-              ☀️ Show Solar / Weather Trend
+              ☀️ แสดงแนวโน้ม Solar / อากาศ
             </button>
           </div>
           {loading && !forecastData.length ? (
@@ -256,7 +256,7 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
             </div>
           ) : forecastData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+              <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="fcGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.3} />
@@ -305,30 +305,19 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
                     label={{ value: `from Dispatch h${focusedHour}`, position: 'top', fontSize: 10, fill: '#f59e0b' }}
                   />
                 )}
-                {/* Safe (w/ margin) — drawn first so raw is on top */}
+                {/* LSTM + safety margin — the official forecast used by dispatch */}
                 <Area
                   type="monotone"
                   dataKey="Safe"
-                  name="Safe (w/ margin)"
-                  stroke={C.safe}
-                  strokeWidth={1.5}
-                  strokeDasharray="5 3"
-                  fill="url(#safeGrad)"
-                  dot={false}
-                  activeDot={{ r: 3 }}
-                />
-                {/* Raw LSTM forecast */}
-                <Area
-                  type="monotone"
-                  dataKey="Load"
-                  name="LSTM Forecast"
+                  name="LSTM + Margin"
                   stroke="var(--primary)"
                   strokeWidth={2}
                   fill="url(#fcGrad)"
                   dot={false}
                   activeDot={{ r: 4 }}
+                  isAnimationActive={false}
                 />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm">
@@ -341,8 +330,8 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
       {/* ── Dispatch plan stacked bar chart ── */}
       {dispatchData.length > 0 && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-            แผนการจ่ายไฟ · 24h Merit-Order Dispatch Plan
+          <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+            แผนการจ่ายไฟ · 24 ชม.
           </div>
           <div className="panel rounded-xl p-4">
             <ResponsiveContainer width="100%" height={220}>
@@ -376,8 +365,8 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
       {/* ── Cost breakdown cards ── */}
       {cost && (
         <section>
-          <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-            ต้นทุนพลังงาน · Energy Cost Breakdown
+          <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+            รายละเอียดต้นทุนพลังงาน
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
@@ -387,7 +376,7 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
               { label: 'Total',   val: cost.total_thb,   color: 'var(--primary)', bold: true },
             ].map(({ label, val, color, bold }) => (
               <div key={label} className="panel rounded-xl p-4 flex flex-col gap-1">
-                <div className="text-[10px] eyebrow uppercase text-muted">{label}</div>
+                <div className="text-[11px] eyebrow uppercase text-muted thai">{label}</div>
                 <div
                   className={`mono ${bold ? 'text-base font-bold' : 'text-sm font-semibold'}`}
                   style={{ color }}
@@ -402,8 +391,8 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
 
       {/* ── 7-day forecast bar chart ── */}
       <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">
-          พยากรณ์ 7 วัน · 7-Day Forecast
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          พยากรณ์ล่วงหน้า 7 วัน
         </div>
         <div className="panel rounded-xl p-4">
           {loading && !weekData.length ? (

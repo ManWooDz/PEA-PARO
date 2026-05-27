@@ -201,9 +201,9 @@ export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading, onV
           <div className="panel rounded-xl p-4">
             <div className="text-xs uppercase eyebrow text-muted mb-2 thai">ช่องทางการแจ้งเตือน</div>
             <div>
-              <ChannelRow icon={Icon.Mail}  name="LINE Notify API"     sub="15 ผู้รับ · ทีมปฏิบัติการเกาะเต่า" status="CONNECTED" color="#06b6d4" />
-              <ChannelRow icon={Icon.Send}  name="SMS Gateway (AIS)"    sub="8 หมายเลข · ผู้บริหาร PEA"        status="CONNECTED" color="#10b981" />
-              <ChannelRow icon={Icon.Mail}  name="Email · SOC"          sub="soc@pea.co.th · 24/7"               status="IDLE"      color="#6366f1" />
+              <ChannelRow icon={Icon.Line}    name="LINE Notify API"     sub="15 ผู้รับ · ทีมปฏิบัติการเกาะเต่า" status="CONNECTED" color="#06c755" />
+              <ChannelRow icon={Icon.Message} name="SMS Gateway (AIS)"   sub="8 หมายเลข · ผู้บริหาร PEA"        status="CONNECTED" color="#10b981" />
+              <ChannelRow icon={Icon.Mail}    name="Email · SOC"         sub="soc@pea.co.th · 24/7"               status="IDLE"      color="#6366f1" />
             </div>
           </div>
 

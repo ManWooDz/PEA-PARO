@@ -36,7 +36,9 @@ import {
   faWifi,
   faCoins,
   faChevronDown,
+  faMessage,
 } from '@fortawesome/free-solid-svg-icons'
+import { faLine } from '@fortawesome/free-brands-svg-icons'
 
 // Disable FA's global CSS injection — Next.js handles CSS itself.
 import { config } from '@fortawesome/fontawesome-svg-core'
@@ -94,6 +96,8 @@ export const Icon = {
   // ── Communication / files ─────────────────────────────────────────
   Mail:        makeIcon(faEnvelope),
   File:        makeIcon(faFileLines),
+  Message:     makeIcon(faMessage),   // SMS / generic chat
+  Line:        makeIcon(faLine),      // LINE Notify (brand)
 
   // ── Identity / map ────────────────────────────────────────────────
   User:        makeIcon(faUser),

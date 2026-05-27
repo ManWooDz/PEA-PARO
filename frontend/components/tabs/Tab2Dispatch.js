@@ -59,28 +59,32 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
         ))}
       </div>
 
-      {/* Per-source rows */}
+      {/* Per-source rows — dot + label stay tight on the left,
+          stats and window push to the right via ml-auto. */}
       <div className="mt-2 space-y-1 text-[11px]">
         {data.filter(s => s.totalMwh > 0.05 || s.peak > 0.05).map(s => (
-          <div key={s.key} className="grid items-center gap-x-2 gap-y-0"
-               style={{ gridTemplateColumns: compact
-                 ? 'auto 1fr auto auto'
-                 : 'auto 1fr auto auto auto' }}>
+          <div key={s.key} className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: s.color }} />
-            <div className="min-w-0 flex items-baseline gap-1.5">
-              <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
-              {!compact && <span className="text-[9px] text-muted truncate">{s.sub}</span>}
-              {showRadio && s.radio && s.totalMwh > 0.05 && (
-                <Icon.Radio width="10" height="10"
-                  title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม"
-                  style={{ color: s.color }} />
-              )}
-            </div>
-            <span className="mono text-muted text-right" title="Total energy delivered in 24h">{s.totalMwh.toFixed(1)} <span className="text-[9px]">MWh</span></span>
-            <span className="mono text-muted text-right" title="Peak instantaneous output">peak {s.peak.toFixed(1)} <span className="text-[9px]">MW</span></span>
-              <span className="mono text-[11px] text-muted text-right whitespace-nowrap" title="Active hours window">
+            <span className="font-medium flex-shrink-0" style={{ color: s.color }}>{s.label}</span>
+            {!compact && (
+              <span className="text-[9px] text-muted truncate min-w-0">{s.sub}</span>
+            )}
+            {showRadio && s.radio && s.totalMwh > 0.05 && (
+              <Icon.Radio width="10" height="10"
+                title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม"
+                style={{ color: s.color }} />
+            )}
+            <span className="ml-auto mono text-muted whitespace-nowrap" title="Total energy delivered in 24h">
+              {s.totalMwh.toFixed(1)} <span className="text-[9px]">MWh</span>
+            </span>
+            <span className="mono text-muted whitespace-nowrap" title="Peak instantaneous output">
+              peak {s.peak.toFixed(1)} <span className="text-[9px]">MW</span>
+            </span>
+            {!compact && (
+              <span className="mono text-[11px] text-muted whitespace-nowrap" title="Active hours window">
                 {s.win ? `${String(s.win[0]).padStart(2,'0')}–${String(s.win[1] + 1).padStart(2,'0')}h · เดินเครื่อง ${s.win[2]} ชม.` : '—'}
               </span>
+            )}
           </div>
         ))}
       </div>
@@ -90,9 +94,9 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
 
 // ── Strategy metadata ───────────────────────────────────────────────
 const STRATEGIES = [
-  { id: 'baseline',    th: 'แผนพื้นฐาน',   en: 'BASELINE',    desc: 'แผนที่ระบบกำลังใช้งานอยู่',         color: '#0ea5e9' },
-  { id: 'min-cost',    th: 'ลดต้นทุน',       en: 'MIN COST',    desc: 'ใช้ Grid + BESS เน้นดีเซลเฉพาะที่จำเป็น', color: '#6366f1' },
-  { id: 'reliability', th: 'เสถียรภาพ',      en: 'RELIABILITY', desc: 'รักษา SoC ≥ 40% · ดีเซล standby',  color: '#10b981' },
+  { id: 'baseline',    th: 'แผนพื้นฐาน', en: 'BASELINE',    color: '#0ea5e9' },
+  { id: 'min-cost',    th: 'ลดต้นทุน',    en: 'MIN COST',    color: '#6366f1' },
+  { id: 'reliability', th: 'เสถียรภาพ',   en: 'RELIABILITY', color: '#10b981' },
 ]
 
 // ── Strategy summary card ───────────────────────────────────────────
@@ -137,12 +141,9 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
                 style={{ background: `${strat.color}22`, color: strat.color }}>กำลังใช้งาน</span>
         )}
       </div>
-      <div className="text-xs text-muted thai mt-1">{strat.desc}</div>
-
-      <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <div>
           <div className="mono font-semibold text-base">{fmt2(dieselMwh)} <span className="text-[11px] text-muted thai">MWh ดีเซล</span></div>
-          <div className="text-[11px] text-muted thai">SoC สุดท้าย · <span className="mono">{fmt1(socEnd)}%</span></div>
         </div>
         <div className="text-right">
           <div className="text-[11px] uppercase eyebrow text-muted thai">ต้นทุนรวม · 24 ชม.</div>
@@ -466,7 +467,7 @@ export function Tab2Dispatch({
                 <tr className="border-b hairline">
                   {['เวลา','โหลด','Grid','Solar','BESS','D #8','D #9','SoC','สถานะ'].map((h, idx) => (
                     <th key={h}
-                        className={`px-2 py-2 text-muted eyebrow uppercase font-medium thai ${idx === 0 ? 'text-left' : 'text-center'}`}>
+                        className={`py-2 text-muted eyebrow uppercase font-medium thai text-center ${idx === 0 ? 'pl-4 pr-2' : idx === 8 ? 'pl-2 pr-4' : 'px-2'}`}>
                       {h}
                     </th>
                   ))}
@@ -477,7 +478,7 @@ export function Tab2Dispatch({
                   <tr key={i}
                       onClick={() => onHourClick?.(r.hour)}
                       className="border-b hairline last:border-0 hover:opacity-80 cursor-pointer">
-                    <td className="px-2 py-2 mono text-left">{String(r.hour).padStart(2,'0')}:00</td>
+                    <td className="pl-4 pr-2 py-2 mono text-center">{String(r.hour).padStart(2,'0')}:00</td>
                     <td className="px-2 py-2 mono text-center">{fmt1(r.load_mw)}</td>
                     <td className="px-2 py-2 mono text-center" style={{ color: 'var(--primary)' }}>{fmt1(r.grid_mw)}</td>
                     <td className="px-2 py-2 mono text-center" style={{ color: '#f59e0b' }}>{fmt1(r.solar_mw)}</td>
@@ -485,7 +486,7 @@ export function Tab2Dispatch({
                     <td className="px-2 py-2 mono text-center" style={{ color: '#f97316' }}>{fmt1(r.diesel_a_mw)}</td>
                     <td className="px-2 py-2 mono text-center" style={{ color: '#ef4444' }}>{fmt1(r.diesel_c_mw)}</td>
                     <td className="px-2 py-2 mono text-center">{fmt1(r.soc_pct)}%</td>
-                    <td className="px-2 py-2 text-center">
+                    <td className="pl-2 pr-4 py-2 text-center">
                       <span className="px-1.5 py-0.5 rounded text-[10px] inline-block"
                             style={{ background: r.status === 'normal' ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)',
                                      color:      r.status === 'normal' ? '#10b981' : '#f59e0b' }}>
