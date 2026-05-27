@@ -1,219 +1,282 @@
 'use client'
 import { useState } from 'react'
-import { Icon }        from '@/components/shared/Icon'
-import { LevelBadge }  from '@/components/shared/StatusBadge'
-import { Dot }         from '@/components/shared/Dot'
-import { RecommendedActionPanel } from '@/components/operational/RecommendedActionPanel'
+import { Icon } from '@/components/shared/Icon'
+import { Dot }  from '@/components/shared/Dot'
 
 const LEVEL_ORDER = { high: 0, medium: 1, low: 2, resolved: 3 }
 
-function timeAgo(ts) {
-  if (!ts) return ''
-  const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
-  if (diff < 60)   return `${diff}s ago`
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`
-  return `${Math.floor(diff/3600)}h ago`
+const LEVEL_META = {
+  high:     { color: '#ef4444', th: 'เสี่ยงสูง',    en: 'HIGH RISK' },
+  medium:   { color: '#f59e0b', th: 'เฝ้าระวัง',     en: 'WATCH'     },
+  low:      { color: '#3b82f6', th: 'แจ้งเตือน',     en: 'INFO'      },
+  resolved: { color: '#10b981', th: 'แก้ไขแล้ว',    en: 'RESOLVED'  },
 }
 
-const SOURCE_LABEL = {
-  line6:    'สาย Line 6',
-  battery7: 'Battery #7',
-  diesel8:  'Diesel #8 (Island A)',
-  diesel9:  'Diesel #9 (Island C)',
-  system:   'ระบบ',
-}
-
-function AlertCard({ alert, onResolve, onSelect, isSelected }) {
-  const [note, setNote]     = useState('')
-  const [open, setOpen]     = useState(false)
-
-  const isResolved = alert.status === 'resolved'
-  const levelColor = { high: '#ef4444', medium: '#f59e0b', low: 'var(--primary)', resolved: '#64748b' }[alert.level] ?? '#64748b'
-
+function levelBadge(level) {
+  const m = LEVEL_META[level] ?? LEVEL_META.low
   return (
-    <article
-      onClick={onSelect}
-      className="panel rounded-xl overflow-hidden cursor-pointer transition hover:opacity-95"
-      style={{
-        borderLeft: `3px solid ${levelColor}`,
-        borderColor: isSelected ? 'var(--primary)' : undefined,
-        borderWidth: isSelected ? '2px' : '1px',
-        borderStyle: 'solid',
-      }}>
-      <div className="p-4 flex items-start gap-3">
-        {/* level dot */}
-        <div className="mt-0.5 flex-shrink-0">
-          <Dot color={levelColor} pulse={!isResolved && alert.level === 'high'} />
-        </div>
-
-        {/* content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <LevelBadge level={alert.level} />
-              <span className="text-[10px] text-muted eyebrow uppercase">
-                {SOURCE_LABEL[alert.source] ?? alert.source}
-              </span>
-            </div>
-            <span className="text-[10px] text-muted mono flex-shrink-0">{timeAgo(alert.ts)}</span>
-          </div>
-
-          <div className="mt-1.5 text-sm font-medium leading-snug">{alert.message}</div>
-
-          {alert.detail && (
-            <div className="mt-1 text-xs text-muted thai">{alert.detail}</div>
-          )}
-
-          {alert.value != null && (
-            <div className="mt-2 flex items-center gap-1.5 text-xs">
-              <span className="text-muted">ค่าปัจจุบัน:</span>
-              <span className="mono font-semibold" style={{ color: levelColor }}>
-                {typeof alert.value === 'number' ? alert.value.toFixed(1) : alert.value}
-                {alert.unit ? ` ${alert.unit}` : ''}
-              </span>
-              {alert.threshold != null && (
-                <>
-                  <span className="text-muted">/</span>
-                  <span className="mono text-muted">threshold {alert.threshold}{alert.unit ?? ''}</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* actions */}
-        {!isResolved && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
-            className="flex-shrink-0 px-2 py-1 rounded text-xs border cursor-pointer transition"
-            style={{ borderColor: 'var(--border-soft)', color: 'var(--muted)' }}>
-            {open ? 'ยกเลิก' : 'แก้ไข'}
-          </button>
-        )}
-      </div>
-
-      {/* resolve panel */}
-      {open && !isResolved && (
-        <div className="px-4 pb-4 pt-0 border-t hairline flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="text" placeholder="หมายเหตุการแก้ไข (optional)"
-            value={note} onChange={e => setNote(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 px-3 py-1.5 rounded text-xs panel-2 border hairline"
-            style={{ color: 'var(--text)', background: 'var(--surface-2)' }}
-          />
-          <button
-            onClick={(e) => { e.stopPropagation(); onResolve(alert.id, note); setOpen(false) }}
-            className="px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 cursor-pointer"
-            style={{ background: '#10b981', color: '#0b1428' }}>
-            <Icon.Check width="12" height="12" />
-            <span>Resolve</span>
-          </button>
-        </div>
-      )}
-
-      {isResolved && alert.resolved_note && (
-        <div className="px-4 pb-3 text-xs text-muted thai border-t hairline pt-2">
-          หมายเหตุ: {alert.resolved_note}
-        </div>
-      )}
-    </article>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+          style={{ background: `${m.color}22`, color: m.color }}>
+      <span className="thai font-semibold">{m.th}</span>
+      <span className="text-muted">·</span>
+      <span className="uppercase eyebrow">{m.en}</span>
+    </span>
   )
 }
 
-export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading, focusedAlertId, setFocusedAlertId }) {
-  const [showResolved, setShowResolved] = useState(false)
+// ── Notification channel row ────────────────────────────────────────
+function ChannelRow({ icon: I, name, sub, status, color }) {
+  const sMeta = {
+    CONNECTED: { color: '#10b981' },
+    IDLE:      { color: '#9ca3af' },
+    ERROR:     { color: '#ef4444' },
+  }[status] ?? { color: '#9ca3af' }
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b hairline last:border-0">
+      <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0"
+           style={{ background: `${color}22`, color }}>
+        {I && <I width="18" height="18" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{name}</div>
+        <div className="text-[11px] text-muted truncate">{sub}</div>
+      </div>
+      <span className="text-[10px] mono px-2 py-0.5 rounded-full"
+            style={{ background: `${sMeta.color}22`, color: sMeta.color }}>
+        {status}
+      </span>
+    </div>
+  )
+}
 
-  const sorted = [...activeAlerts].sort((a, b) =>
+// ── Alert log row ───────────────────────────────────────────────────
+function LogRow({ alert }) {
+  return (
+    <tr className="border-b hairline last:border-0 row-hover">
+      <td className="px-3 py-2 mono text-xs whitespace-nowrap">{alert.time}</td>
+      <td className="px-3 py-2">{levelBadge(alert.level)}</td>
+      <td className="px-3 py-2 text-xs">
+        <div className="font-medium thai">{alert.title}</div>
+        {alert.detail && <div className="text-[11px] text-muted mt-0.5 thai">{alert.detail}</div>}
+      </td>
+      <td className="px-3 py-2">
+        <span className="text-[10px] uppercase eyebrow"
+              style={{ color: alert.status === 'resolved' ? '#10b981' : '#f59e0b' }}>
+          {alert.status === 'resolved' ? 'RESOLVED' : 'OPEN'}
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+// ── Spotlight (top) alert card ──────────────────────────────────────
+function SpotlightAlert({ alert, onResolve }) {
+  if (!alert) {
+    return (
+      <div className="panel rounded-xl p-6 flex flex-col items-center text-center gap-2">
+        <div className="w-12 h-12 rounded-full grid place-items-center"
+             style={{ background: 'rgba(16,185,129,0.10)', color: '#10b981' }}>
+          <Icon.Check width="24" height="24" />
+        </div>
+        <div className="font-medium thai">ไม่มีการแจ้งเตือนที่ใช้งานอยู่</div>
+        <div className="text-xs text-muted">ระบบทำงานปกติ · All systems nominal</div>
+      </div>
+    )
+  }
+
+  const m = LEVEL_META[alert.level] ?? LEVEL_META.medium
+
+  return (
+    <div className="panel rounded-xl p-5"
+         style={{ borderLeft: `4px solid ${m.color}` }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Dot color={m.color} pulse={alert.level === 'high'} />
+        <span className="thai font-semibold" style={{ color: m.color }}>{m.th}</span>
+        <span className="text-muted">·</span>
+        <span className="text-[10px] uppercase eyebrow" style={{ color: m.color }}>{m.en}</span>
+        <span className="mono text-muted text-xs ml-2">{alert.time}</span>
+        <span className="text-muted text-xs">· Alert #{alert.id}</span>
+      </div>
+
+      <h3 className="text-base font-semibold mt-2 thai leading-snug">{alert.title}</h3>
+      {alert.detail && <p className="text-sm text-muted mt-2 thai">{alert.detail}</p>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+        {alert.forecast_peak_mw != null && (
+          <div className="panel-2 rounded-lg p-3">
+            <div className="text-[10px] uppercase eyebrow text-muted">Forecast Peak</div>
+            <div className="text-base font-bold mono" style={{ color: m.color }}>
+              {alert.forecast_peak_mw.toFixed(2)} MW
+            </div>
+            <div className="text-[10px] text-muted">19:00–21:00</div>
+          </div>
+        )}
+        {alert.battery_soc_pct != null && (
+          <div className="panel-2 rounded-lg p-3">
+            <div className="text-[10px] uppercase eyebrow text-muted">BESS SoC @ peak</div>
+            <div className="text-base font-bold mono" style={{ color: m.color }}>
+              {alert.battery_soc_pct.toFixed(0)}%
+            </div>
+            <div className="text-[10px] text-muted">below 20% floor</div>
+          </div>
+        )}
+        {alert.recommended_action && (
+          <div className="panel-2 rounded-lg p-3">
+            <div className="text-[10px] uppercase eyebrow text-muted">Recommended</div>
+            <div className="text-sm font-medium mt-0.5">{alert.recommended_action}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mt-4">
+        <button onClick={() => onResolve?.(alert.id, 'diesel_confirmed')}
+                className="px-3 py-2 rounded text-sm font-semibold cursor-pointer hover:opacity-90 inline-flex items-center gap-2"
+                style={{ background: m.color, color: '#fff' }}>
+          <Icon.Check width="14" height="14" />
+          <span className="thai">ยืนยันเดินเครื่องดีเซล</span>
+        </button>
+        <button className="px-3 py-2 rounded text-sm border hairline cursor-pointer hover:opacity-80 inline-flex items-center gap-2 panel-2"
+                onClick={(e) => e.preventDefault()}>
+          <Icon.Calendar width="14" height="14" />
+          <span className="thai">ดู Dispatch Plan</span>
+        </button>
+        <button className="px-3 py-2 rounded text-sm border hairline cursor-pointer hover:opacity-80 inline-flex items-center gap-2 panel-2"
+                onClick={(e) => e.preventDefault()}>
+          <Icon.Send width="14" height="14" />
+          <span className="thai">ส่งแจ้งเตือน LINE</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────
+export function Tab4Alerts({ activeAlerts, resolvedAlerts, resolve, loading }) {
+  const [filter, setFilter] = useState('all')
+
+  const allAlerts = [...(activeAlerts ?? []), ...(resolvedAlerts ?? [])]
+  const sorted = [...(activeAlerts ?? [])].sort((a, b) =>
     (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9))
+  const top = sorted[0] ?? null
 
-  const selectedAlert = sorted.find(a => a.id === focusedAlertId) ?? sorted[0] ?? null
+  // Summary counts
+  const highCount     = activeAlerts?.filter(a => a.level === 'high').length     ?? 0
+  const mediumCount   = activeAlerts?.filter(a => a.level === 'medium').length   ?? 0
+  const lowCount      = activeAlerts?.filter(a => a.level === 'low').length      ?? 0
+  const resolvedCount = resolvedAlerts?.length ?? 0
 
-  const highCount   = activeAlerts.filter(a => a.level === 'high').length
-  const mediumCount = activeAlerts.filter(a => a.level === 'medium').length
+  // Filtered log
+  const filtered = allAlerts.filter(a => {
+    if (filter === 'all')      return true
+    if (filter === 'open')     return a.status !== 'resolved'
+    if (filter === 'high')     return a.level === 'high'
+    if (filter === 'medium')   return a.level === 'medium'
+    if (filter === 'resolved') return a.status === 'resolved'
+    return true
+  })
+
+  const FILTERS = [
+    { id: 'all',      label: 'ทั้งหมด' },
+    { id: 'open',     label: 'เปิดอยู่' },
+    { id: 'high',     label: 'เสี่ยงสูง' },
+    { id: 'medium',   label: 'เฝ้าระวัง' },
+    { id: 'resolved', label: 'แก้ไขแล้ว' },
+  ]
 
   return (
     <div className="space-y-6">
-
-      {/* ── summary row ── */}
-      <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">สรุป · Summary</div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'High',     count: highCount,          color: '#ef4444' },
-            { label: 'Medium',   count: mediumCount,         color: '#f59e0b' },
-            { label: 'Resolved', count: resolvedAlerts.length, color: '#10b981' },
-          ].map(({ label, count, color }) => (
-            <div key={label} className="panel rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold mono" style={{ color }}>{count}</div>
-              <div className="text-xs text-muted mt-0.5 eyebrow uppercase">{label}</div>
-            </div>
-          ))}
+      {/* ── Header ── */}
+      <section className="flex items-end justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-[10.5px] uppercase eyebrow text-muted">การแจ้งเตือน · Early Warning System</div>
+          <h1 className="text-xl font-semibold mt-0.5">Alerts & Operator Actions</h1>
+        </div>
+        <div className="text-xs text-muted">
+          <span className="thai">รีเฟรชอัตโนมัติ</span> · <span className="mono">3s</span>
         </div>
       </section>
 
-      {/* ── active alerts ── */}
-      <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-3 flex items-center gap-2">
-          <span>การแจ้งเตือนที่ใช้งานอยู่ · Active Alerts</span>
-          {sorted.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold"
-                  style={{ background: '#ef4444', color: '#fff' }}>{sorted.length}</span>
-          )}
-        </div>
+      {/* ── Top alert + Notification channels + Summary ── */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <SpotlightAlert alert={top} onResolve={resolve} />
 
-        {loading && !sorted.length ? (
-          <div className="flex items-center justify-center h-32 text-muted text-sm gap-2">
-            <Dot color="var(--primary)" pulse /> <span>กำลังโหลด…</span>
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="panel rounded-xl p-8 flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 rounded-full grid place-items-center"
-                 style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
-              <Icon.Check width="24" height="24" />
+        <div className="space-y-4">
+          {/* Notification Channels */}
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10.5px] uppercase eyebrow text-muted mb-2">Notification Channels</div>
+            <div>
+              <ChannelRow icon={Icon.Mail}  name="LINE Notify API"     sub="15 ผู้รับ · ทีมปฏิบัติการเกาะเต่า" status="CONNECTED" color="#06b6d4" />
+              <ChannelRow icon={Icon.Send}  name="SMS Gateway (AIS)"    sub="8 หมายเลข · ผู้บริหาร PEA"        status="CONNECTED" color="#10b981" />
+              <ChannelRow icon={Icon.Mail}  name="Email · SOC"          sub="soc@pea.co.th · 24/7"               status="IDLE"      color="#6366f1" />
             </div>
-            <div className="text-sm font-medium thai">ไม่มีการแจ้งเตือนที่ใช้งานอยู่</div>
-            <div className="text-xs text-muted">ระบบทำงานปกติ · All systems nominal</div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-            <div className="space-y-3">
-              {sorted.map(a => (
-                <AlertCard
-                  key={a.id}
-                  alert={a}
-                  onResolve={resolve}
-                  onSelect={() => setFocusedAlertId?.(a.id)}
-                  isSelected={selectedAlert?.id === a.id}
-                />
+
+          {/* Alert summary */}
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10.5px] uppercase eyebrow text-muted mb-3">Alert Summary · Today</div>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'HIGH',     count: highCount,     color: '#ef4444' },
+                { label: 'WATCH',    count: mediumCount,   color: '#f59e0b' },
+                { label: 'INFO',     count: lowCount,      color: '#3b82f6' },
+                { label: 'RESOLVED', count: resolvedCount, color: '#10b981' },
+              ].map(({ label, count, color }) => (
+                <div key={label} className="text-center">
+                  <div className="text-2xl font-bold mono" style={{ color }}>{count}</div>
+                  <div className="text-[9px] uppercase eyebrow text-muted mt-0.5">{label}</div>
+                </div>
               ))}
             </div>
-            <RecommendedActionPanel alert={selectedAlert} />
           </div>
-        )}
+        </div>
       </section>
 
-      {/* ── resolved alerts ── */}
-      {resolvedAlerts.length > 0 && (
-        <section>
-          <button
-            onClick={() => setShowResolved(v => !v)}
-            className="w-full flex items-center justify-between text-[10.5px] uppercase eyebrow text-muted mb-3 cursor-pointer hover:opacity-80">
-            <span>ที่แก้ไขแล้ว · Resolved ({resolvedAlerts.length})</span>
-            <Icon.ChevronDown width="14" height="14"
-                             style={{ transform: showResolved ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
+      {/* ── Alert log ── */}
+      <section>
+        <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
+          <div className="flex items-baseline gap-3">
+            <div className="text-[10.5px] uppercase eyebrow text-muted">Alert Log · <span className="thai">ประวัติการแจ้งเตือน</span></div>
+            <span className="text-xs text-muted mono">{filtered.length} entries</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {FILTERS.map(f => {
+              const isActive = filter === f.id
+              return (
+                <button key={f.id} onClick={() => setFilter(f.id)}
+                        className="px-2.5 py-1 rounded text-xs cursor-pointer transition"
+                        style={isActive
+                          ? { background: 'var(--primary)', color: '#fff', fontWeight: 600 }
+                          : { background: 'var(--surface-2)', color: 'var(--muted)' }}>
+                  <span className="thai">{f.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
-          {showResolved && (
-            <div className="space-y-3">
-              {resolvedAlerts.map(a => (
-                <AlertCard key={a.id} alert={a} onResolve={resolve} />
-              ))}
+        <div className="panel rounded-xl overflow-auto">
+          {loading && !filtered.length ? (
+            <div className="flex items-center justify-center h-32 text-muted text-sm gap-2">
+              <Dot color="var(--primary)" pulse /> <span className="thai">กำลังโหลด…</span>
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-muted text-sm thai">ไม่พบรายการ</div>
+          ) : (
+            <table className="w-full text-xs min-w-[640px]">
+              <thead>
+                <tr className="border-b hairline">
+                  {['เวลา', 'ระดับ', 'รายละเอียด', 'สถานะ'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-muted eyebrow uppercase font-medium thai">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((a, i) => <LogRow key={`${a.id}-${i}`} alert={a} />)}
+              </tbody>
+            </table>
           )}
-        </section>
-      )}
-
+        </div>
+      </section>
     </div>
   )
 }
