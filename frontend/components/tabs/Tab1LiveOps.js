@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Legend,
+  ReferenceDot,
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
@@ -169,6 +170,12 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // poll (rt.server_time). NOT the live wall-clock — that was a bug that
   // made the timestamp tick every second instead of every 15-min poll.
   const lastSync = rt?.server_time ?? "--:--:--";
+
+  // Tracked manually so we can render our own ReferenceDot at the exact
+  // hovered x for each non-null series. Recharts' built-in activeDot
+  // snaps to the last valid point when value is null — which is why we
+  // render dots ourselves instead.
+  const [hoverT, setHoverT] = useState(null);
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent
@@ -362,6 +369,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
               <AreaChart
                 data={loadData}
                 margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
+                onMouseMove={(e) => setHoverT(e?.activeLabel ?? null)}
+                onMouseLeave={() => setHoverT(null)}
               >
                 <defs>
                   <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
@@ -435,6 +444,42 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   connectNulls={false}
                   isAnimationActive={false}
                 />
+                {/* Manual hover dots — only render for series with a non-null
+                    value at the exact hovered x. ReferenceDot uses chart
+                    coordinates so it lands precisely on the line. */}
+                {hoverT &&
+                  (() => {
+                    const row = loadData.find((d) => d.t === hoverT);
+                    if (!row) return null;
+                    return (
+                      <>
+                        {row.actual != null && (
+                          <ReferenceDot
+                            x={row.t}
+                            y={row.actual}
+                            r={4}
+                            fill="var(--primary)"
+                            stroke="var(--bg)"
+                            strokeWidth={2}
+                            isFront
+                            ifOverflow="visible"
+                          />
+                        )}
+                        {row.forecast != null && (
+                          <ReferenceDot
+                            x={row.t}
+                            y={row.forecast}
+                            r={4}
+                            fill="var(--secondary)"
+                            stroke="var(--bg)"
+                            strokeWidth={2}
+                            isFront
+                            ifOverflow="visible"
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
               </AreaChart>
             </ResponsiveContainer>
           ) : (
