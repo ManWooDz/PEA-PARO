@@ -93,7 +93,13 @@ body {
 
 /* ── Utility classes ─────────────────────────────────────────────────── */
 .thai     { font-family: 'Prompt', 'Noto Sans Thai', system-ui, sans-serif; }
-.mono     { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+/* Numbers — same Prompt font as everything else, but with tabular-nums so
+   digits all have equal width (important for tables/KPIs without wobble). */
+.mono     {
+  font-family: 'Prompt', 'Noto Sans Thai', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
 .eyebrow  { letter-spacing: 0.12em; font-weight: 700; }
 
 .panel    { background: var(--surface);   border: 1px solid var(--border-soft); }
