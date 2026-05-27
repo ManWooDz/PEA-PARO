@@ -145,10 +145,14 @@ function SourceRow({
 // ── Charts ──────────────────────────────────────────────────────────
 function LoadTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  // Hide rows where the series has no value at the hovered x (forecast
+  // region → actual is null; actual region → forecast is null).
+  const visible = payload.filter((p) => p?.value != null);
+  if (visible.length === 0) return null;
   return (
     <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
       <div className="mono text-muted mb-1">{label}</div>
-      {payload.map((p) => (
+      {visible.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color }}>●</span>
           <span className="text-muted">{p.name}</span>
@@ -402,6 +406,11 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   unit=" MW"
                 />
                 <Tooltip content={<LoadTip />} />
+                {/* Both Areas have activeDot disabled — recharts snaps
+                    Actual's hover dot to the anchor when hovering the
+                    Forecast region, which is wrong. The Tooltip's colored
+                    bullet (●) next to each row already indicates which
+                    series the visible value belongs to. */}
                 <Area
                   type="monotone"
                   dataKey="actual"
@@ -410,19 +419,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   strokeWidth={2}
                   fill="url(#loadGrad)"
                   dot={false}
+                  activeDot={false}
                   connectNulls={false}
-                  activeDot={(p) => {
-                    // Hide the activeDot entirely when this series has no
-                    // value at the hovered x. Returning null can be ignored
-                    // by recharts — an invisible circle with r=0 is robust.
-                    const hasValue =
-                      p?.payload?.actual != null && p?.value != null;
-                    if (!hasValue) return <circle r={0} />;
-                    return (
-                      <circle cx={p.cx} cy={p.cy} r={4}
-                        fill="var(--primary)" stroke="var(--bg)" strokeWidth={2} />
-                    );
-                  }}
                 />
                 <Area
                   type="monotone"
@@ -433,17 +431,9 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   strokeDasharray="5 3"
                   fill="url(#fcGrad)"
                   dot={false}
+                  activeDot={false}
                   connectNulls={false}
                   isAnimationActive={false}
-                  activeDot={(p) => {
-                    const hasValue =
-                      p?.payload?.forecast != null && p?.value != null;
-                    if (!hasValue) return <circle r={0} />;
-                    return (
-                      <circle cx={p.cx} cy={p.cy} r={4}
-                        fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2} />
-                    );
-                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>
