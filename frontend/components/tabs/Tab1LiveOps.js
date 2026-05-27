@@ -79,10 +79,7 @@ function StatusBadge({ level, risk }) {
       <span className="font-semibold thai" style={{ color: meta.color }}>
         {meta.th}
       </span>
-      <span
-        className="text-xs uppercase eyebrow"
-        style={{ color: meta.color }}
-      >
+      <span className="text-xs uppercase eyebrow" style={{ color: meta.color }}>
         {meta.en}
       </span>
       {risk != null && (
@@ -136,7 +133,9 @@ function SourceRow({
         <div className="text-[10px] text-muted">{unit}</div>
       </div>
       <div className="text-right flex-shrink-0 hidden md:block w-20">
-        <div className="text-xs uppercase eyebrow text-muted thai">อัปเดตล่าสุด</div>
+        <div className="text-xs uppercase eyebrow text-muted thai">
+          อัปเดตล่าสุด
+        </div>
         <div className="text-[11px] mono">{updated}</div>
       </div>
     </div>
@@ -271,7 +270,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
             หน้าหลัก · การปฏิบัติการเรียลไทม์
           </div>
           <h1 className="text-xl font-semibold mt-0.5 thai">
-            ภาพรวมระบบพลังงานเกาะสมุย
+            ภาพรวมระบบพลังงานเกาะ C (เกาะเต่า)
           </h1>
         </div>
         <div className="text-xs text-muted thai">
@@ -412,6 +411,18 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   fill="url(#loadGrad)"
                   dot={false}
                   connectNulls={false}
+                  activeDot={(p) =>
+                    p.payload?.actual == null ? null : (
+                      <circle
+                        cx={p.cx}
+                        cy={p.cy}
+                        r={4}
+                        fill="var(--primary)"
+                        stroke="var(--bg)"
+                        strokeWidth={2}
+                      />
+                    )
+                  }
                 />
                 <Area
                   type="monotone"
@@ -424,6 +435,12 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   dot={false}
                   connectNulls={false}
                   isAnimationActive={false}
+                  activeDot={(p) =>
+                    p.payload?.forecast == null ? null : (
+                      <circle cx={p.cx} cy={p.cy} r={4}
+                        fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2} />
+                    )
+                  }
                 />
               </AreaChart>
             </ResponsiveContainer>
