@@ -15,6 +15,79 @@ const fmt2   = v => (v == null ? '—' : Number(v).toFixed(2))
 const fmtBaht = v => (v == null ? '—' : `฿${(v / 1000).toFixed(1)}k`)
 const SALE_BAHT_PER_KWH = 4
 
+// ── Source Mix Breakdown ────────────────────────────────────────────
+// Shows what fraction of the 24-hour demand each source covers, with
+// peak MW and active-hours window — so the operator knows what to
+// radio to the field staff handling BESS / Diesel #8 / Diesel #9.
+const SOURCE_DEFS = [
+  { key: 'grid_mw',     label: 'Grid',      sub: 'Line 6 · auto',  color: 'var(--primary)', radio: false },
+  { key: 'solar_mw',    label: 'Solar',     sub: 'PV 0.8 MWp',     color: '#f59e0b',        radio: false },
+  { key: 'battery_mw',  label: 'BESS',      sub: 'Battery #7',     color: '#10b981',        radio: true, positiveOnly: true },
+  { key: 'diesel_a_mw', label: 'Diesel #8', sub: 'Island A',       color: '#f97316',        radio: true },
+  { key: 'diesel_c_mw', label: 'Diesel #9', sub: 'Island C',       color: '#ef4444',        radio: true },
+]
+
+function activeWindow(rows, key, positiveOnly = false) {
+  // Returns [startHour, endHour] of contiguous-or-not range when source > threshold
+  const hours = []
+  rows.forEach(r => {
+    const v = positiveOnly ? Math.max(0, r[key] ?? 0) : (r[key] ?? 0)
+    if (v > 0.05) hours.push(r.hour)
+  })
+  if (hours.length === 0) return null
+  return [Math.min(...hours), Math.max(...hours), hours.length]
+}
+
+function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
+  const data = SOURCE_DEFS.map(s => {
+    const vals = rows.map(r => s.positiveOnly ? Math.max(0, r[s.key] ?? 0) : (r[s.key] ?? 0))
+    const totalMwh = vals.reduce((sum, v) => sum + v, 0)   // 1h × MW = 1 MWh per hour-row
+    const peak = vals.length ? Math.max(0, ...vals) : 0
+    const win = activeWindow(rows, s.key, s.positiveOnly)
+    return { ...s, totalMwh, peak, win }
+  })
+  const totalAll = data.reduce((s, x) => s + x.totalMwh, 0) || 1
+
+  return (
+    <div>
+      <div className="text-[10px] uppercase eyebrow text-muted mb-1.5">Source Mix · 24h</div>
+
+      {/* Stacked bar */}
+      <div className="h-2 rounded-full overflow-hidden flex" style={{ background: 'var(--surface-2)' }}>
+        {data.map(s => (s.totalMwh > 0) && (
+          <div key={s.key} style={{ width: `${(s.totalMwh / totalAll) * 100}%`, background: s.color }} />
+        ))}
+      </div>
+
+      {/* Per-source rows */}
+      <div className="mt-2 space-y-1 text-[11px]">
+        {data.filter(s => s.totalMwh > 0.05 || s.peak > 0.05).map(s => (
+          <div key={s.key} className="grid items-center gap-x-2 gap-y-0"
+               style={{ gridTemplateColumns: compact
+                 ? 'auto 1fr auto auto'
+                 : 'auto 1fr auto auto auto' }}>
+            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+            <div className="min-w-0 flex items-baseline gap-1.5">
+              <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
+              {!compact && <span className="text-[9px] text-muted truncate">{s.sub}</span>}
+              {showRadio && s.radio && s.totalMwh > 0.05 && (
+                <span title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม" className="text-[10px]">📻</span>
+              )}
+            </div>
+            <span className="mono text-muted text-right" title="Total energy delivered in 24h">{s.totalMwh.toFixed(1)} <span className="text-[9px]">MWh</span></span>
+            <span className="mono text-muted text-right" title="Peak instantaneous output">peak {s.peak.toFixed(1)} <span className="text-[9px]">MW</span></span>
+            {!compact && (
+              <span className="mono text-[10px] text-muted text-right whitespace-nowrap" title="Active hours window">
+                {s.win ? `${String(s.win[0]).padStart(2,'0')}–${String(s.win[1] + 1).padStart(2,'0')}h · ${s.win[2]}h on` : '—'}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Strategy metadata ───────────────────────────────────────────────
 const STRATEGIES = [
   { id: 'baseline',    th: 'แผนพื้นฐาน',   en: 'BASELINE',    desc: 'แผนที่ระบบกำลังใช้งานอยู่',         color: '#0ea5e9' },
@@ -90,6 +163,11 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Source mix breakdown — what to radio to staff ── */}
+      <div className="mt-4 pt-3 border-t hairline">
+        <SourceMixBreakdown rows={plan.rows ?? []} compact={true} />
       </div>
     </button>
   )
@@ -294,6 +372,13 @@ export function Tab2Dispatch({
           )}
         </div>
 
+        {/* ── Source mix breakdown of the custom plan ── */}
+        {customRows.length > 0 && (
+          <div className="mt-4 pt-3 border-t hairline">
+            <SourceMixBreakdown rows={customRows} compact={false} />
+          </div>
+        )}
+
         <div className="mt-4 flex items-center justify-between flex-wrap gap-3">
           <button onClick={() => applyPlan('custom')}
                   className="px-3 py-1.5 rounded text-sm border hairline cursor-pointer hover:opacity-80"
@@ -302,6 +387,9 @@ export function Tab2Dispatch({
                            borderColor: activeId === 'custom' ? 'var(--primary)' : 'var(--border-soft)' }}>
             ใช้แผนกำหนดเอง · Use Custom
           </button>
+          <div className="text-[10px] text-muted thai">
+            📻 = แหล่งที่ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม (BESS / Diesel)
+          </div>
         </div>
       </section>
 
