@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   AreaChart,
   Area,
@@ -162,16 +162,10 @@ function LoadTip({ active, payload, label }) {
 
 // ── Main component ────────────────────────────────────────────────────
 export function Tab1LiveOps({ rt, history, energyMix, delta }) {
-  // Live clock for "Last sync" indicator
-  const [now, setNow] = useState(null);
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const lastSync = now
-    ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`
-    : "--:--:--";
+  // "Last sync" = the time the backend stamped on the most recent realtime
+  // poll (rt.server_time). NOT the live wall-clock — that was a bug that
+  // made the timestamp tick every second instead of every 15-min poll.
+  const lastSync = rt?.server_time ?? "--:--:--";
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent

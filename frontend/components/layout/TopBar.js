@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Icon } from '@/components/shared/Icon'
-import { Dot }  from '@/components/shared/Dot'
 
 function formatDateTime(d) {
   const dd = String(d.getDate()).padStart(2,'0')
@@ -26,7 +25,7 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
   return (
     <header className="border-b hairline topbar sticky top-0 z-40">
       <div className="px-6 h-16 flex items-center justify-between">
-        {/* Left: logo + SCADA */}
+        {/* Left: logo + user info */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0 bg-gradient"
@@ -35,13 +34,19 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
             </div>
             <div>
               <div className="text-[15px] font-semibold leading-tight">PEA-PARO</div>
-              <div className="text-[10.5px] uppercase eyebrow text-muted leading-tight">Island Energy Management · PEA</div>
+              <div className="text-xs uppercase eyebrow text-muted leading-tight thai">ระบบบริหารจัดการพลังงาน · กฟภ.</div>
             </div>
           </div>
+
+          {/* User identity — moved here from the right side */}
           <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l hairline">
-            <Dot color="#10b981" pulse />
-            <span className="text-xs text-muted">SCADA Link · Online</span>
-            <span className="text-xs text-muted mono ml-2">33kV / 50.0 Hz</span>
+            <div className="w-8 h-8 rounded-full grid place-items-center panel-2 border hairline">
+              <Icon.User width="16" height="16" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-xs font-medium">User123</div>
+              <div className="text-xs text-muted thai">วิศวกร · กฟภ. สุราษฎร์ธานี</div>
+            </div>
           </div>
         </div>
 
@@ -49,10 +54,10 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="text-right hidden sm:block">
-              <div className="text-[10.5px] uppercase eyebrow text-muted">Server Time</div>
+              <div className="text-xs uppercase eyebrow text-muted thai">เวลาเซิร์ฟเวอร์</div>
               <div className="flex items-baseline gap-3">
                 <span className="text-sm font-semibold mono">{time}</span>
-                <span className="text-xs text-muted thai">{date} (พ.ศ.)</span>
+                <span className="text-xs text-muted thai">{date}</span>
               </div>
             </div>
             {isStale && (
@@ -72,20 +77,9 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
               className="h-9 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-medium border hairline hover:opacity-80 transition panel-2 cursor-pointer">
               <Icon.File width="15" height="15" />
               <div className="flex items-baseline gap-1.5">
-                <span className="thai">รายงาน</span>
-                <span className="text-[10.5px] uppercase eyebrow text-muted hidden sm:inline">Report</span>
+                <span className="thai text-sm">รายงาน</span>
               </div>
             </button>
-          </div>
-
-          <div className="flex items-center gap-2 pl-3 border-l hairline">
-            <div className="w-8 h-8 rounded-full grid place-items-center panel-2 border hairline">
-              <Icon.User width="16" height="16" />
-            </div>
-            <div className="text-right hidden md:block">
-              <div className="text-xs font-medium">Eng. S. Khamphasit</div>
-              <div className="text-[10.5px] text-muted thai">วิศวกร · Surat Region</div>
-            </div>
           </div>
         </div>
       </div>
