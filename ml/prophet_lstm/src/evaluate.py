@@ -137,28 +137,31 @@ def evaluation_report(
 def plot_forecast(
     index,
     y_true: np.ndarray,
-    y_hybrid: np.ndarray,
     y_lstm: np.ndarray,
-    y_prophet: np.ndarray,
     title: str = 'Island C — Load Forecast vs Actual',
     save_path: str | None = None,
     y_margin: np.ndarray | None = None,
     margin_label: str = 'LSTM+Margin',
+    y_hybrid: np.ndarray | None = None,
+    y_prophet: np.ndarray | None = None,
 ) -> None:
-    """Plot actual vs all three model predictions, with optional conservative margin line.
+    """Plot actual vs LSTM predictions, with optional margin, hybrid, and prophet lines.
 
     Args:
-        y_margin:     Optional array (same length as y_true) of conservative LSTM forecast
-                      (i.e. y_lstm + safety_margin). Shown as a red dash-dot line.
+        y_margin:     Optional conservative LSTM forecast (y_lstm + safety_margin).
         margin_label: Legend label for the margin line.
+        y_hybrid:     Optional hybrid model predictions (pass to show, omit to hide).
+        y_prophet:    Optional Prophet predictions (pass to show, omit to hide).
     """
     fig, ax = plt.subplots(figsize=(16, 5))
-    ax.plot(index, y_true,    label='Actual',       color='black',  linewidth=1.5)
-    ax.plot(index, y_hybrid,  label='Hybrid',       color='blue',   linewidth=1.2, linestyle='-')
-    ax.plot(index, y_lstm,    label='LSTM',         color='orange', linewidth=0.9, linestyle='--')
-    ax.plot(index, y_prophet, label='Prophet',      color='green',  linewidth=0.9, linestyle=':')
+    ax.plot(index, y_true,  label='Actual',     color='black',   linewidth=1.5)
+    ax.plot(index, y_lstm,  label='LSTM',       color='#2563eb', linewidth=1.2, linestyle='--')
     if y_margin is not None:
-        ax.plot(index, y_margin, label=margin_label, color='red',   linewidth=1.2, linestyle='-.')
+        ax.plot(index, y_margin, label=margin_label, color='#dc2626', linewidth=1.2, linestyle='-.')
+    if y_hybrid is not None:
+        ax.plot(index, y_hybrid,  label='Hybrid',  color='blue',  linewidth=0.9, linestyle='-')
+    if y_prophet is not None:
+        ax.plot(index, y_prophet, label='Prophet', color='green', linewidth=0.9, linestyle=':')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
     plt.xticks(rotation=30)

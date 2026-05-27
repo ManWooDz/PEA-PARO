@@ -3,8 +3,8 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import holidays
 
-TRAIN_END = "2025-11-30 23:45:00"
-VAL_END   = "2025-12-31 23:45:00"
+TRAIN_END = "2025-10-24 18:45:00"   # 70% of total data (28,492 rows)
+VAL_END   = "2025-12-27 09:00:00"   # 15% val (6,105 rows); test = remaining 15% (6,107 rows)
 
 FEATURE_COLS = [
     'load_c',
