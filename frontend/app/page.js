@@ -54,6 +54,7 @@ export default function Home() {
   const {
     plans, activeId, loading: dispLoading,
     customCfg, setCustomCfg, applyPlan,
+    hasSolar, setHasSolar,
   } = useDispatch()
 
   const {
@@ -103,6 +104,7 @@ export default function Home() {
           <Tab2Dispatch
             plans={plans} activeId={activeId} applyPlan={applyPlan}
             customCfg={customCfg} setCustomCfg={setCustomCfg}
+            hasSolar={hasSolar} setHasSolar={setHasSolar}
             loading={dispLoading}
             activePlanId={activePlanId} setActivePlanId={setActivePlan}
             focusedHour={focusedHour}
