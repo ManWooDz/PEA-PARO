@@ -1,12 +1,93 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { GridTopology }     from '@/components/shared/GridTopology'
-import { AssetDetailCard }  from '@/components/operational/AssetDetailCard'
-import { EventsLog }        from '@/components/operational/EventsLog'
+import { useEffect, useState } from 'react'
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+} from 'recharts'
+import { Icon } from '@/components/shared/Icon'
+import { Dot }  from '@/components/shared/Dot'
 
 const fmt1 = v => (v == null ? '—' : Number(v).toFixed(1))
+const fmt2 = v => (v == null ? '—' : Number(v).toFixed(2))
 
+// ── KPI Card ────────────────────────────────────────────────────────
+function KPICard({ icon: I, label, value, unit, sub, delta, accent = 'var(--primary)' }) {
+  const trend = delta == null ? null : delta > 0 ? '▲' : delta < 0 ? '▼' : '—'
+  const trendColor = delta == null ? 'var(--muted)' : delta > 0 ? '#ef4444' : '#10b981'
+  return (
+    <div className="panel rounded-xl p-4">
+      <div className="flex items-center gap-2 text-[10px] uppercase eyebrow text-muted mb-3">
+        {I && <I width="14" height="14" />}
+        <span>{label}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        {trend && (
+          <span className="text-xs mono" style={{ color: trendColor }}>
+            {trend} {Math.abs(delta).toFixed(2)}
+          </span>
+        )}
+        <span className="text-3xl font-bold mono" style={{ color: accent }}>{value}</span>
+        {unit && <span className="text-sm text-muted">{unit}</span>}
+      </div>
+      {sub && <div className="text-[11px] text-muted mt-2">{sub}</div>}
+    </div>
+  )
+}
+
+// ── Status Badge ────────────────────────────────────────────────────
+function StatusBadge({ level, risk }) {
+  const meta = {
+    normal:  { color: '#10b981', th: 'ปกติ',         en: 'NORMAL'    },
+    watch:   { color: '#f59e0b', th: 'เฝ้าระวัง',    en: 'WATCH'     },
+    high:    { color: '#ef4444', th: 'เสี่ยงสูง',     en: 'HIGH RISK' },
+  }[level] ?? { color: '#9ca3af', th: '—', en: '—' }
+  return (
+    <div className="flex items-baseline gap-2">
+      <Dot color={meta.color} pulse={level === 'high'} />
+      <span className="font-semibold thai" style={{ color: meta.color }}>{meta.th}</span>
+      <span className="text-[10px] uppercase eyebrow" style={{ color: meta.color }}>{meta.en}</span>
+      {risk != null && (
+        <span className="text-[10px] text-muted ml-1">· risk score {risk}/100</span>
+      )}
+    </div>
+  )
+}
+
+// ── Source row in Live Telemetry panel ──────────────────────────────
+function SourceRow({ icon: I, name, sub, status, value, unit, updated, color }) {
+  const statusMeta = {
+    'on-line': { label: 'ON-LINE', color: '#10b981' },
+    standby:   { label: 'STANDBY', color: '#9ca3af' },
+    warn:      { label: 'WARN',    color: '#f59e0b' },
+    fault:     { label: 'FAULT',   color: '#ef4444' },
+  }[status] ?? { label: status?.toUpperCase() ?? '—', color: '#9ca3af' }
+  return (
+    <div className="flex items-center gap-4 py-3 border-b hairline last:border-0">
+      <div className="w-10 h-10 rounded-lg grid place-items-center flex-shrink-0"
+           style={{ background: `${color}22`, color }}>
+        {I && <I width="20" height="20" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium">{name}</div>
+        <div className="text-[11px] text-muted truncate">{sub}</div>
+      </div>
+      <span className="text-[10px] mono px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ background: `${statusMeta.color}22`, color: statusMeta.color }}>
+        {statusMeta.label}
+      </span>
+      <div className="text-right flex-shrink-0 w-24">
+        <div className="text-base mono font-semibold" style={{ color }}>{value}</div>
+        <div className="text-[10px] text-muted">{unit}</div>
+      </div>
+      <div className="text-right flex-shrink-0 hidden md:block w-20">
+        <div className="text-[10px] uppercase eyebrow text-muted">Updated</div>
+        <div className="text-[11px] mono">{updated}</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Charts ──────────────────────────────────────────────────────────
 function LoadTip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
@@ -16,55 +97,142 @@ function LoadTip({ active, payload, label }) {
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color }}>●</span>
           <span className="text-muted">{p.name}</span>
-          <span className="mono">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt2(p.value)} MW</span>
         </div>
       ))}
     </div>
   )
 }
 
-export function Tab1LiveOps({ rt, history, focusedAssetId, onAssetClick }) {
-  const [selected, setSelected] = useState(focusedAssetId ?? null)
-
-  // Sync local selection with focusedAssetId prop (cross-tab navigation)
+// ── Main component ────────────────────────────────────────────────────
+export function Tab1LiveOps({ rt, history, energyMix, delta }) {
+  // Live clock for "Last sync" indicator
+  const [now, setNow] = useState(null)
   useEffect(() => {
-    if (focusedAssetId !== null && focusedAssetId !== undefined) {
-      setSelected(focusedAssetId)
-    }
-  }, [focusedAssetId])
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const lastSync = now ? `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}` : '--:--:--'
 
-  const handleClick = (assetId) => {
-    setSelected(assetId)
-    onAssetClick?.(assetId)
+  if (!rt) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted text-sm gap-2">
+        <Dot color="var(--primary)" pulse />
+        <span>กำลังโหลดข้อมูล…</span>
+      </div>
+    )
   }
 
+  const { kpi, status: overallStatus } = rt
+  const load_mw    = kpi?.island_c_load_mw ?? 0
+  const soc_pct    = kpi?.battery_soc_pct ?? 0
+  const soc_mwh    = kpi?.battery_soc_mwh ?? 0
+  const solar_mw   = kpi?.solar_mw ?? 0
+  const risk_score = kpi?.risk_score ?? 0
+
+  // Renewable share = (Solar + BESS discharge) / Total Load
+  // Battery contribution inferred from mix residual
+  const lineL6_mw  = rt?.lines?.find(l => l.id === 6)?.flow_mw ?? 0
+  const d8_mw      = rt?.diesel_units?.filter(u => u.asset === 'diesel_8').reduce((s, u) => s + u.output_mw, 0) ?? 0
+  const d9_mw      = rt?.diesel_units?.filter(u => u.asset === 'diesel_9').reduce((s, u) => s + u.output_mw, 0) ?? 0
+  const bat_supply = Math.max(0, load_mw - lineL6_mw - d8_mw - d9_mw - solar_mw)
+  const renewable  = load_mw > 0 ? Math.round(((solar_mw + bat_supply) / load_mw) * 100) : 0
+
+  // ── Load history chart data ──
   const loadData = history?.points?.map(p => ({
     t:    p.hour != null ? `${String(p.hour).padStart(2,'0')}:00` : p.ts?.slice(11,16) ?? '',
     load: +(p.load_mw?.toFixed(2) ?? 0),
   })) ?? []
 
+  // ── Energy mix chart data ──
+  const mixData = energyMix?.points?.map(p => ({
+    t:        p.ts?.slice(11,16) ?? '',
+    Grid:     +(p.grid_mw?.toFixed(2)    ?? 0),
+    Battery:  +(p.battery_mw?.toFixed(2) ?? 0),
+    'Diesel A': +(p.diesel_a_mw?.toFixed(2) ?? 0),
+    'Diesel C': +(p.diesel_c_mw?.toFixed(2) ?? 0),
+  })) ?? []
+
+  // ── Source status data ──
+  const sources = rt?.sources ?? []
+  const findSource = (id) => sources.find(s => s.id === id)
+  const grid    = findSource('line6')
+  const battery = findSource('battery7')
+  const diesel8 = findSource('diesel8')
+  const diesel9 = findSource('diesel9')
+  // updated time from server
+  const updatedAt = rt?.server_time ?? '—'
+
   return (
-    <div className="space-y-4">
-      {/* ── Grid topology centerpiece ── */}
-      <section>
-        <div className="text-[10.5px] uppercase eyebrow text-muted mb-2">Grid Topology · Live Power Flow</div>
-        <GridTopology lines={rt?.lines ?? []} onAssetClick={handleClick} focusedAssetId={selected} />
+    <div className="space-y-6">
+      {/* ── Header ── */}
+      <section className="flex items-end justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-[10.5px] uppercase eyebrow text-muted">หน้าหลัก · Real-time Operations</div>
+          <h1 className="text-xl font-semibold mt-0.5">Island Energy Overview</h1>
+        </div>
+        <div className="text-xs text-muted">
+          Last sync · <span className="mono">{lastSync}</span>
+        </div>
       </section>
 
-      {/* ── 3-column bottom row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Events log */}
-        <EventsLog />
-
-        {/* Island C load history */}
+      {/* ── 4 KPI cards ── */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KPICard
+          icon={Icon.Gauge}
+          label="Total Load Now"
+          value={fmt2(load_mw)}
+          unit="MW"
+          sub="โหลดรวมทั้งเกาะ"
+          delta={delta}
+          accent="var(--primary)"
+        />
+        <KPICard
+          icon={Icon.Battery}
+          label="BESS State of Charge"
+          value={Math.round(soc_pct)}
+          unit="%"
+          sub={`${fmt1(soc_mwh)} MWh · Lithium-ion`}
+          accent="#10b981"
+        />
+        <KPICard
+          icon={Icon.Sun}
+          label="Renewable Share"
+          value={renewable}
+          unit="%"
+          sub="Solar + BESS / Total"
+          accent="#f59e0b"
+        />
         <div className="panel rounded-xl p-4">
-          <div className="text-[10px] uppercase eyebrow text-muted mb-2">Island C Load · last 24 h</div>
+          <div className="flex items-center gap-2 text-[10px] uppercase eyebrow text-muted mb-3">
+            <Icon.Alert width="14" height="14" />
+            <span>Early Warning</span>
+          </div>
+          <StatusBadge level={overallStatus === 'critical' ? 'high' : overallStatus === 'warning' ? 'watch' : 'normal'} risk={risk_score} />
+        </div>
+      </section>
+
+      {/* ── Load profile + Energy mix charts ── */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Load profile */}
+        <div className="panel rounded-xl p-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <div className="text-[10.5px] uppercase eyebrow text-muted">Load Profile</div>
+              <div className="text-xs text-muted mt-0.5">Last 24h + Forecast next 6h</div>
+            </div>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--primary)' }} />Actual</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--secondary)' }} />Forecast</span>
+            </div>
+          </div>
           {loadData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={loadData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                 <defs>
                   <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.25} />
+                    <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
@@ -76,17 +244,101 @@ export function Tab1LiveOps({ rt, history, focusedAssetId, onAssetClick }) {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[180px] flex items-center justify-center text-muted text-sm">No data</div>
+            <div className="h-[220px] flex items-center justify-center text-muted text-sm">No data</div>
           )}
         </div>
 
-        {/* Asset detail */}
-        <AssetDetailCard
-          assetId={selected}
-          rt={rt}
-          onClose={() => { setSelected(null); onAssetClick?.(null) }}
-        />
-      </div>
+        {/* Energy mix */}
+        <div className="panel rounded-xl p-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <div className="text-[10.5px] uppercase eyebrow text-muted">Energy Mix · Per Hour</div>
+              <div className="text-xs text-muted mt-0.5">Last 12 hours</div>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] flex-wrap justify-end">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--primary)' }} />Grid</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#10b981' }} />BESS</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />Diesel A</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#ef4444' }} />Diesel C</span>
+            </div>
+          </div>
+          {mixData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={mixData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                <XAxis dataKey="t" tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} unit=" MW" />
+                <Tooltip content={<LoadTip />} />
+                <Bar dataKey="Grid"     stackId="a" fill="var(--primary)" />
+                <Bar dataKey="Battery"  stackId="a" fill="#10b981" />
+                <Bar dataKey="Diesel A" stackId="a" fill="#f59e0b" />
+                <Bar dataKey="Diesel C" stackId="a" fill="#ef4444" radius={[2,2,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-muted text-sm">No data</div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Source status · Live telemetry ── */}
+      <section className="panel rounded-xl p-4">
+        <div className="flex items-baseline justify-between mb-2">
+          <div>
+            <div className="text-[10.5px] uppercase eyebrow text-muted">Source Status · Live Telemetry</div>
+            <div className="text-xs text-muted mt-0.5">5 sources · 6 lines · 33kV</div>
+          </div>
+          <span className="text-xs text-muted">Auto · 3s</span>
+        </div>
+
+        <div className="mt-2">
+          <SourceRow
+            icon={Icon.Cable}
+            name="Grid · Line 6"
+            sub="Island B → C · 33kV underwater"
+            status={grid?.status === 'warn' ? 'warn' : 'on-line'}
+            value={fmt2(grid?.value ?? 0)} unit="MW"
+            updated={grid?.updated ?? updatedAt}
+            color="#6366f1"
+          />
+          <SourceRow
+            icon={Icon.Sun}
+            name="Solar PV"
+            sub="0.8 MWp · diurnal · weather-driven"
+            status={solar_mw > 0.05 ? 'on-line' : 'standby'}
+            value={fmt2(solar_mw)} unit="MW"
+            updated={updatedAt}
+            color="#f59e0b"
+          />
+          <SourceRow
+            icon={Icon.Engine}
+            name="Diesel Gen #8"
+            sub="Island A · 3 × 5 MW max"
+            status={diesel8?.status === 'idle' ? 'standby' : 'on-line'}
+            value={fmt2(diesel8?.value ?? 0)} unit="MW"
+            updated={diesel8?.updated ?? updatedAt}
+            color="#f97316"
+          />
+          <SourceRow
+            icon={Icon.Engine}
+            name="Diesel Gen #9"
+            sub="Island C · 2 × 2.5 MW max"
+            status={diesel9?.status === 'idle' ? 'standby' : 'on-line'}
+            value={fmt2(diesel9?.value ?? 0)} unit="MW"
+            updated={diesel9?.updated ?? updatedAt}
+            color="#ef4444"
+          />
+          <SourceRow
+            icon={Icon.Battery}
+            name="BESS · Battery #7"
+            sub="30 MWh / 12.5 MW Lithium-ion · Island A"
+            status={battery?.status === 'fault' ? 'fault' : battery?.status === 'warn' ? 'warn' : 'on-line'}
+            value={Math.round(battery?.value ?? 0)} unit="%"
+            updated={battery?.updated ?? updatedAt}
+            color="#10b981"
+          />
+        </div>
+      </section>
     </div>
   )
 }
