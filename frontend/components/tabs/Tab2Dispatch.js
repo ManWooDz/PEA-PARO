@@ -71,9 +71,9 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
               <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
               {!compact && <span className="text-[9px] text-muted truncate">{s.sub}</span>}
               {showRadio && s.radio && s.totalMwh > 0.05 && (
-                <i className="fa-solid fa-radio text-[10px]"
-                   title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม"
-                   style={{ color: s.color }} />
+                <Icon.Radio width="10" height="10"
+                  title="ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม"
+                  style={{ color: s.color }} />
               )}
             </div>
             <span className="mono text-muted text-right" title="Total energy delivered in 24h">{s.totalMwh.toFixed(1)} <span className="text-[9px]">MWh</span></span>
@@ -387,7 +387,7 @@ export function Tab2Dispatch({
             ใช้แผนกำหนดเอง · Use Custom
           </button>
           <div className="text-[10px] text-muted thai flex items-center gap-1.5">
-            <i className="fa-solid fa-radio" />
+            <Icon.Radio width="12" height="12" />
             : แหล่งที่ต้องวิทยุแจ้งเจ้าหน้าที่ภาคสนาม (BESS / Diesel)
           </div>
         </div>

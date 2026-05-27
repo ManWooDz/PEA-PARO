@@ -28,13 +28,13 @@ function KPICard({
   delta,
   accent = "var(--primary)",
 }) {
-  const trendIcon =
+  const TrendIcon =
     delta == null
       ? null
       : delta > 0
-        ? "fa-solid fa-arrow-trend-up"
+        ? Icon.TrendUp
         : delta < 0
-          ? "fa-solid fa-arrow-trend-down"
+          ? Icon.TrendDown
           : null;
   const trendColor =
     delta == null ? "var(--muted)" : delta > 0 ? "#ef4444" : "#10b981";
@@ -51,12 +51,12 @@ function KPICard({
           </span>
           {unit && <span className="text-sm text-muted">{unit}</span>}
         </div>
-        {trendIcon && (
+        {TrendIcon && (
           <span
             className="text-xs mono inline-flex items-center gap-1 flex-shrink-0"
             style={{ color: trendColor }}
           >
-            <i className={trendIcon} />
+            <TrendIcon width="12" height="12" />
             {Math.abs(delta).toFixed(2)}
           </span>
         )}
