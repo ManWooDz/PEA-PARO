@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -12,7 +12,7 @@ import {
   CartesianGrid,
   Legend,
   ComposedChart,
-  Line,
+  Customized,
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
@@ -147,9 +147,15 @@ function SourceRow({
 // ── Charts ──────────────────────────────────────────────────────────
 function LoadTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
-  // Hide rows where the series has no value at the hovered x (forecast
-  // region → actual is null; actual region → forecast is null).
-  const visible = payload.filter((p) => p?.value != null);
+  // 1) Hide rows where the series has no value at the hovered x.
+  // 2) Deduplicate by dataKey (in case multiple chart layers share one).
+  const seen = new Set();
+  const visible = payload.filter((p) => {
+    if (p?.value == null) return false;
+    if (seen.has(p.dataKey)) return false;
+    seen.add(p.dataKey);
+    return true;
+  });
   if (visible.length === 0) return null;
   return (
     <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
@@ -171,6 +177,11 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // poll (rt.server_time). NOT the live wall-clock — that was a bug that
   // made the timestamp tick every second instead of every 15-min poll.
   const lastSync = rt?.server_time ?? "--:--:--";
+
+  // Track the currently hovered x — used by a Customized SVG layer to draw
+  // dots ONLY for series whose value is non-null at that x. Replaces
+  // recharts' activeDot, which snaps to the last valid point when null.
+  const [hoverT, setHoverT] = useState(null);
 
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
@@ -365,6 +376,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
               <ComposedChart
                 data={loadData}
                 margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
+                onMouseMove={(e) => setHoverT(e?.activeLabel ?? null)}
+                onMouseLeave={() => setHoverT(null)}
               >
                 <defs>
                   <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
@@ -438,39 +451,35 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   connectNulls={false}
                   isAnimationActive={false}
                 />
-                {/* Invisible Line overlays just for the activeDot mechanism.
-                    Line + connectNulls={false} drops the dot at null x's
-                    properly (unlike Area). The lines themselves are
-                    transparent — the visible fill comes from the Areas above. */}
-                <Line
-                  type="monotone"
-                  dataKey="actual"
-                  stroke="transparent"
-                  dot={false}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                  activeDot={{
-                    r: 4,
-                    fill: "var(--primary)",
-                    stroke: "var(--bg)",
-                    strokeWidth: 2,
+                {/* Custom hover dots — render directly via xScale/yScale so we
+                    can place each dot at the EXACT hovered x without recharts'
+                    activeDot snap-to-anchor behaviour. */}
+                <Customized
+                  component={(rp) => {
+                    if (!hoverT) return null;
+                    const row = loadData.find((d) => d.t === hoverT);
+                    if (!row) return null;
+                    const xMap = rp?.xAxisMap;
+                    const yMap = rp?.yAxisMap;
+                    if (!xMap || !yMap) return null;
+                    const xAxis = xMap[Object.keys(xMap)[0]];
+                    const yAxis = yMap[Object.keys(yMap)[0]];
+                    if (typeof xAxis?.scale !== "function" || typeof yAxis?.scale !== "function") return null;
+                    const cx = xAxis.scale(row.t);
+                    if (typeof cx !== "number" || Number.isNaN(cx)) return null;
+                    return (
+                      <g pointerEvents="none">
+                        {row.actual != null && (
+                          <circle cx={cx} cy={yAxis.scale(row.actual)} r={4}
+                                  fill="var(--primary)" stroke="var(--bg)" strokeWidth={2} />
+                        )}
+                        {row.forecast != null && (
+                          <circle cx={cx} cy={yAxis.scale(row.forecast)} r={4}
+                                  fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2} />
+                        )}
+                      </g>
+                    );
                   }}
-                  legendType="none"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="forecast"
-                  stroke="transparent"
-                  dot={false}
-                  connectNulls={false}
-                  isAnimationActive={false}
-                  activeDot={{
-                    r: 4,
-                    fill: "var(--secondary)",
-                    stroke: "var(--bg)",
-                    strokeWidth: 2,
-                  }}
-                  legendType="none"
                 />
               </ComposedChart>
             </ResponsiveContainer>
