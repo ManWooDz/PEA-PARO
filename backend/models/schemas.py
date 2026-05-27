@@ -38,8 +38,9 @@ class EventsResponse(BaseModel):
 
 class WeatherPoint(BaseModel):
     ts: str                          # ISO hour
-    solar_irradiance_w_m2: float
+    solar_irradiance_w_m2: float     # POA (plane-of-array) when tilt/azimuth set
     cloud_cover_pct: float
+    temperature_c: float = 25.0      # ambient air temperature (for NOCT model)
 
 
 class WeatherResponse(BaseModel):

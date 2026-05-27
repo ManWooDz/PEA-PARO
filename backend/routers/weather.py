@@ -1,5 +1,9 @@
 """
-Weather router — Open-Meteo proxy for Koh Tao solar irradiance + cloud cover.
+Weather router — Open-Meteo proxy for Koh Tao solar irradiance + temperature.
+
+Returns Plane-of-Array (POA) shortwave radiation when tilt/azimuth are supplied,
+which feeds the NOCT-based solar generation model in data/loader.py.
+
 GET /api/weather → next 24h hourly forecast.
 """
 from datetime import datetime, timedelta
@@ -9,12 +13,16 @@ from models.schemas import WeatherResponse, WeatherPoint
 
 router = APIRouter(prefix="/api/weather", tags=["weather"])
 
-# Koh Tao coordinates
+# ── Koh Tao + PV array config ──────────────────────────────────────────────
 LAT, LON = 10.10, 99.83
+TILT     = 15.0   # panel tilt (deg from horizontal)
+AZIMUTH  = 0.0    # 0 = facing South (Open-Meteo convention)
+
 OPEN_METEO_URL = (
     "https://api.open-meteo.com/v1/forecast"
     f"?latitude={LAT}&longitude={LON}"
-    "&hourly=shortwave_radiation,cloud_cover"
+    "&hourly=shortwave_radiation,temperature_2m,cloud_cover"
+    f"&tilt={TILT}&azimuth={AZIMUTH}"
     "&forecast_days=2&timezone=Asia%2FBangkok"
 )
 
@@ -37,10 +45,13 @@ def _fallback() -> WeatherResponse:
         h = dt.hour
         # Solar bell curve: peaks at noon, zero at night
         irr = max(0.0, 850.0 * max(0.0, 1 - ((h - 12) / 6) ** 2))
+        # Temperature curve: ~24°C nights, ~32°C noon
+        temp = 28 + 4 * (1 - ((h - 14) / 7) ** 2)
         pts.append(WeatherPoint(
             ts=dt.strftime("%Y-%m-%dT%H:%M:%S"),
             solar_irradiance_w_m2=round(irr, 1),
             cloud_cover_pct=round(20 + (i % 6) * 5, 1),
+            temperature_c=round(max(22, temp), 1),
         ))
     return WeatherResponse(lat=LAT, lon=LON, points=pts)
 
@@ -57,6 +68,7 @@ async def get_weather():
         times = j["hourly"]["time"]
         irrs  = j["hourly"]["shortwave_radiation"]
         clds  = j["hourly"]["cloud_cover"]
+        temps = j["hourly"]["temperature_2m"]
         # Find the first index matching current hour, then take next 24
         now_iso = datetime.now().strftime("%Y-%m-%dT%H:00")
         start = next((i for i, t in enumerate(times) if t >= now_iso), 0)
@@ -65,6 +77,7 @@ async def get_weather():
                 ts=times[i],
                 solar_irradiance_w_m2=float(irrs[i] or 0.0),
                 cloud_cover_pct=float(clds[i] or 0.0),
+                temperature_c=float(temps[i] or 25.0),
             )
             for i in range(start, min(start + 24, len(times)))
         ]

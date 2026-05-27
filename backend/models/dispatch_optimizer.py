@@ -73,13 +73,15 @@ def build_dispatch_plan(
     else:
         loads_kw = [_load_at_hour(h, load_scale) for h in range(24)]
 
-    # ── Solar generation (when has_solar=True): mock 0.8 MWp diurnal curve ───
-    # Bell curve peaking at noon, zero at night — matches Open-Meteo's typical shape
+    # ── Solar generation (when has_solar=True) ───────────────────────────────
+    # Uses real Open-Meteo POA irradiance + ambient temp via NOCT model
+    # (see data.loader._solar_mw). Falls back to a clear-sky curve if weather
+    # cache is empty. Output in kW for internal kW math.
     solar_kw = [0.0] * 24
     if has_solar:
-        for h in range(24):
-            # 0 at midnight, peak at hour 12, 0 again after sunset
-            solar_kw[h] = max(0.0, 800.0 * max(0.0, 1 - ((h - 12) / 6) ** 2))
+        from data.loader import get_solar_profile_24h
+        solar_mw = get_solar_profile_24h()      # 24-element list of MW
+        solar_kw = [v * 1000.0 for v in solar_mw]
 
     # ── Battery schedule ─────────────────────────────────────────────────────
     # Battery shortage input = (load − solar) − grid for discharge hours only.

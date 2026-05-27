@@ -305,20 +305,39 @@ def get_blended_cost(state: dict) -> float:
     return round(cost, 3)
 
 
+# ── PV array config — Koh Tao 0.8 MWp ────────────────────────────────────────
+PV_INSTALLED_MW   = 0.8     # total installed capacity
+PV_PR             = 0.93    # Performance Ratio (system losses)
+PV_NOCT           = 45.0    # Nominal Operating Cell Temperature (°C)
+PV_TEMP_COEFF     = -0.0029 # power temp coefficient per °C above 25°C
+
+
+def _solar_mw(irr_w_m2: float, temp_c: float,
+              installed_mw: float = PV_INSTALLED_MW) -> float:
+    """
+    NOCT-based solar generation in MW.
+      ghi_kw     = irradiance [W/m²] / 1000           → kW/m²
+      t_cell     = temp + ((NOCT-20)/800) * irr_W/m²  → °C
+      tf         = clip(1 + temp_coeff*(t_cell-25), 0.5)
+      solar_mw   = installed_mw * ghi_kw * PR * tf
+    """
+    ghi_kw  = max(0.0, irr_w_m2) / 1000.0
+    t_cell  = temp_c + ((PV_NOCT - 20.0) / 800.0) * max(0.0, irr_w_m2)
+    tf      = max(0.5, 1.0 + PV_TEMP_COEFF * (t_cell - 25.0))
+    return installed_mw * ghi_kw * PV_PR * tf
+
+
 def get_solar_mw_now() -> float:
     """
-    Estimate current solar generation in MW for a 0.8 MWp PV array
-    using the most recent solar_irradiance_w_m2 from /api/weather.
-    Returns 0 at night (or when weather is unavailable).
+    Current PV generation in MW for the Koh Tao 0.8 MWp array, using
+    the latest POA irradiance + ambient temp from /api/weather.
+    Returns 0 at night (or when weather unavailable).
     """
     try:
-        # Read from the in-memory weather cache populated by routers/weather.py
         from routers.weather import _CACHE
         data = _CACHE.get("data")
         if not data or not data.points:
             return 0.0
-        # Find the hourly entry closest to "now"
-        from datetime import datetime
         now_hour = datetime.now().strftime("%Y-%m-%dT%H:00")
         match = next(
             (p for p in data.points if p.ts >= now_hour),
@@ -326,10 +345,42 @@ def get_solar_mw_now() -> float:
         )
         if not match:
             return 0.0
-        # 0.8 MWp peak; irradiance in W/m^2 (1000 W/m^2 = full peak)
-        return round(match.solar_irradiance_w_m2 / 1000.0 * 0.8, 3)
+        return round(_solar_mw(match.solar_irradiance_w_m2, match.temperature_c), 3)
     except Exception:
         return 0.0
+
+
+def get_solar_profile_24h(installed_mw: float = PV_INSTALLED_MW) -> list[float]:
+    """
+    Return a 24-element MW list for the next 24 hours, computed from the
+    cached weather forecast. Falls back to a clear-sky bell curve if the
+    cache is empty.
+    Used by the dispatch optimizer so the 24h plan respects real weather.
+    """
+    try:
+        from routers.weather import _CACHE
+        data = _CACHE.get("data")
+        if data and data.points:
+            out = []
+            for i in range(min(24, len(data.points))):
+                p = data.points[i]
+                out.append(round(_solar_mw(p.solar_irradiance_w_m2,
+                                           p.temperature_c, installed_mw), 3))
+            # Pad to 24 if weather feed shorter
+            while len(out) < 24:
+                out.append(0.0)
+            return out
+    except Exception:
+        pass
+    # Fallback: clear-sky bell at 30°C — ~80 % of installed peak around noon
+    return [
+        round(_solar_mw(
+            max(0.0, 850.0 * max(0.0, 1 - ((h - 12) / 6) ** 2)),
+            28.0 + 4 * max(0.0, 1 - ((h - 14) / 7) ** 2),
+            installed_mw,
+        ), 3)
+        for h in range(24)
+    ]
 
 
 def get_hourly_profile_for_c() -> dict[int, dict]:
