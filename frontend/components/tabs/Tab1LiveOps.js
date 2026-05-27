@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -208,44 +208,44 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     load_mw > 0 ? Math.round(((solar_mw + bat_supply) / load_mw) * 100) : 0;
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
-  const historyData =
-    history?.points?.map((p) => ({
-      t:
-        p.hour != null
-          ? `${String(p.hour).padStart(2, "0")}:00`
-          : (p.ts?.slice(11, 16) ?? ""),
-      hour: p.hour ?? parseInt(p.ts?.slice(11, 13) ?? "0"),
-      actual: +(p.load_mw?.toFixed(2) ?? 0),
-    })) ?? [];
+  // Memoised so the Forecast line is stable across re-renders (the parent
+  // re-renders every second for the live clock — without useMemo this would
+  // regenerate from scratch each tick).
+  const loadData = useMemo(() => {
+    const hist =
+      history?.points?.map((p) => ({
+        t:
+          p.hour != null
+            ? `${String(p.hour).padStart(2, "0")}:00`
+            : (p.ts?.slice(11, 16) ?? ""),
+        hour: p.hour ?? parseInt(p.ts?.slice(11, 13) ?? "0"),
+        actual: +(p.load_mw?.toFixed(2) ?? 0),
+      })) ?? [];
+    if (!hist.length) return hist;
 
-  // Build a 6-hour forecast tail by sampling the same hour-of-day from history.
-  // The KEY for continuity: the last actual point must also carry a `forecast`
-  // value (= its own actual). Then both lines share that point, with the
-  // Forecast line starting exactly where Actual ends — no gap.
-  const lastEntry = historyData[historyData.length - 1];
-  const merged =
-    lastEntry == null
-      ? historyData
-      : historyData.map((d, i) =>
-          i === historyData.length - 1
-            ? { ...d, forecast: d.actual }
-            : d,
-        );
-  if (lastEntry) {
-    const lastHour = lastEntry.hour;
+    // Anchor: last actual point also carries a forecast value (= its own
+    // actual) so the two series share one point and the Forecast line
+    // visually starts where Actual ends — no gap.
+    const lastEntry = hist[hist.length - 1];
+    const merged = hist.map((d, i) =>
+      i === hist.length - 1 ? { ...d, forecast: d.actual } : d,
+    );
+    // Deterministic 6-hour tail — sample the same hour-of-day from history,
+    // apply a small fixed taper. NO Math.random() (was causing the line to
+    // wiggle on every clock tick).
     for (let i = 1; i <= 6; i++) {
-      const futureHour = (lastHour + i) % 24;
-      const sample = historyData.find((d) => d.hour === futureHour);
+      const futureHour = (lastEntry.hour + i) % 24;
+      const sample = hist.find((d) => d.hour === futureHour);
       const base = sample?.actual ?? lastEntry.actual;
       merged.push({
         t: `${String(futureHour).padStart(2, "0")}:00`,
         hour: futureHour,
         actual: null,
-        forecast: +(base * (0.95 + Math.random() * 0.1)).toFixed(2),
+        forecast: +(base * 0.97).toFixed(2),
       });
     }
-  }
-  const loadData = merged;
+    return merged;
+  }, [history]);
 
   // ── Energy mix chart data ──
   const mixData =
