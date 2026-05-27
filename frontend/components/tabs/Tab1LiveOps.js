@@ -173,44 +173,11 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`
     : "--:--:--";
 
-  if (!rt) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted text-sm gap-2">
-        <Dot color="var(--primary)" pulse />
-        <span>กำลังโหลดข้อมูล…</span>
-      </div>
-    );
-  }
-
-  const { kpi, status: overallStatus } = rt;
-  const load_mw = kpi?.island_c_load_mw ?? 0;
-  const soc_pct = kpi?.battery_soc_pct ?? 0;
-  const soc_mwh = kpi?.battery_soc_mwh ?? 0;
-  const solar_mw = kpi?.solar_mw ?? 0;
-  const risk_score = kpi?.risk_score ?? 0;
-
-  // Renewable share = (Solar + BESS discharge) / Total Load
-  // Battery contribution inferred from mix residual
-  const lineL6_mw = rt?.lines?.find((l) => l.id === 6)?.flow_mw ?? 0;
-  const d8_mw =
-    rt?.diesel_units
-      ?.filter((u) => u.asset === "diesel_8")
-      .reduce((s, u) => s + u.output_mw, 0) ?? 0;
-  const d9_mw =
-    rt?.diesel_units
-      ?.filter((u) => u.asset === "diesel_9")
-      .reduce((s, u) => s + u.output_mw, 0) ?? 0;
-  const bat_supply = Math.max(
-    0,
-    load_mw - lineL6_mw - d8_mw - d9_mw - solar_mw,
-  );
-  const renewable =
-    load_mw > 0 ? Math.round(((solar_mw + bat_supply) / load_mw) * 100) : 0;
-
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent
   // re-renders every second for the live clock — without useMemo this would
   // regenerate from scratch each tick).
+  // NOTE: must be declared BEFORE any early-return so hook order stays stable.
   const loadData = useMemo(() => {
     const hist =
       history?.points?.map((p) => ({
@@ -246,6 +213,40 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     }
     return merged;
   }, [history]);
+
+  if (!rt) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted text-sm gap-2">
+        <Dot color="var(--primary)" pulse />
+        <span>กำลังโหลดข้อมูล…</span>
+      </div>
+    );
+  }
+
+  const { kpi, status: overallStatus } = rt;
+  const load_mw = kpi?.island_c_load_mw ?? 0;
+  const soc_pct = kpi?.battery_soc_pct ?? 0;
+  const soc_mwh = kpi?.battery_soc_mwh ?? 0;
+  const solar_mw = kpi?.solar_mw ?? 0;
+  const risk_score = kpi?.risk_score ?? 0;
+
+  // Renewable share = (Solar + BESS discharge) / Total Load
+  // Battery contribution inferred from mix residual
+  const lineL6_mw = rt?.lines?.find((l) => l.id === 6)?.flow_mw ?? 0;
+  const d8_mw =
+    rt?.diesel_units
+      ?.filter((u) => u.asset === "diesel_8")
+      .reduce((s, u) => s + u.output_mw, 0) ?? 0;
+  const d9_mw =
+    rt?.diesel_units
+      ?.filter((u) => u.asset === "diesel_9")
+      .reduce((s, u) => s + u.output_mw, 0) ?? 0;
+  const bat_supply = Math.max(
+    0,
+    load_mw - lineL6_mw - d8_mw - d9_mw - solar_mw,
+  );
+  const renewable =
+    load_mw > 0 ? Math.round(((solar_mw + bat_supply) / load_mw) * 100) : 0;
 
   // ── Energy mix chart data ──
   const mixData =
