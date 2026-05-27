@@ -25,32 +25,19 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
   return (
     <header className="border-b hairline topbar sticky top-0 z-40">
       <div className="px-6 h-16 flex items-center justify-between">
-        {/* Left: logo + user info */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0 bg-gradient"
-                 style={{ color: 'white' }}>
-              <Icon.Bolt width="20" height="20" />
-            </div>
-            <div>
-              <div className="text-[15px] font-semibold leading-tight">PEA-PARO</div>
-              <div className="text-xs uppercase eyebrow text-muted leading-tight thai">ระบบบริหารจัดการพลังงาน · กฟภ.</div>
-            </div>
+        {/* Left: logo only */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg grid place-items-center flex-shrink-0 bg-gradient"
+               style={{ color: 'white' }}>
+            <Icon.Bolt width="20" height="20" />
           </div>
-
-          {/* User identity — moved here from the right side */}
-          <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l hairline">
-            <div className="w-8 h-8 rounded-full grid place-items-center panel-2 border hairline">
-              <Icon.User width="16" height="16" />
-            </div>
-            <div className="leading-tight">
-              <div className="text-xs font-medium">User123</div>
-              <div className="text-xs text-muted thai">วิศวกร · กฟภ. สุราษฎร์ธานี</div>
-            </div>
+          <div>
+            <div className="text-[15px] font-semibold leading-tight">PEA-PARO</div>
+            <div className="text-xs uppercase eyebrow text-muted leading-tight thai">ระบบบริหารจัดการพลังงาน · กฟภ.</div>
           </div>
         </div>
 
-        {/* Right: clock + controls */}
+        {/* Right: clock + controls + user */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="text-right hidden sm:block">
@@ -80,6 +67,18 @@ export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
                 <span className="thai text-sm">รายงาน</span>
               </div>
             </button>
+          </div>
+
+          {/* User identity — back on the right, but text now sits tight next
+              to the icon (left-aligned) instead of floating away with text-right. */}
+          <div className="flex items-center gap-2 pl-3 border-l hairline">
+            <div className="w-8 h-8 rounded-full grid place-items-center panel-2 border hairline">
+              <Icon.User width="16" height="16" />
+            </div>
+            <div className="leading-tight hidden md:block">
+              <div className="text-xs font-medium">User123</div>
+              <div className="text-xs text-muted thai">วิศวกร · กฟภ. สุราษฎร์ธานี</div>
+            </div>
           </div>
         </div>
       </div>
