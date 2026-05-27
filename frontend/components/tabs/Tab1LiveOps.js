@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Legend,
-  ReferenceDot,
+  Customized,
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
@@ -444,42 +444,46 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   connectNulls={false}
                   isAnimationActive={false}
                 />
-                {/* Manual hover dots — only render for series with a non-null
-                    value at the exact hovered x. ReferenceDot uses chart
-                    coordinates so it lands precisely on the line. */}
-                {hoverT &&
-                  (() => {
+                {/* Manual hover dots — use Customized to get direct access
+                    to the chart's xScale/yScale, so we can place circles at
+                    the EXACT hovered x/y without ReferenceDot's category
+                    matching quirks (which were dropping dots at chart origin). */}
+                <Customized
+                  component={({ xAxisMap, yAxisMap }) => {
+                    if (!hoverT || !xAxisMap || !yAxisMap) return null;
                     const row = loadData.find((d) => d.t === hoverT);
                     if (!row) return null;
+                    const xAxis = Object.values(xAxisMap)[0];
+                    const yAxis = Object.values(yAxisMap)[0];
+                    if (!xAxis?.scale || !yAxis?.scale) return null;
+                    const cx = xAxis.scale(row.t);
+                    if (typeof cx !== "number" || Number.isNaN(cx)) return null;
                     return (
-                      <>
+                      <g>
                         {row.actual != null && (
-                          <ReferenceDot
-                            x={row.t}
-                            y={row.actual}
+                          <circle
+                            cx={cx}
+                            cy={yAxis.scale(row.actual)}
                             r={4}
                             fill="var(--primary)"
                             stroke="var(--bg)"
                             strokeWidth={2}
-                            isFront
-                            ifOverflow="visible"
                           />
                         )}
                         {row.forecast != null && (
-                          <ReferenceDot
-                            x={row.t}
-                            y={row.forecast}
+                          <circle
+                            cx={cx}
+                            cy={yAxis.scale(row.forecast)}
                             r={4}
                             fill="var(--secondary)"
                             stroke="var(--bg)"
                             strokeWidth={2}
-                            isFront
-                            ifOverflow="visible"
                           />
                         )}
-                      </>
+                      </g>
                     );
-                  })()}
+                  }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
