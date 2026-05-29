@@ -230,7 +230,7 @@ export function Tab4Alerts({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:min-h-[calc(100vh-7.5rem)] flex flex-col">
       {/* ── Header ── */}
       <section className="flex items-end justify-between flex-wrap gap-2">
         <div>
@@ -313,7 +313,7 @@ export function Tab4Alerts({
       </section>
 
       {/* ── Alert log ── */}
-      <section>
+      <section className="flex-1 flex flex-col min-h-0">
         <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
           <div className="flex items-baseline gap-3">
             <div className="text-xs uppercase eyebrow text-muted thai">
@@ -351,7 +351,7 @@ export function Tab4Alerts({
           </div>
         </div>
 
-        <div className="panel rounded-xl overflow-auto">
+        <div className="panel rounded-xl overflow-auto flex-1">
           {loading && !filtered.length ? (
             <div className="flex items-center justify-center h-32 text-muted text-sm gap-2">
               <Dot color="var(--primary)" pulse />{" "}

@@ -103,6 +103,7 @@ export default function Home() {
         )}
         {active === 'dispatch' && (
           <Tab2Dispatch
+            rt={rt}
             plans={plans} activeId={activeId} applyPlan={applyPlan}
             customCfg={customCfg} setCustomCfg={setCustomCfg}
             hasSolar={hasSolar} setHasSolar={setHasSolar}

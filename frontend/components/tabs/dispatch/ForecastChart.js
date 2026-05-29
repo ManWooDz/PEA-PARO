@@ -17,10 +17,11 @@ function fmtFullDate(iso) {
 }
 
 export function ForecastChart({ points = [], height = 240 }) {
+  // Only the forecast line is shown — at planning time the actual load for the
+  // forecast horizon is not yet known.
   const data = points.map(p => ({
     t: String(p.datetime).slice(5, 16).replace('T', ' '),
     dt: String(p.datetime),
-    actual: p.actual,
     forecast: p.predicted_safe ?? p.predicted,
   }))
   return (
@@ -44,10 +45,8 @@ export function ForecastChart({ points = [], height = 240 }) {
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <ReferenceLine y={LINE6_CAP_MW} stroke="#ef4444" strokeDasharray="4 2"
               label={{ value: 'Line 6 Cap', position: 'right', fontSize: 9, fill: '#ef4444' }} />
-            <Line type="monotone" dataKey="actual" name="จริง (actual)"
-                  stroke="#0ea5e9" dot={false} strokeWidth={1.5} connectNulls />
             <Line type="monotone" dataKey="forecast" name="พยากรณ์ (LSTM+Margin)"
-                  stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="5 3" connectNulls />
+                  stroke="#f59e0b" dot={false} strokeWidth={2} connectNulls />
           </ComposedChart>
         </ResponsiveContainer>
       )}

@@ -163,14 +163,15 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
               >
                 peak {s.peak.toFixed(1)} <span className="text-[9px]">MW</span>
               </span>
-              {!compact && (
+              {s.win && (
                 <span
-                  className="mono text-[11px] text-muted whitespace-nowrap"
-                  title="Active hours window"
+                  className="mono text-[11px] whitespace-nowrap"
+                  style={{ color: s.color }}
+                  title="ช่วงเวลาเดินเครื่อง"
                 >
-                  {s.win
-                    ? `${String(s.win[0]).padStart(2, "0")}–${String(s.win[1] + 1).padStart(2, "0")}h · เดินเครื่อง ${s.win[2]} ชม.`
-                    : "—"}
+                  {compact
+                    ? `${String(s.win[0]).padStart(2, "0")}–${String(s.win[1] + 1).padStart(2, "0")}h`
+                    : `${String(s.win[0]).padStart(2, "0")}–${String(s.win[1] + 1).padStart(2, "0")}h · เดินเครื่อง ${s.win[2]} ชม.`}
                 </span>
               )}
             </div>
@@ -377,6 +378,7 @@ function ChartTip({ active, payload, label }) {
 
 // ── Main component ────────────────────────────────────────────────────
 export function Tab2Dispatch({
+  rt,
   plans,
   activeId,
   applyPlan,
@@ -565,8 +567,8 @@ export function Tab2Dispatch({
         </div>
       </section>
 
-      {/* ── 3 strategy cards ── */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* ── strategy cards (แผนปัจจุบัน / ลดต้นทุน) ── */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {STRATEGIES.map((s) => (
           <StrategyCard
             key={s.id}
@@ -808,8 +810,37 @@ export function Tab2Dispatch({
 
       {mode === "intra-day" && (
         <>
-          {/* ── 6-hour forecast (24 × 15-min) + emergency early-warning ── */}
-          <ForecastChart points={fc.points.slice(0, 24)} height={220} />
+          {/* ── Current status (real reading at the sim clock) ── */}
+          <section>
+            <div className="text-xs uppercase eyebrow text-muted mb-2 thai">
+              สถานะปัจจุบัน · {rt?.server_time ?? "—"}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: "โหลดเกาะ C", value: fmt2(rt?.kpi?.island_c_load_mw), unit: "MW", color: "var(--primary)" },
+                { label: "SoC แบตเตอรี่", value: fmt1(rt?.kpi?.battery_soc_pct), unit: "%", color: "#10b981" },
+                { label: "Line 6 ใช้งาน", value: fmt1(rt?.kpi?.line6_util_pct), unit: "%", color: "#f59e0b" },
+                { label: "ต้นทุนเฉลี่ย", value: fmt2(rt?.kpi?.blended_cost_token_per_kwh), unit: "฿/kWh", color: "#6366f1" },
+              ].map((k) => (
+                <div key={k.label} className="panel rounded-xl p-4">
+                  <div className="text-[11px] uppercase eyebrow text-muted thai">{k.label}</div>
+                  <div className="mono font-bold text-2xl mt-1" style={{ color: k.color }}>
+                    {k.value}
+                    <span className="text-xs text-muted ml-1">{k.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── 6-hour forecast (24 × 15-min) ── */}
+          <section>
+            <div className="text-xs uppercase eyebrow text-muted mb-2 thai">
+              พยากรณ์ 6 ชั่วโมงข้างหน้า · ทุก 15 นาที
+            </div>
+            <ForecastChart points={fc.points.slice(0, 24)} height={300} />
+          </section>
+
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}
