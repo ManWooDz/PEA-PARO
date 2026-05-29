@@ -115,6 +115,7 @@ class DispatchRow(BaseModel):
     status: Literal["normal", "diesel", "low-soc", "grid-limited", "line6-near"]
     diesel8_units_on: int
     diesel9_units_on: int
+    day: int = 0                   # 0-indexed day offset (multi-day plans); single-day = 0
 
 
 class CostBreakdown(BaseModel):
@@ -233,3 +234,32 @@ class ApplyPlanResponse(BaseModel):
     strategy: str
     applied_at: str                        # ISO datetime
     message: str
+
+
+# ── Recommendations ────────────────────────────────────────────────────────
+class Recommendation(BaseModel):
+    act_time:     str
+    effect_time:  str
+    severity:     Literal["info", "warn", "critical"]
+    device:       str
+    action:       str
+    reason:       str
+    impact:       str
+    control_type: Literal["radio", "scada"]
+    day:          int = 0
+
+
+class RecommendationsResponse(BaseModel):
+    recommendations: list[Recommendation]
+
+
+class ForecastSeriesPoint(BaseModel):
+    datetime:       str
+    actual:         float | None = None
+    predicted:      float | None = None
+    predicted_safe: float | None = None
+
+
+class ForecastSeriesResponse(BaseModel):
+    horizon: str
+    points:  list[ForecastSeriesPoint]
