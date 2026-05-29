@@ -18,7 +18,7 @@ export function useDispatch() {
   const loadStrategies = useCallback(async (solar) => {
     setLoading(true)
     try {
-      const strategies = ['baseline', 'min-cost', 'reliability']
+      const strategies = ['baseline', 'min-cost']
       const results = await Promise.all(strategies.map(s => fetchDispatch(s, solar)))
       const map = {}
       strategies.forEach((s, i) => { map[s] = results[i] })

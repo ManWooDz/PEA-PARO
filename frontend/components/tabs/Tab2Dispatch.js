@@ -18,6 +18,12 @@ import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
 import { ApplyPlanDialog } from "@/components/operational/ApplyPlanDialog";
 import { useApplyPlan } from "@/hooks/useApplyPlan";
+import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
+import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
+import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
+import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
+import { useForecastSeries } from "@/hooks/useForecastSeries";
+import { useDayAhead, useIntradayAlerts } from "@/hooks/useRecommendations";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -178,7 +184,6 @@ function SourceMixBreakdown({ rows = [], compact = false, showRadio = true }) {
 const STRATEGIES = [
   { id: "baseline", th: "แผนปัจจุบัน", en: "BASELINE", color: "#0ea5e9" },
   { id: "min-cost", th: "ลดต้นทุน", en: "MIN COST", color: "#6366f1" },
-  { id: "reliability", th: "เสถียรภาพ", en: "RELIABILITY", color: "#10b981" },
 ];
 
 // ── Strategy summary card ───────────────────────────────────────────
@@ -388,6 +393,17 @@ export function Tab2Dispatch({
   const [dialogOpen, setDialogOpen] = useState(false);
   const { apply, submitting } = useApplyPlan();
 
+  // ── Day-ahead / Intra-day mode ──
+  const [mode, setMode] = useState("day-ahead");
+  const [horizonDays, setHorizonDays] = useState(1); // 1 = 24h · 7 = 7 วัน
+  const fc = useForecastSeries(mode === "intra-day" ? "6h" : "7day");
+  const dayAhead = useDayAhead({
+    strategy: activeId === "custom" ? "min-cost" : activeId,
+    days: horizonDays,
+    hasSolar,
+  });
+  const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+
   const baselinePlan = plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
 
@@ -455,6 +471,40 @@ export function Tab2Dispatch({
           </div>
         </div>
       </section>
+
+      {/* ── Mode toggle (day-ahead / intra-day) ── */}
+      <DispatchModeToggle mode={mode} setMode={setMode} />
+
+      {mode === "day-ahead" && (
+        <>
+          {/* ── Horizon sub-toggle ── */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setHorizonDays(1)}
+              className="px-3 py-1.5 rounded text-sm border thai cursor-pointer"
+              style={
+                horizonDays === 1
+                  ? { borderColor: "var(--primary)", color: "var(--primary)", fontWeight: 600 }
+                  : { borderColor: "var(--border-soft)", color: "var(--muted)" }
+              }
+            >
+              24 ชม.
+            </button>
+            <button
+              onClick={() => setHorizonDays(7)}
+              className="px-3 py-1.5 rounded text-sm border thai cursor-pointer"
+              style={
+                horizonDays === 7
+                  ? { borderColor: "var(--primary)", color: "var(--primary)", fontWeight: 600 }
+                  : { borderColor: "var(--border-soft)", color: "var(--muted)" }
+              }
+            >
+              7 วัน
+            </button>
+          </div>
+
+          {/* ── Forecast vs actual (พยากรณ์ทับจริง + Line 6 cap) ── */}
+          <ForecastChart points={fc.points.slice(0, horizonDays * 96)} />
 
       {/* ── Solar Scenario toggle ── */}
       <section className="panel rounded-xl p-4">
@@ -746,110 +796,25 @@ export function Tab2Dispatch({
         </div>
       </section>
 
-      {/* ── Hourly table ── */}
-      {rows.length > 0 && (
-        <section>
-          <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
-            ตารางรายชั่วโมง
-          </div>
-          <div className="panel rounded-xl overflow-auto">
-            <table className="w-full text-xs" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                {/* 9 columns, equal 11.111% each — total exactly 100% */}
-                {Array(9)
-                  .fill(0)
-                  .map((_, i) => (
-                    <col key={i} style={{ width: `${100 / 9}%` }} />
-                  ))}
-              </colgroup>
-              <thead>
-                <tr className="border-b hairline">
-                  {[
-                    "เวลา",
-                    "โหลด",
-                    "Grid",
-                    "Solar",
-                    "BESS",
-                    "D #8",
-                    "D #9",
-                    "SoC",
-                    "สถานะ",
-                  ].map((h, idx) => (
-                    <th
-                      key={h}
-                      className={`py-2 text-muted eyebrow uppercase font-medium thai text-center ${idx === 0 ? "pl-4 pr-2" : idx === 8 ? "pl-2 pr-4" : "px-2"}`}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr
-                    key={i}
-                    onClick={() => onHourClick?.(r.hour)}
-                    className="border-b hairline last:border-0 hover:opacity-80 cursor-pointer"
-                  >
-                    <td className="pl-4 pr-2 py-2 mono text-center">
-                      {String(r.hour).padStart(2, "0")}:00
-                    </td>
-                    <td className="px-2 py-2 mono text-center">
-                      {fmt1(r.load_mw)}
-                    </td>
-                    <td
-                      className="px-2 py-2 mono text-center"
-                      style={{ color: "var(--primary)" }}
-                    >
-                      {fmt1(r.grid_mw)}
-                    </td>
-                    <td
-                      className="px-2 py-2 mono text-center"
-                      style={{ color: "#f59e0b" }}
-                    >
-                      {fmt1(r.solar_mw)}
-                    </td>
-                    <td
-                      className="px-2 py-2 mono text-center"
-                      style={{ color: "#10b981" }}
-                    >
-                      {fmt1(r.battery_mw)}
-                    </td>
-                    <td
-                      className="px-2 py-2 mono text-center"
-                      style={{ color: "#f97316" }}
-                    >
-                      {fmt1(r.diesel_a_mw)}
-                    </td>
-                    <td
-                      className="px-2 py-2 mono text-center"
-                      style={{ color: "#ef4444" }}
-                    >
-                      {fmt1(r.diesel_c_mw)}
-                    </td>
-                    <td className="px-2 py-2 mono text-center">
-                      {fmt1(r.soc_pct)}%
-                    </td>
-                    <td className="pl-2 pr-4 py-2 text-center">
-                      <span
-                        className="px-1.5 py-0.5 rounded text-[10px] inline-block"
-                        style={{
-                          background:
-                            r.status === "normal"
-                              ? "rgba(16,185,129,0.10)"
-                              : "rgba(245,158,11,0.10)",
-                          color: r.status === "normal" ? "#10b981" : "#f59e0b",
-                        }}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+          {/* ── Action Timeline (day-ahead) — replaces the old hourly table ── */}
+          <section>
+            <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+              ★ ไทม์ไลน์คำสั่ง · สิ่งที่ต้องทำ
+            </div>
+            <ActionTimeline recommendations={dayAhead.data?.recommendations ?? []} />
+          </section>
+        </>
+      )}
+
+      {mode === "intra-day" && (
+        <>
+          {/* ── 6-hour forecast + emergency early-warning ── */}
+          <ForecastChart points={fc.points} height={220} />
+          <EmergencyRecommendations
+            recommendations={intraday.recommendations}
+            loading={intraday.loading}
+          />
+        </>
       )}
 
       <ApplyPlanDialog
