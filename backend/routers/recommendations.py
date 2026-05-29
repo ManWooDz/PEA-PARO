@@ -25,6 +25,7 @@ router = APIRouter(tags=["recommendations"])
 VALID_STRATEGIES = {"baseline", "min-cost"}
 _STEPS_PER_DAY = 96   # 15-min steps in 24h
 _STEPS_PER_HOUR = 4   # 15-min steps in 1h
+_INTRADAY_STEPS = 6 * _STEPS_PER_HOUR   # next 6h window (24 × 15-min) for early-warning
 
 
 def _aggregate_to_hourly_kw(series, hours: int) -> list[float]:
@@ -114,7 +115,8 @@ class IntradayRequest(BaseModel):
 
 @router.post("/api/intraday/alerts", response_model=RecommendationsResponse)
 def intraday_alerts(req: IntradayRequest):
-    series = get_forecast_series("6h")
+    # Only the next 6h (the 6h CSV is a long continuous backtest, not a 6h slice).
+    series = get_forecast_series("6h")[:_INTRADAY_STEPS]
     alert_items = detect_intraday_alerts(
         series,
         current_state={"soc_pct": req.soc_pct},

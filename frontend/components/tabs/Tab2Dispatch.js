@@ -808,8 +808,8 @@ export function Tab2Dispatch({
 
       {mode === "intra-day" && (
         <>
-          {/* ── 6-hour forecast + emergency early-warning ── */}
-          <ForecastChart points={fc.points} height={220} />
+          {/* ── 6-hour forecast (24 × 15-min) + emergency early-warning ── */}
+          <ForecastChart points={fc.points.slice(0, 24)} height={220} />
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}
