@@ -18,10 +18,11 @@ _FILES = {
 
 
 @lru_cache(maxsize=4)
-def get_forecast_series(horizon: str) -> list[dict]:
+def get_forecast_series(horizon: str) -> tuple[dict, ...]:
     """Return forecast series for 'horizon' in {'7day','6h'}.
 
     Each point: {datetime, actual, predicted, predicted_safe} (MW).
+    Returns a tuple of points so the lru_cache result cannot be mutated.
     Raises ValueError for unknown horizon, FileNotFoundError if CSV missing.
     """
     if horizon not in _FILES:
@@ -40,7 +41,7 @@ def get_forecast_series(horizon: str) -> list[dict]:
                 "predicted":      _to_float(row.get("lstm")),
                 "predicted_safe": _to_float(row.get("lstm_margin")),
             })
-    return out
+    return tuple(out)
 
 
 def _to_float(v):
