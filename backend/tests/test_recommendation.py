@@ -65,3 +65,37 @@ def test_stable_plan_yields_no_recommendations():
     rows = [_row(0, h) for h in range(24)]
     recs = build_recommendations(rows)
     assert recs == []
+
+
+def test_detects_battery_charge_start():
+    rows = [
+        _row(0, 1, battery_mw=0.0),
+        _row(0, 2, battery_mw=-1.5),
+    ]
+    recs = build_recommendations(rows)
+    chg = [r for r in recs if r["device"] == "BESS #7" and r["action"] == "ชาร์จ"]
+    assert len(chg) == 1
+    assert chg[0]["control_type"] == "radio"
+
+
+def test_no_false_discharge_start_on_small_nonzero_prev():
+    # prev battery 0.04 MW (below active threshold) then 1.5 MW — should still count as a start,
+    # but prev 1.5 then 1.6 (already discharging) must NOT emit a new start.
+    rows = [
+        _row(0, 9, battery_mw=1.5),
+        _row(0, 10, battery_mw=1.6),
+    ]
+    recs = build_recommendations(rows)
+    assert [r for r in recs if r["action"] == "จ่าย"] == []
+
+
+def test_multi_day_time_format_rollover():
+    rows = [
+        _row(0, 23, diesel_c_mw=0.0),
+        _row(1, 0, diesel_c_mw=2.5, status="diesel", diesel9_units_on=1),
+    ]
+    recs = build_recommendations(rows)
+    starts = [r for r in recs if r["device"] == "Diesel #9" and r["action"] == "สตาร์ท"]
+    assert len(starts) == 1
+    assert starts[0]["effect_time"] == "Day 1 00:00"
+    assert starts[0]["act_time"] == "Day 0 23:45"

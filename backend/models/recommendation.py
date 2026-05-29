@@ -10,19 +10,28 @@ with lead time), while line breakers are SCADA-controllable (control_type="scada
 # lead time (minutes) before an action must take effect — time to radio + act
 LEAD_TIMES_MIN = {"diesel": 15, "battery": 0, "grid": 0}
 
+_DIESEL_ON_THRESHOLD_MW = 0.01   # diesel considered "on" above this
+_BESS_ON_THRESHOLD_MW   = 0.05   # |battery_mw| considered active above this
+
+_DIESEL_SPECS = [
+    ("diesel_c_mw", "Diesel #9", "diesel"),
+    ("diesel_a_mw", "Diesel #8", "diesel"),
+]
+
 # device → how the operator effects the change
 CONTROL_TYPE = {
     "Diesel #8": "radio",
     "Diesel #9": "radio",
     "BESS #7":   "radio",
     "Line 6":    "scada",
-    "Solar":     "scada",
+    "Solar":     "scada",  # stub: no Solar transition emitted yet (future work)
 }
 
 
 def _fmt_time(day: int, hour: int, lead_min: int = 0) -> str:
     """Format 'Day D HH:MM' with an optional lead-time offset (subtracted)."""
     total = day * 24 * 60 + hour * 60 - lead_min
+    # clamp: an action cannot be scheduled before the start of the plan
     if total < 0:
         total = 0
     d, rem = divmod(total, 24 * 60)
@@ -51,27 +60,22 @@ def build_recommendations(rows: list[dict]) -> list[dict]:
     if not rows:
         return recs
 
-    diesel_specs = [
-        ("diesel_c_mw", "Diesel #9", "diesel"),
-        ("diesel_a_mw", "Diesel #8", "diesel"),
-    ]
-
     for i in range(1, len(rows)):
         prev, cur = rows[i - 1], rows[i]
         day, hour = cur.get("day", 0), cur["hour"]
 
         # ── Diesel start / stop ──
-        for key, device, lead_key in diesel_specs:
+        for key, device, lead_key in _DIESEL_SPECS:
             p = prev.get(key, 0.0) or 0.0
             c = cur.get(key, 0.0) or 0.0
-            if p <= 0.01 and c > 0.01:
+            if p <= _DIESEL_ON_THRESHOLD_MW and c > _DIESEL_ON_THRESHOLD_MW:
                 recs.append(_rec(
                     device=device, action="สตาร์ท", severity="warn",
                     reason=f"โหลดคาดเกินกำลังจ่ายของ grid ตอน {hour:02d}:00 (ต้องเสริมดีเซล)",
                     impact=f"+{c:.1f} MW · กันไฟตก",
                     day=day, hour=hour, lead_key=lead_key,
                 ))
-            elif p > 0.01 and c <= 0.01:
+            elif p > _DIESEL_ON_THRESHOLD_MW and c <= _DIESEL_ON_THRESHOLD_MW:
                 recs.append(_rec(
                     device=device, action="ดับ", severity="info",
                     reason=f"โหลดลดลง ดีเซลไม่จำเป็นแล้วตอน {hour:02d}:00",
@@ -82,14 +86,14 @@ def build_recommendations(rows: list[dict]) -> list[dict]:
         # ── Battery discharge / charge transitions ──
         pb = prev.get("battery_mw", 0.0) or 0.0
         cb = cur.get("battery_mw", 0.0) or 0.0
-        if pb <= 0.05 and cb > 0.05:
+        if pb < _DIESEL_ON_THRESHOLD_MW and cb > _BESS_ON_THRESHOLD_MW:
             recs.append(_rec(
                 device="BESS #7", action="จ่าย", severity="info",
                 reason=f"เริ่มหน้าต่างจ่ายแบต peak-shave ตอน {hour:02d}:00",
                 impact=f"จ่าย {cb:.1f} MW ลดพึ่งดีเซล",
                 day=day, hour=hour, lead_key="battery",
             ))
-        elif pb >= -0.05 and cb < -0.05:
+        elif pb > -_DIESEL_ON_THRESHOLD_MW and cb < -_BESS_ON_THRESHOLD_MW:
             recs.append(_rec(
                 device="BESS #7", action="ชาร์จ", severity="info",
                 reason=f"เริ่มหน้าต่างชาร์จแบตตอน {hour:02d}:00 (off-peak)",
