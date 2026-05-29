@@ -6,9 +6,20 @@ import {
 
 const LINE6_CAP_MW = 8.0
 
+// "2025-12-28T15:15:00" → "28/12/2568 15:15" (วัน/เดือน/ปี พ.ศ. + เวลา 24 ชม.)
+function fmtFullDate(iso) {
+  const s = String(iso)
+  const [date, time] = s.split('T')
+  if (!date || !time) return s
+  const [y, m, d] = date.split('-')
+  if (!y || !m || !d) return s
+  return `${d}/${m}/${Number(y) + 543} ${time.slice(0, 5)}`
+}
+
 export function ForecastChart({ points = [], height = 240 }) {
   const data = points.map(p => ({
     t: String(p.datetime).slice(5, 16).replace('T', ' '),
+    dt: String(p.datetime),
     actual: p.actual,
     forecast: p.predicted_safe ?? p.predicted,
   }))
@@ -28,6 +39,7 @@ export function ForecastChart({ points = [], height = 240 }) {
                    tickLine={false} axisLine={false} unit=" MW" />
             <Tooltip
               contentStyle={{ fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border-soft)' }}
+              labelFormatter={(label, payload) => fmtFullDate(payload?.[0]?.payload?.dt ?? label)}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <ReferenceLine y={LINE6_CAP_MW} stroke="#ef4444" strokeDasharray="4 2"
