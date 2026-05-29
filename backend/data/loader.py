@@ -3,20 +3,23 @@ Real CSV loader — reads both Historical_Load CSVs from docs/data/,
 merges them, normalises column names to MW units, and computes battery SoC.
 Falls back to synthetic data if the files are absent.
 """
-import random
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from data.seed import ISLAND_C_LOAD_PROFILE, ISLAND_C_PEAK_KW
+from data.clock import now as sim_now
 
 # ── Path resolution ───────────────────────────────────────────────────────────
 _BACKEND_DIR = Path(__file__).parent.parent          # backend/
 _DOCS_DATA   = _BACKEND_DIR.parent / "docs" / "data" # project_root/docs/data/
 
-CSV1 = _DOCS_DATA / "Historical_Load_jan-jun25.csv"
-CSV2 = _DOCS_DATA / "Historical_Load_jul25-feb26.csv"
+# Prefer the single combined file (Jan 2025 – Feb 2026, all 9 sources + loads).
+# Fall back to the two split files if it's absent.
+CSV_ALL = _DOCS_DATA / "Historical_Load_All.csv"
+CSV1    = _DOCS_DATA / "Historical_Load_Jan-Jun25.csv"
+CSV2    = _DOCS_DATA / "Historical_Load_July25-Feb26.csv"
 
 BAT_CAPACITY_MWH = 30.0
 SOC_START_MWH    = 18.0   # 60 % initial SoC
@@ -118,7 +121,8 @@ def load_historical() -> pd.DataFrame:
         return _df
 
     frames = []
-    for path in [CSV1, CSV2]:
+    paths = [CSV_ALL] if CSV_ALL.exists() else [CSV1, CSV2]
+    for path in paths:
         if path.exists():
             try:
                 frames.append(_read_one_csv(path))
@@ -174,44 +178,35 @@ def load_hourly() -> pd.DataFrame:
 
 def get_current_state() -> dict:
     """
-    Simulate a 'live' reading by averaging same hour-of-day values
-    from the last 30 days of data, then adding a tiny random jitter.
+    Return the 'current' reading by reading the real historical row at the
+    simulation clock's instant (see data.clock). Frozen demo mode → the actual
+    measured values at the frozen timestamp (no averaging, no random jitter).
+    Live mode → the row nearest to wall-clock now (last available if out of range).
     """
     df = load_historical()
-    now_h = datetime.now().hour
-    max_ts = df["timestamp"].max()
-    cutoff = max_ts - pd.Timedelta(days=30)
-    recent = df[df["timestamp"] >= cutoff]
-    at_h = recent[recent["timestamp"].dt.hour == now_h]
-    if len(at_h) == 0:
-        at_h = df[df["timestamp"].dt.hour == now_h]
+    t = pd.Timestamp(sim_now())
+    idx = (df["timestamp"] - t).abs().idxmin()
+    row = df.loc[idx]
 
-    m = at_h.mean(numeric_only=True)
+    def g(col: str, default: float = 0.0) -> float:
+        v = row.get(col, default)
+        return float(default if pd.isna(v) else v)
 
-    def j(col: str, default: float, pct: float = 0.03) -> float:
-        v = float(m.get(col, default))
-        if pd.isna(v):
-            v = default
-        return float(max(0.0, v + random.gauss(0, abs(v) * pct + 0.01)))
-
-    soc_mwh = float(np.clip(
-        float(m.get("soc_mwh", SOC_START_MWH)) + random.gauss(0, 0.2),
-        0.0, BAT_CAPACITY_MWH
-    ))
+    soc_mwh = float(np.clip(g("soc_mwh", SOC_START_MWH), 0.0, BAT_CAPACITY_MWH))
 
     return {
-        "load_c_mw":   round(max(0.5, j("load_c_mw", 2.5)),  2),
-        "load_a_mw":   round(max(1.0, j("load_a_mw", 40.0)), 2),
-        "load_b_mw":   round(max(0.5, j("load_b_mw", 9.0)),  2),
-        "line1_mw":    round(max(0.0, j("line1_mw",  20.0)), 2),
-        "line2_mw":    round(max(0.0, j("line2_mw",  15.0)), 2),
-        "line3_mw":    round(max(0.0, j("line3_mw",   6.0)), 2),
-        "line4_mw":    round(max(0.0, j("line4_mw",   7.0)), 2),
-        "line5_mw":    round(max(0.0, j("line5_mw",   2.0)), 2),
-        "line6_mw":    round(max(0.0, j("line6_mw",   1.5, pct=0.05)), 2),
-        "battery_mw":  round(float(m.get("battery_mw", 0.0)) + random.gauss(0, 0.15), 2),
-        "diesel_a_mw": round(max(0.0, j("diesel_a_mw", 0.0)), 2),
-        "diesel_c_mw": round(max(0.0, j("diesel_c_mw", 2.0)), 2),
+        "load_c_mw":   round(max(0.0, g("load_c_mw")),  2),
+        "load_a_mw":   round(max(0.0, g("load_a_mw")),  2),
+        "load_b_mw":   round(max(0.0, g("load_b_mw")),  2),
+        "line1_mw":    round(max(0.0, g("line1_mw")),   2),
+        "line2_mw":    round(max(0.0, g("line2_mw")),   2),
+        "line3_mw":    round(max(0.0, g("line3_mw")),   2),
+        "line4_mw":    round(max(0.0, g("line4_mw")),   2),
+        "line5_mw":    round(max(0.0, g("line5_mw")),   2),
+        "line6_mw":    round(max(0.0, g("line6_mw")),   2),
+        "battery_mw":  round(g("battery_mw"),           2),
+        "diesel_a_mw": round(max(0.0, g("diesel_a_mw")),2),
+        "diesel_c_mw": round(max(0.0, g("diesel_c_mw")),2),
         "soc_mwh":     round(soc_mwh, 2),
         "soc_pct":     round(soc_mwh / BAT_CAPACITY_MWH * 100, 1),
     }
@@ -219,25 +214,24 @@ def get_current_state() -> dict:
 
 def get_recent_24h_hourly() -> list[dict]:
     """
-    Return last 24 hours of historical data (hourly), time-shifted to today.
-    Used by the /load-history endpoint.
+    Return the 24 hours of real historical data ending at the simulation clock
+    (real timestamps — no time-shift). Used by the /load-history endpoint.
     """
     df_h = load_hourly()
-    last24 = df_h.tail(24).copy()
-    if last24.empty:
+    if df_h.empty:
         return []
 
-    # Time-shift so that the last point aligns to the current hour
-    now_h = datetime.now().replace(minute=0, second=0, microsecond=0)
-    last_ts = last24["timestamp"].iloc[-1]
-    offset = now_h - last_ts
+    t = pd.Timestamp(sim_now()).floor("h")
+    window = df_h[df_h["timestamp"] <= t].tail(24)
+    if window.empty:
+        window = df_h.tail(24)
 
     records = []
-    for _, row in last24.iterrows():
-        shifted = row["timestamp"] + offset
+    for _, row in window.iterrows():
+        ts = row["timestamp"]
         records.append({
-            "ts":   shifted.strftime("%Y-%m-%dT%H:%M:%S"),
-            "hour": shifted.hour,
+            "ts":   ts.strftime("%Y-%m-%dT%H:%M:%S"),
+            "hour": int(ts.hour),
             "load_mw":  round(float(row.get("load_c_mw", 0)), 2),
         })
     return records
@@ -245,21 +239,21 @@ def get_recent_24h_hourly() -> list[dict]:
 
 def get_recent_12h_mix() -> list[dict]:
     """
-    Return last 12 hours of energy mix data (hourly), time-shifted to today.
-    Used by the /energy-mix endpoint.
+    Return the 12 hours of real energy-mix data ending at the simulation clock
+    (real timestamps — no time-shift). Used by the /energy-mix endpoint.
     """
     df_h = load_hourly()
-    last12 = df_h.tail(12).copy()
-    if last12.empty:
+    if df_h.empty:
         return []
 
-    now_h = datetime.now().replace(minute=0, second=0, microsecond=0)
-    last_ts = last12["timestamp"].iloc[-1]
-    offset = now_h - last_ts
+    t = pd.Timestamp(sim_now()).floor("h")
+    window = df_h[df_h["timestamp"] <= t].tail(12)
+    if window.empty:
+        window = df_h.tail(12)
 
     records = []
-    for _, row in last12.iterrows():
-        shifted = row["timestamp"] + offset
+    for _, row in window.iterrows():
+        ts = row["timestamp"]
         # battery positive = discharging (supply), negative = charging (demand)
         bat = float(row.get("battery_mw", 0))
         bat_supply = max(0.0, bat)
@@ -271,7 +265,7 @@ def get_recent_12h_mix() -> list[dict]:
         grid   = max(0.0, line6)
 
         records.append({
-            "ts":          shifted.strftime("%Y-%m-%dT%H:%M:%S"),
+            "ts":          ts.strftime("%Y-%m-%dT%H:%M:%S"),
             "grid_mw":     round(grid,      2),
             "battery_mw":  round(bat_supply, 2),
             "diesel_a_mw": round(d_a,        2),
@@ -286,7 +280,6 @@ def get_blended_cost(state: dict) -> float:
     state must be the dict returned by get_current_state().
     """
     from data.seed import COST
-    from datetime import datetime
     grid_mw    = max(0.0, state.get("line6_mw", 0.0))
     battery_mw = max(0.0, state.get("battery_mw", 0.0))  # positive = discharging
     d8_mw      = max(0.0, state.get("diesel_a_mw", 0.0))
@@ -294,7 +287,7 @@ def get_blended_cost(state: dict) -> float:
     total      = grid_mw + battery_mw + d8_mw + d9_mw
     if total < 0.01:
         return 0.0
-    h = datetime.now().hour
+    h = sim_now().hour
     grid_rate = COST["grid_peak"] if 9 <= h < 22 else COST["grid_offpeak"]
     cost = (
         grid_mw    * grid_rate +

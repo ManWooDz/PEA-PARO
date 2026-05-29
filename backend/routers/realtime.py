@@ -7,7 +7,6 @@ GET /api/realtime/load-history
 GET /api/realtime/energy-mix
 """
 from collections import deque
-from datetime import datetime
 import random
 
 from fastapi import APIRouter
@@ -18,6 +17,7 @@ from models.schemas import (
 )
 from data.seed import LINES
 from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost, get_solar_mw_now
+from data.clock import now as sim_now, is_frozen
 from models.diesel import DIESEL_8, DIESEL_9
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
@@ -30,7 +30,7 @@ _EVENT_LOG: deque = deque(maxlen=20)
 
 def _push_event(severity: str, asset: str, message: str) -> None:
     _EVENT_LOG.appendleft({
-        "ts": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "ts": sim_now().strftime("%Y-%m-%dT%H:%M:%S"),
         "severity": severity,
         "asset": asset,
         "message": message,
@@ -71,10 +71,10 @@ def _split_diesel_units(asset_id: str, total_kw: float, spec: dict) -> list[dict
 
 @router.get("", response_model=RealtimeResponse)
 def get_realtime():
-    now = datetime.now()
-    s   = get_current_state()   # time-shifted replay from real CSV
+    now = sim_now()
+    s   = get_current_state()   # real CSV row at the simulation clock
 
-    if random.random() < 0.20:
+    if not is_frozen() and random.random() < 0.20:
         candidates = [
             ("info",  "diesel_9", "Unit-1 generating 1.8 MW"),
             ("warn",  "line_6",  f"L6 utilization {(s['line6_mw']/8*100):.0f} %"),
