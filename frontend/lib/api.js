@@ -33,6 +33,18 @@ export const fetchForecastDispatch = (body = {}) =>
     use_margin: body.use_margin ?? true,
   }, { timeout: 90000 }).then(r => r.data)
 
+// ── Actionable Recommendations ───────────────────────────────────────────────
+export const fetchForecastSeries = (horizon = '7day') =>
+  api.get('/api/forecast/series', { params: { horizon } }).then(r => r.data)
+
+export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false } = {}) =>
+  api.get('/api/dispatch/day-ahead', {
+    params: { strategy, days, has_solar: hasSolar },
+  }).then(r => r.data)
+
+export const fetchIntradayAlerts = (body = {}) =>
+  api.post('/api/intraday/alerts', body).then(r => r.data)
+
 // ── Weather ─────────────────────────────────────────────────────────────────
 export const fetchWeather = () => api.get('/api/weather').then(r => r.data)
 
