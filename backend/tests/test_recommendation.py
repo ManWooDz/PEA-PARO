@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from models.recommendation import build_recommendations
+from models.recommendation import build_recommendations, detect_intraday_alerts
 
 
 def _row(day, hour, **kw):
@@ -101,9 +101,6 @@ def test_multi_day_time_format_rollover():
     assert starts[0]["act_time"] == "Day 0 23:45"
 
 
-from models.recommendation import detect_intraday_alerts
-
-
 def test_T1_load_exceeds_grid_triggers_critical():
     forecast = [
         {"datetime": "2026-03-01T14:30:00", "predicted_safe": 1.2},
@@ -116,6 +113,7 @@ def test_T1_load_exceeds_grid_triggers_critical():
     assert len(t1) >= 1
     assert "ดีเซล" in t1[0]["action"] or "สตาร์ท" in t1[0]["action"]
     assert t1[0]["control_type"] == "radio"
+    assert t1[0]["act_time"] == "14:45"   # earliest breaching step, not the worst
 
 
 def test_T2_low_soc_projection_warns():

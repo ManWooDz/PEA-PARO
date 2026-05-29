@@ -116,7 +116,7 @@ def build_recommendations(rows: list[dict]) -> list[dict]:
 
 # ── Intra-day Early-Warning ───────────────────────────────────────────────
 SOC_FLOOR_PCT = 20.0
-BATTERY_CAPACITY_MWH = 30.0
+BATTERY_CAPACITY_MWH = 30.0  # MWh; mirror of Battery #7 spec in data/seed.py
 DEVIATION_THRESHOLD = 0.10          # 10%
 
 
@@ -162,12 +162,20 @@ def detect_intraday_alerts(
     # T2 — projected SoC falls below floor over the horizon
     soc = current_state.get("soc_pct", 100.0)
     avail_mwh = (soc / 100.0) * BATTERY_CAPACITY_MWH
+    # Simplification: treats the whole grid shortfall as battery-supplied (may overlap with T1's diesel start).
     deficit_mwh = sum(
         max(0.0, (p.get("predicted_safe") or 0.0) - grid_available_mw) * 0.25
         for p in forecast
     )
     floor_mwh = (SOC_FLOOR_PCT / 100.0) * BATTERY_CAPACITY_MWH
-    if deficit_mwh > (avail_mwh - floor_mwh):
+    headroom_mwh = avail_mwh - floor_mwh
+    if headroom_mwh < 0:
+        _alert(
+            "warn", "BESS #7", "สตาร์ทดีเซลทดแทน / จำกัดการจ่ายแบต",
+            f"SoC ปัจจุบัน {soc:.0f}% ต่ำกว่าขั้นต่ำ {SOC_FLOOR_PCT:.0f}% แล้ว",
+            "แบตเหลือน้อย เสี่ยงหมด — พึ่งดีเซลแทน", "radio", "ตอนนี้",
+        )
+    elif deficit_mwh > headroom_mwh:
         _alert(
             "warn", "BESS #7", "จำกัดการจ่ายแบต / สตาร์ทดีเซลเร็วขึ้น",
             f"คาด SoC จะต่ำกว่า {SOC_FLOOR_PCT:.0f}% (พลังงานขาด {deficit_mwh:.1f} MWh)",
@@ -175,11 +183,11 @@ def detect_intraday_alerts(
         )
 
     # T3 — actual deviates from day-ahead plan beyond threshold
-    if actual_now_mw is not None and plan_now_mw:
+    if actual_now_mw is not None and plan_now_mw is not None and plan_now_mw != 0.0:
         dev = abs(actual_now_mw - plan_now_mw) / plan_now_mw
         if dev > DEVIATION_THRESHOLD:
             _alert(
-                "warn", "Forecast", "ทบทวนแผน (re-plan)",
+                "warn", "Day-Ahead Plan", "ทบทวนแผน (re-plan)",
                 f"โหลดจริง {actual_now_mw:.1f} MW เบี่ยงจากแผน {plan_now_mw:.1f} MW ({dev*100:.0f}%)",
                 "แผน day-ahead คลาดเคลื่อน ควรคำนวณใหม่", "scada", "ตอนนี้",
             )
