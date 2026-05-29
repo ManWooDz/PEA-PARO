@@ -157,7 +157,7 @@ def test_forecast_series_endpoint():
     assert r.status_code == 200
     body = r.json()
     assert body["horizon"] == "7day"
-    assert len(body["points"]) == 672
+    assert len(body["points"]) == 7 * 96   # 7 days x 96 fifteen-min steps
 
 
 def test_dayahead_endpoint_returns_plan_and_recommendations():

@@ -20,8 +20,43 @@ from models.schemas import (
 
 router = APIRouter(tags=["recommendations"])
 
-VALID_STRATEGIES = {"baseline", "min-cost", "custom"}
+# day-ahead supports only baseline (reference) and min-cost (AI-optimized).
+# "reliability" was dropped; "custom" plans use the separate /api/dispatch/custom endpoint.
+VALID_STRATEGIES = {"baseline", "min-cost"}
 _STEPS_PER_DAY = 96   # 15-min steps in 24h
+_STEPS_PER_HOUR = 4   # 15-min steps in 1h
+
+
+def _aggregate_to_hourly_kw(series, hours: int) -> list[float]:
+    """Average 15-min predicted_safe (MW) into hourly kW; pad/truncate to `hours`."""
+    out: list[float] = []
+    for h in range(hours):
+        window = series[h * _STEPS_PER_HOUR:(h + 1) * _STEPS_PER_HOUR]
+        if not window:
+            break
+        vals = [p["predicted_safe"] for p in window if p.get("predicted_safe") is not None]
+        avg_mw = (sum(vals) / len(vals)) if vals else 0.0
+        out.append(avg_mw * 1000.0)
+    if not out:
+        out = [3200.0] * hours
+    while len(out) < hours:
+        out.append(out[-1])
+    return out
+
+
+def _weekday_flags(series, days: int) -> list[bool]:
+    """Derive Mon-Fri (peak pricing) flag per day from the forecast datetimes."""
+    flags: list[bool] = []
+    for d in range(days):
+        idx = d * _STEPS_PER_DAY
+        wd = True
+        if idx < len(series):
+            try:
+                wd = datetime.fromisoformat(str(series[idx]["datetime"])).weekday() < 5
+            except ValueError:
+                wd = True
+        flags.append(wd)
+    return flags
 
 
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
@@ -51,6 +86,8 @@ def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False
         raise HTTPException(status_code=422, detail=f"Unknown strategy '{strategy}'.")
     if days < 1:
         raise HTTPException(status_code=422, detail="days must be >= 1.")
+    if days > 7:
+        raise HTTPException(status_code=422, detail="days must be <= 7 (7-day forecast horizon).")
     series = get_forecast_series("7day")
     hourly_kw = _aggregate_to_hourly_kw(series, hours=days * 24)
     weekday_flags = _weekday_flags(series, days=days)
@@ -78,7 +115,7 @@ class IntradayRequest(BaseModel):
 @router.post("/api/intraday/alerts", response_model=RecommendationsResponse)
 def intraday_alerts(req: IntradayRequest):
     series = get_forecast_series("6h")
-    alerts = detect_intraday_alerts(
+    alert_items = detect_intraday_alerts(
         series,
         current_state={"soc_pct": req.soc_pct},
         grid_available_mw=req.grid_available_mw,
@@ -86,37 +123,5 @@ def intraday_alerts(req: IntradayRequest):
         plan_now_mw=req.plan_now_mw,
     )
     return RecommendationsResponse(
-        recommendations=[Recommendation(**a) for a in alerts],
+        recommendations=[Recommendation(**a) for a in alert_items],
     )
-
-
-def _aggregate_to_hourly_kw(series, hours: int) -> list[float]:
-    """Average 15-min predicted_safe (MW) into hourly kW; pad/truncate to `hours`."""
-    out: list[float] = []
-    for h in range(hours):
-        window = series[h * 4:(h + 1) * 4]
-        if not window:
-            break
-        vals = [p["predicted_safe"] for p in window if p.get("predicted_safe") is not None]
-        avg_mw = (sum(vals) / len(vals)) if vals else 0.0
-        out.append(avg_mw * 1000.0)
-    if not out:
-        out = [3200.0] * hours
-    while len(out) < hours:
-        out.append(out[-1])
-    return out
-
-
-def _weekday_flags(series, days: int) -> list[bool]:
-    """Derive Mon-Fri (peak pricing) flag per day from the forecast datetimes."""
-    flags: list[bool] = []
-    for d in range(days):
-        idx = d * _STEPS_PER_DAY
-        wd = True
-        if idx < len(series):
-            try:
-                wd = datetime.fromisoformat(str(series[idx]["datetime"])).weekday() < 5
-            except ValueError:
-                wd = True
-        flags.append(wd)
-    return flags
