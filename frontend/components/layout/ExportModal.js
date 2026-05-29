@@ -46,7 +46,7 @@ export function ExportModal({ open, onClose, showToast, active }) {
               <Icon.File width="16" height="16" />
             </div>
             <div>
-              <div className="text-sm font-semibold">Export Report · ส่งออกรายงาน</div>
+              <div className="text-sm font-semibold thai">ส่งออกรายงาน</div>
               <div className="text-[11px] text-muted thai">เลือกรูปแบบและช่องทาง</div>
             </div>
           </div>
@@ -70,13 +70,12 @@ export function ExportModal({ open, onClose, showToast, active }) {
 
           {/* Scope */}
           <div className="grid grid-cols-2 gap-2">
-            {[['current','หน้าปัจจุบัน','Current view'],['full','ทุกหน้า','Full report']].map(([k,th,en]) => (
+            {[['current','หน้าปัจจุบัน'],['full','ทุกหน้า']].map(([k,th]) => (
               <button key={k} onClick={() => setScope(k)}
                       className="text-left p-3 rounded-lg border transition cursor-pointer"
                       style={scope===k ? { borderColor: P, background: PS }
                                        : { borderColor:'var(--border-soft)', background:'var(--surface-2)' }}>
                 <div className="text-sm font-medium thai">{th}</div>
-                <div className="text-[11px] text-muted">{en}</div>
               </button>
             ))}
           </div>
@@ -94,7 +93,7 @@ export function ExportModal({ open, onClose, showToast, active }) {
 
           {mode === 'email' && (
             <div>
-              <div className="text-[10.5px] uppercase eyebrow text-muted mb-2">Recipient · ผู้รับ</div>
+              <div className="text-xs uppercase eyebrow text-muted mb-2 thai">ผู้รับ</div>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                      className="w-full px-3 py-2 rounded-lg text-sm panel-2 border hairline focus:outline-none"
                      style={{ color:'var(--text)', background:'var(--surface-2)', outlineColor: P }} />

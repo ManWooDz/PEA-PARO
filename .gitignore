@@ -76,3 +76,5 @@ backend/ml/artifacts/weather_cache.csv
 ml/prophet_lstm/models/
 ml/prophet_lstm/data/weather_koh_tao.csv
 ml/prophet_lstm/results/
+# Visual brainstorming companion
+.superpowers/

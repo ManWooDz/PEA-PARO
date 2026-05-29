@@ -314,7 +314,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
           accent="#10b981"
         />
         <KPICard
-          icon={Icon.Sun}
+          icon={Icon.Loop}
           label="สัดส่วนพลังงานหมุนเวียน"
           value={renewable}
           unit="%"

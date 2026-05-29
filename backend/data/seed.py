@@ -15,12 +15,12 @@ COST = {
 
 # ── Submarine cable operating limits (MW) ────────────────────────────────────
 LINES = {
-    1: {"name": "Mainland–Island A (115kV)", "limit_mw": 32, "voltage": "115kV"},
-    2: {"name": "Mainland–Island A (115kV)", "limit_mw": 27, "voltage": "115kV"},
-    3: {"name": "Mainland–Island A (33kV)",  "limit_mw": 13, "voltage": "33kV"},
-    4: {"name": "Island A–Island B (115kV)", "limit_mw": 27, "voltage": "115kV"},
-    5: {"name": "Island A–Island B (33kV)",  "limit_mw":  7, "voltage": "33kV"},
-    6: {"name": "Island B–Island C (33kV)",  "limit_mw":  8, "voltage": "33kV"},  # CRITICAL
+    1: {"name": "Mainland-Island A (115kV)", "limit_mw": 32, "voltage": "115kV"},
+    2: {"name": "Mainland-Island A (115kV)", "limit_mw": 27, "voltage": "115kV"},
+    3: {"name": "Mainland-Island A (33kV)",  "limit_mw": 13, "voltage": "33kV"},
+    4: {"name": "Island A-Island B (115kV)", "limit_mw": 27, "voltage": "115kV"},
+    5: {"name": "Island A-Island B (33kV)",  "limit_mw":  7, "voltage": "33kV"},
+    6: {"name": "Island B-Island C (33kV)",  "limit_mw":  8, "voltage": "33kV"},  # CRITICAL
 }
 
 # Practical grid availability at Island C after upstream consumption by Islands A & B.
