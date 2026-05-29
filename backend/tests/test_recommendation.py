@@ -141,3 +141,36 @@ def test_no_alerts_when_within_plan():
         actual_now_mw=1.0, plan_now_mw=1.0,
     )
     assert alerts == []
+
+
+from fastapi.testclient import TestClient
+
+
+def _client():
+    import main
+    return TestClient(main.app)
+
+
+def test_forecast_series_endpoint():
+    c = _client()
+    r = c.get("/api/forecast/series", params={"horizon": "7day"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["horizon"] == "7day"
+    assert len(body["points"]) == 672
+
+
+def test_dayahead_endpoint_returns_plan_and_recommendations():
+    c = _client()
+    r = c.get("/api/dispatch/day-ahead", params={"strategy": "min-cost", "days": 1})
+    assert r.status_code == 200
+    body = r.json()
+    assert "rows" in body and "recommendations" in body
+    assert len(body["rows"]) == 24
+
+
+def test_intraday_alerts_endpoint():
+    c = _client()
+    r = c.post("/api/intraday/alerts", json={"soc_pct": 15.0, "grid_available_mw": 1.3})
+    assert r.status_code == 200
+    assert "recommendations" in r.json()

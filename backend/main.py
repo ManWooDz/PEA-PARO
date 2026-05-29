@@ -5,7 +5,7 @@ Run: uvicorn main:app --reload --port 8000
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from data.loader import load_historical
-from routers import realtime, dispatch, forecast, alerts, ml_forecast, weather
+from routers import realtime, dispatch, forecast, alerts, ml_forecast, weather, recommendations
 
 app = FastAPI(
     title="PEA Island EMS API",
@@ -22,6 +22,9 @@ app.add_middleware(
 )
 
 # Register routers
+# recommendations must come before dispatch so /api/dispatch/day-ahead
+# is matched before the wildcard /api/dispatch/{strategy} route.
+app.include_router(recommendations.router)
 app.include_router(realtime.router)
 app.include_router(dispatch.router)
 app.include_router(forecast.router)
