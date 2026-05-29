@@ -13,6 +13,7 @@ from models.schemas import (
     ApplyPlanRequest, ApplyPlanResponse,
 )
 from models.dispatch_optimizer import build_dispatch_plan, compute_plan_cost
+from data.clock import now as sim_now
 
 router = APIRouter(tags=["dispatch"])
 
@@ -101,19 +102,24 @@ def forecast_and_dispatch(body: ForecastDispatchRequest):
             status_code=422, detail="horizon must be '24h' or '6h'."
         )
 
-    # 1 & 2 — Forecast
+    # 1 & 2 — Forecast (served from the precomputed LSTM+Margin forecast CSV via
+    #         forecast_store, so it matches the day-ahead plan and the frozen demo
+    #         clock — same source Tab2 uses, deterministic, no live TF inference).
+    from data.forecast_store import get_forecast_series
     try:
-        from ml.predictor import predict as ml_predict
+        series = get_forecast_series("6h")[:24] if body.horizon == "6h" \
+            else get_forecast_series("7day")[:96]
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
-    try:
-        forecast_pts = ml_predict(load_df=None, horizon=body.horizon)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"LSTM inference failed: {exc}",
-        )
+    forecast_pts = [
+        {
+            "datetime":     p["datetime"],
+            "load_mw":      round(float(p["predicted"] or 0.0), 3),
+            "load_mw_safe": round(float(p["predicted_safe"] or 0.0), 3),
+        }
+        for p in series
+    ]
 
     # 3 — Aggregate 15-min → hourly (24 values regardless of horizon)
     #     Use safe forecast for dispatch; raw for display
@@ -153,5 +159,5 @@ def forecast_and_dispatch(body: ForecastDispatchRequest):
         margin_mw=margin_mw if body.use_margin else 0.0,
         strategy=body.strategy,
         horizon=body.horizon,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=sim_now().isoformat(),
     )
