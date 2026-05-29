@@ -179,8 +179,9 @@ def get_realtime():
         lines        = lines,
         sources      = sources,
         diesel_units = diesel_units,
-        status       = overall_status,
-        server_time  = ts_str,
+        status         = overall_status,
+        server_time    = ts_str,
+        server_datetime= now.isoformat(timespec="seconds"),
     )
 
 

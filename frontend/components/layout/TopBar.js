@@ -12,16 +12,19 @@ function formatDateTime(d) {
   return { date: `${dd}/${mm}/${yy}`, time: `${hh}:${mi}:${ss}` }
 }
 
-export function TopBar({ theme, setTheme, onExport, lastUpdated = null }) {
+export function TopBar({ theme, setTheme, onExport, lastUpdated = null, serverNow = null }) {
   const [now, setNow] = useState(null)
   useEffect(() => {
+    // Frozen demo: clock is pinned to the backend's (sim) time — don't tick.
+    if (serverNow) return
     setNow(new Date())
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [serverNow])
 
-  const { date, time } = now ? formatDateTime(now) : { date: '—', time: '--:--:--' }
-  const isStale = lastUpdated && now && ((now.getTime() - new Date(lastUpdated).getTime()) > 10000)
+  const displayDate = serverNow ? new Date(serverNow) : now
+  const { date, time } = displayDate ? formatDateTime(displayDate) : { date: '—', time: '--:--:--' }
+  const isStale = !serverNow && lastUpdated && now && ((now.getTime() - new Date(lastUpdated).getTime()) > 10000)
   return (
     <header className="border-b hairline topbar sticky top-0 z-40">
       <div className="px-6 h-16 flex items-center justify-between">

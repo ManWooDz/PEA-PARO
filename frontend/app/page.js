@@ -73,6 +73,7 @@ export default function Home() {
         setTheme={setTheme}
         onExport={() => setExportOpen(true)}
         lastUpdated={lastReceived}
+        serverNow={rt?.server_datetime || null}
       />
 
       {/* Offline banner */}

@@ -76,7 +76,8 @@ class RealtimeResponse(BaseModel):
     sources: list[SourceCard]
     diesel_units: list[DieselUnitStatus]
     status: str                    # frontend: rt.status → "normal"|"warning"|"critical"
-    server_time: str
+    server_time: str               # "HH:MM:SS"
+    server_datetime: str = ""      # full ISO of the (sim) clock — drives the TopBar clock
 
 
 class LoadPoint(BaseModel):
