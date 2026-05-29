@@ -15,6 +15,8 @@ from data.seed import COST, LINES, PRACTICAL_GRID_KW, ISLAND_C_LOAD_PROFILE, ISL
 from models.battery import compute_battery_schedule, is_discharge_hour
 from models.diesel import commit_units, make_initial_states, DIESEL_8, DIESEL_9
 
+_FALLBACK_LOAD_KW = 3_200.0  # ~midnight Island C load (kW); used only if forecast_kw is empty
+
 
 def _grid_cost(hour: int, weekday: bool = True) -> float:
     """Return grid cost (Token/kWh) based on hour and day type."""
@@ -173,24 +175,31 @@ def build_multi_day_plan(
     has_solar: bool = False,
     initial_soc_pct: float = 65.0,
     grid_available_kw: float = PRACTICAL_GRID_KW,
+    weekday_flags: list[bool] | None = None,
 ) -> list[dict]:
     """
     Build an N-day hourly dispatch plan by chaining single-day plans.
 
     forecast_kw: hourly loads (kW), length must be >= days*24. Extra is ignored;
                  if shorter, the last value is repeated to fill.
+    weekday_flags: one bool per day; True = Mon–Fri peak pricing, False = weekend
+                   off-peak all day. None = treat every day as a weekday.
     Each day reuses the tested 24h optimizer (battery 25 MWh budget resets daily),
     carries SoC across day boundaries, and tags each row with 'day' (0-indexed).
     """
+    if days < 1:
+        raise ValueError("days must be >= 1")
+
     need = days * 24
     loads = list(forecast_kw[:need])
     if len(loads) < need:
-        last = loads[-1] if loads else 3200.0
+        last = loads[-1] if loads else _FALLBACK_LOAD_KW
         loads += [last] * (need - len(loads))
 
     all_rows: list[dict] = []
     soc = initial_soc_pct
     for d in range(days):
+        wd = True if weekday_flags is None else bool(weekday_flags[d])
         day_loads = loads[d * 24:(d + 1) * 24]
         day_rows = build_dispatch_plan(
             strategy=strategy,
@@ -198,6 +207,7 @@ def build_multi_day_plan(
             initial_soc_pct=soc,
             forecast_kw=day_loads,
             grid_available_kw=grid_available_kw,
+            weekday=wd,
         )
         for r in day_rows:
             r["day"] = d

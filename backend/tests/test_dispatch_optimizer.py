@@ -7,7 +7,7 @@ import pytest
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from models.dispatch_optimizer import build_dispatch_plan, compute_plan_cost
+from models.dispatch_optimizer import build_dispatch_plan, compute_plan_cost, build_multi_day_plan
 from data.seed import PRACTICAL_GRID_KW, LINE6_LIMIT_KW_PHYSICAL
 
 
@@ -134,8 +134,6 @@ def test_compute_plan_cost_returns_positive_totals():
 
 
 # --- Multi-day plan -----------------------------------------------------------
-from models.dispatch_optimizer import build_multi_day_plan
-
 
 def test_multi_day_plan_row_count_and_day_index():
     """7 วัน × 24 ชม. = 168 แถว, มี field 'day' 0..6 และ hour 0..23."""
@@ -150,9 +148,15 @@ def test_multi_day_plan_row_count_and_day_index():
 
 
 def test_multi_day_carries_soc_between_days():
-    """SoC ปลายวันก่อนหน้า = SoC ต้นวันถัดไป (ความต่อเนื่อง)."""
+    """day 1 ต้องเริ่มจาก SoC ปลายวัน 0 จริง — พิสูจน์ด้วยการรัน day เดี่ยวอิสระแล้วต้องตรงกัน."""
     forecast_kw = [3_000.0] * (24 * 2)
     rows = build_multi_day_plan(forecast_kw, days=2, initial_soc_pct=70.0)
-    day0_last_soc = [r for r in rows if r["day"] == 0][-1]["soc_pct"]
-    day1_first_soc = [r for r in rows if r["day"] == 1][0]["soc_pct"]
-    assert abs(day1_first_soc - day0_last_soc) < 25.0
+    day0 = [r for r in rows if r["day"] == 0]
+    day1 = [r for r in rows if r["day"] == 1]
+    day0_last_soc = day0[-1]["soc_pct"]
+    # Independent single-day run seeded with day0's terminal SoC must reproduce day1 exactly.
+    independent = build_dispatch_plan(
+        strategy="min-cost", forecast_kw=[3_000.0] * 24, initial_soc_pct=day0_last_soc,
+    )
+    assert day1[0]["soc_pct"] == independent[0]["soc_pct"]
+    assert day1[12]["soc_pct"] == independent[12]["soc_pct"]
