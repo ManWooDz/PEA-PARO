@@ -99,3 +99,47 @@ def test_multi_day_time_format_rollover():
     assert len(starts) == 1
     assert starts[0]["effect_time"] == "Day 1 00:00"
     assert starts[0]["act_time"] == "Day 0 23:45"
+
+
+from models.recommendation import detect_intraday_alerts
+
+
+def test_T1_load_exceeds_grid_triggers_critical():
+    forecast = [
+        {"datetime": "2026-03-01T14:30:00", "predicted_safe": 1.2},
+        {"datetime": "2026-03-01T14:45:00", "predicted_safe": 3.4},
+    ]
+    alerts = detect_intraday_alerts(
+        forecast, current_state={"soc_pct": 60.0}, grid_available_mw=1.3,
+    )
+    t1 = [a for a in alerts if a["severity"] == "critical"]
+    assert len(t1) >= 1
+    assert "ดีเซล" in t1[0]["action"] or "สตาร์ท" in t1[0]["action"]
+    assert t1[0]["control_type"] == "radio"
+
+
+def test_T2_low_soc_projection_warns():
+    forecast = [{"datetime": f"2026-03-01T{h:02d}:00:00", "predicted_safe": 3.0}
+                for h in range(15, 21)]
+    alerts = detect_intraday_alerts(
+        forecast, current_state={"soc_pct": 15.0}, grid_available_mw=1.3,
+    )
+    assert any(a["device"] == "BESS #7" and a["severity"] == "warn" for a in alerts)
+
+
+def test_T3_actual_deviation_from_plan_warns():
+    forecast = [{"datetime": "2026-03-01T14:30:00", "predicted_safe": 1.2}]
+    alerts = detect_intraday_alerts(
+        forecast, current_state={"soc_pct": 60.0}, grid_available_mw=1.3,
+        actual_now_mw=3.0, plan_now_mw=2.0,
+    )
+    assert any("แผน" in a["reason"] or "re-plan" in a["action"].lower() for a in alerts)
+
+
+def test_no_alerts_when_within_plan():
+    forecast = [{"datetime": "2026-03-01T14:30:00", "predicted_safe": 1.0}]
+    alerts = detect_intraday_alerts(
+        forecast, current_state={"soc_pct": 80.0}, grid_available_mw=1.3,
+        actual_now_mw=1.0, plan_now_mw=1.0,
+    )
+    assert alerts == []

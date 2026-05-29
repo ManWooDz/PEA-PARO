@@ -112,3 +112,76 @@ def build_recommendations(rows: list[dict]) -> list[dict]:
             ))
 
     return recs
+
+
+# ── Intra-day Early-Warning ───────────────────────────────────────────────
+SOC_FLOOR_PCT = 20.0
+BATTERY_CAPACITY_MWH = 30.0
+DEVIATION_THRESHOLD = 0.10          # 10%
+
+
+def detect_intraday_alerts(
+    forecast: list[dict],
+    *,
+    current_state: dict,
+    grid_available_mw: float,
+    actual_now_mw: float | None = None,
+    plan_now_mw: float | None = None,
+) -> list[dict]:
+    """
+    Early-Warning for the intra-day (next ~6h) horizon.
+
+    forecast: list of {datetime, predicted_safe} (MW), 15-min steps.
+    current_state: {soc_pct: float}.
+    Returns Recommendation-shaped dicts (same keys as build_recommendations).
+    """
+    alerts: list[dict] = []
+
+    def _alert(severity, device, action, reason, impact, control_type, when):
+        alerts.append({
+            "act_time": when, "effect_time": when, "severity": severity,
+            "device": device, "action": action, "reason": reason,
+            "impact": impact, "control_type": control_type, "day": 0,
+        })
+
+    # T1 — forecast load exceeds available grid within horizon → critical
+    breach = next(
+        (p for p in forecast if (p.get("predicted_safe") or 0.0) > grid_available_mw),
+        None,
+    )
+    if breach is not None:
+        t = str(breach["datetime"])[11:16] or "เร็วๆ นี้"
+        deficit = (breach.get("predicted_safe") or 0.0) - grid_available_mw
+        _alert(
+            "critical", "Diesel #9", "เตรียมสตาร์ทเดี๋ยวนี้",
+            f"forecast โหลดจะเกินกำลัง grid ที่ {t} ({breach['predicted_safe']:.1f} > {grid_available_mw:.1f} MW)",
+            f"ขาด {deficit:.1f} MW · วิทยุแจ้งล่วงหน้า (lead 15 นาที)",
+            "radio", t,
+        )
+
+    # T2 — projected SoC falls below floor over the horizon
+    soc = current_state.get("soc_pct", 100.0)
+    avail_mwh = (soc / 100.0) * BATTERY_CAPACITY_MWH
+    deficit_mwh = sum(
+        max(0.0, (p.get("predicted_safe") or 0.0) - grid_available_mw) * 0.25
+        for p in forecast
+    )
+    floor_mwh = (SOC_FLOOR_PCT / 100.0) * BATTERY_CAPACITY_MWH
+    if deficit_mwh > (avail_mwh - floor_mwh):
+        _alert(
+            "warn", "BESS #7", "จำกัดการจ่ายแบต / สตาร์ทดีเซลเร็วขึ้น",
+            f"คาด SoC จะต่ำกว่า {SOC_FLOOR_PCT:.0f}% (พลังงานขาด {deficit_mwh:.1f} MWh)",
+            "กันแบตหมดกลางคัน", "radio", "ภายใน 6 ชม.",
+        )
+
+    # T3 — actual deviates from day-ahead plan beyond threshold
+    if actual_now_mw is not None and plan_now_mw:
+        dev = abs(actual_now_mw - plan_now_mw) / plan_now_mw
+        if dev > DEVIATION_THRESHOLD:
+            _alert(
+                "warn", "Forecast", "ทบทวนแผน (re-plan)",
+                f"โหลดจริง {actual_now_mw:.1f} MW เบี่ยงจากแผน {plan_now_mw:.1f} MW ({dev*100:.0f}%)",
+                "แผน day-ahead คลาดเคลื่อน ควรคำนวณใหม่", "scada", "ตอนนี้",
+            )
+
+    return alerts
