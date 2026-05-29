@@ -6,14 +6,14 @@ import {
 
 const LINE6_CAP_MW = 8.0
 
-// "2025-12-28T15:15:00" → "28/12/2568 15:15" (วัน/เดือน/ปี พ.ศ. + เวลา 24 ชม.)
+// "2025-12-28 15:15:00" or "...T15:15:00" → "28/12/2568 15:15"
+// (วัน/เดือน/ปี พ.ศ. + เวลา 24 ชม.) — handles both space and 'T' separators
 function fmtFullDate(iso) {
   const s = String(iso)
-  const [date, time] = s.split('T')
-  if (!date || !time) return s
-  const [y, m, d] = date.split('-')
-  if (!y || !m || !d) return s
-  return `${d}/${m}/${Number(y) + 543} ${time.slice(0, 5)}`
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+  if (!m) return s
+  const [, y, mo, d, hh, mm] = m
+  return `${d}/${mo}/${Number(y) + 543} ${hh}:${mm}`
 }
 
 export function ForecastChart({ points = [], height = 240 }) {
