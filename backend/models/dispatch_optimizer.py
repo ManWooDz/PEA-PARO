@@ -165,6 +165,47 @@ def build_dispatch_plan(
     return rows
 
 
+def build_multi_day_plan(
+    forecast_kw: list[float],
+    *,
+    days: int = 7,
+    strategy: str = "min-cost",
+    has_solar: bool = False,
+    initial_soc_pct: float = 65.0,
+    grid_available_kw: float = PRACTICAL_GRID_KW,
+) -> list[dict]:
+    """
+    Build an N-day hourly dispatch plan by chaining single-day plans.
+
+    forecast_kw: hourly loads (kW), length must be >= days*24. Extra is ignored;
+                 if shorter, the last value is repeated to fill.
+    Each day reuses the tested 24h optimizer (battery 25 MWh budget resets daily),
+    carries SoC across day boundaries, and tags each row with 'day' (0-indexed).
+    """
+    need = days * 24
+    loads = list(forecast_kw[:need])
+    if len(loads) < need:
+        last = loads[-1] if loads else 3200.0
+        loads += [last] * (need - len(loads))
+
+    all_rows: list[dict] = []
+    soc = initial_soc_pct
+    for d in range(days):
+        day_loads = loads[d * 24:(d + 1) * 24]
+        day_rows = build_dispatch_plan(
+            strategy=strategy,
+            has_solar=has_solar,
+            initial_soc_pct=soc,
+            forecast_kw=day_loads,
+            grid_available_kw=grid_available_kw,
+        )
+        for r in day_rows:
+            r["day"] = d
+        all_rows.extend(day_rows)
+        soc = day_rows[-1]["soc_pct"]  # carry end-of-day SoC to next day
+    return all_rows
+
+
 def compute_plan_cost(rows: list[dict]) -> dict:
     """Aggregate Token costs from a 24-hour plan (rows values in MW).
 

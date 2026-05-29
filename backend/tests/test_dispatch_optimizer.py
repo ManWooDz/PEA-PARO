@@ -131,3 +131,28 @@ def test_compute_plan_cost_returns_positive_totals():
     assert cost["diesel_thb"] > 0      # Diesel ⑨ must be running
     assert cost["grid_thb"] >= 0
     assert cost["battery_thb"] >= 0
+
+
+# --- Multi-day plan -----------------------------------------------------------
+from models.dispatch_optimizer import build_multi_day_plan
+
+
+def test_multi_day_plan_row_count_and_day_index():
+    """7 วัน × 24 ชม. = 168 แถว, มี field 'day' 0..6 และ hour 0..23."""
+    forecast_kw = [3_000.0] * (24 * 7)
+    rows = build_multi_day_plan(forecast_kw, days=7)
+    assert len(rows) == 168
+    assert rows[0]["day"] == 0 and rows[0]["hour"] == 0
+    assert rows[-1]["day"] == 6 and rows[-1]["hour"] == 23
+    for d in range(7):
+        day_rows = [r for r in rows if r["day"] == d]
+        assert any(r["battery_mw"] > 0.01 for r in day_rows), f"day {d} no battery discharge"
+
+
+def test_multi_day_carries_soc_between_days():
+    """SoC ปลายวันก่อนหน้า = SoC ต้นวันถัดไป (ความต่อเนื่อง)."""
+    forecast_kw = [3_000.0] * (24 * 2)
+    rows = build_multi_day_plan(forecast_kw, days=2, initial_soc_pct=70.0)
+    day0_last_soc = [r for r in rows if r["day"] == 0][-1]["soc_pct"]
+    day1_first_soc = [r for r in rows if r["day"] == 1][0]["soc_pct"]
+    assert abs(day1_first_soc - day0_last_soc) < 25.0
