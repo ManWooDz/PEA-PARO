@@ -1,6 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { Icon } from '@/components/shared/Icon'
+import { reportUrl } from '@/lib/api'
+
+// page tab id → report `tab` param
+const TAB_MAP = { liveops: 'realtime', dispatch: 'dispatch', forecast: 'forecast', alerts: 'alerts' }
 
 const P  = 'var(--primary)'                  // primary magenta
 const PB = 'rgba(208,64,184,0.14)'   // icon bg tint
@@ -17,16 +21,42 @@ export function ExportModal({ open, onClose, showToast, active }) {
   const tabName = { realtime:'หน้าหลัก', dispatch:'แผนการจ่ายไฟ', forecast:'พยากรณ์โหลด', alerts:'การแจ้งเตือน' }[active] || 'หน้าหลัก'
   const sections = scope === 'full' ? ['หน้าหลัก','แผนการจ่ายไฟ','พยากรณ์โหลด','การแจ้งเตือน'] : [tabName]
 
-  const handleDownload = () => {
-    const ts = new Date().toISOString().slice(0,16).replace(/[T:]/g,'-')
-    const filename = `pea-paro-report_${ts}.${format}`
-    const body = `PEA-PARO · Operational Report\nGenerated: ${new Date().toLocaleString('th-TH')}\nSections: ${sections.join(', ')}\n`
-    const blob = new Blob([body], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
-    showToast('Report downloaded', filename)
-    onClose()
+  const handleDownload = async () => {
+    const reportTab = TAB_MAP[active] || 'realtime'
+    const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')
+
+    // PDF: fetch the HTML report, write it into a new window, and print
+    // (browser "Save as PDF" — renders Thai perfectly, no PDF/font library).
+    if (format === 'pdf') {
+      try {
+        const htmlText = await fetch(reportUrl({ scope, tab: reportTab, format: 'html' })).then(r => r.text())
+        const w = window.open('', '_blank')
+        if (!w) { showToast('เปิดหน้าต่างไม่ได้', 'อนุญาต pop-up แล้วลองใหม่'); return }
+        w.document.open(); w.document.write(htmlText); w.document.close(); w.focus()
+        setTimeout(() => w.print(), 500)   // let fonts/layout settle
+        showToast('เปิดรายงานเพื่อบันทึก PDF', 'เลือก “Save as PDF” ในกล่องพิมพ์')
+        onClose()
+      } catch (e) {
+        showToast('สร้างรายงานไม่สำเร็จ', e?.message ?? '')
+      }
+      return
+    }
+
+    // HTML / CSV: download the real report file
+    try {
+      const fmt = format === 'csv' ? 'csv' : 'html'
+      const text = await fetch(reportUrl({ scope, tab: reportTab, format: fmt })).then(r => r.text())
+      const mime = fmt === 'csv' ? 'text/csv' : 'text/html'
+      const blob = new Blob([text], { type: `${mime};charset=utf-8` })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `pea-paro-report_${ts}.${fmt}`; a.click()
+      URL.revokeObjectURL(url)
+      showToast('ดาวน์โหลดรายงานแล้ว', a.download)
+      onClose()
+    } catch (e) {
+      showToast('สร้างรายงานไม่สำเร็จ', e?.message ?? '')
+    }
   }
 
   const handleEmail = () => {

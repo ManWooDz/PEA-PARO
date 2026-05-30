@@ -45,6 +45,10 @@ export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = fals
 export const fetchIntradayAlerts = (body = {}) =>
   api.post('/api/intraday/alerts', body).then(r => r.data)
 
+// ── Report (Tab-bar "รายงาน") ────────────────────────────────────────────────
+export const reportUrl = ({ scope = 'current', tab = 'realtime', format = 'html' } = {}) =>
+  `${API_BASE}/api/report?scope=${encodeURIComponent(scope)}&tab=${encodeURIComponent(tab)}&format=${encodeURIComponent(format)}`
+
 // ── Notifications (LINE Messaging API) ───────────────────────────────────────
 export const fetchNotifyStatus = () => api.get('/api/notify/status').then(r => r.data)
 export const sendLineNotify   = (body) => api.post('/api/notify/line', body).then(r => r.data)
