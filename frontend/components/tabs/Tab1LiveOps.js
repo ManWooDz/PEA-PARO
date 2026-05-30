@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
+import { useForecastSeries } from "@/hooks/useForecastSeries";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -181,6 +182,23 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // recharts' activeDot, which snaps to the last valid point when null.
   const [hoverT, setHoverT] = useState(null);
 
+  // Real LSTM 6-hour forecast (next 6h at 15-min) → hourly means for the chart
+  // tail, so the home page forecast line matches the dispatch/forecast tabs.
+  const fc6 = useForecastSeries("6h");
+  const fcHourly = useMemo(() => {
+    const buckets = {};
+    (fc6.points || []).slice(0, 24).forEach((p) => {
+      const h = parseInt(String(p.datetime).slice(11, 13), 10);
+      const v = p.predicted_safe ?? p.predicted;
+      if (v == null || Number.isNaN(h)) return;
+      (buckets[h] ||= []).push(v);
+    });
+    const out = {};
+    for (const [h, arr] of Object.entries(buckets)) {
+      out[+h] = arr.reduce((s, x) => s + x, 0) / arr.length;
+    }
+    return out;
+  }, [fc6.points]);
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent
@@ -206,22 +224,24 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     const merged = hist.map((d, i) =>
       i === hist.length - 1 ? { ...d, forecast: d.actual } : d,
     );
-    // Deterministic 6-hour tail — sample the same hour-of-day from history,
-    // apply a small fixed taper. NO Math.random() (was causing the line to
-    // wiggle on every clock tick).
+    // 6-hour tail from the real LSTM forecast (hourly means). Falls back to the
+    // same-hour actual if the forecast feed is unavailable.
     for (let i = 1; i <= 6; i++) {
       const futureHour = (lastEntry.hour + i) % 24;
-      const sample = hist.find((d) => d.hour === futureHour);
-      const base = sample?.actual ?? lastEntry.actual;
+      const fcVal = fcHourly[futureHour];
+      const base =
+        fcVal != null
+          ? fcVal
+          : (hist.find((d) => d.hour === futureHour)?.actual ?? lastEntry.actual);
       merged.push({
         t: `${String(futureHour).padStart(2, "0")}:00`,
         hour: futureHour,
         actual: null,
-        forecast: +(base * 0.97).toFixed(2),
+        forecast: +Number(base).toFixed(2),
       });
     }
     return merged;
-  }, [history]);
+  }, [history, fcHourly]);
 
   if (!rt) {
     return (
