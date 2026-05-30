@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
+import { fetchNotifyStatus, sendLineNotify } from "@/lib/api";
 
 const LEVEL_ORDER = { high: 0, medium: 1, low: 2, resolved: 3 };
 
@@ -78,7 +79,7 @@ function LogRow({ alert }) {
 }
 
 // ── Spotlight (top) alert card ──────────────────────────────────────
-function SpotlightAlert({ alert, onResolve, onViewDispatch }) {
+function SpotlightAlert({ alert, onResolve, onViewDispatch, onNotify }) {
   if (!alert) {
     return (
       <div className="panel rounded-xl p-6 flex flex-col items-center text-center gap-2">
@@ -178,7 +179,7 @@ function SpotlightAlert({ alert, onResolve, onViewDispatch }) {
         </button>
         <button
           className="px-3 py-2 rounded text-sm border hairline cursor-pointer hover:opacity-80 inline-flex items-center gap-2 panel-2"
-          onClick={(e) => e.preventDefault()}
+          onClick={() => onNotify?.(alert)}
         >
           <Icon.Send width="14" height="14" />
           <span className="thai">ส่งแจ้งเตือน LINE</span>
@@ -195,8 +196,34 @@ export function Tab4Alerts({
   resolve,
   loading,
   onViewDispatch,
+  showToast,
 }) {
   const [filter, setFilter] = useState("all");
+  const [lineConfigured, setLineConfigured] = useState(false);
+
+  useEffect(() => {
+    fetchNotifyStatus()
+      .then((d) => setLineConfigured(!!d.line_configured))
+      .catch(() => {});
+  }, []);
+
+  const handleNotifyLine = async (alert) => {
+    if (!alert) return;
+    try {
+      const res = await sendLineNotify({
+        title: alert.title,
+        detail: alert.detail ?? "",
+        recommended_action: alert.recommended_action ?? null,
+        level: alert.level ?? null,
+      });
+      if (res.sent) showToast?.("ส่ง LINE สำเร็จ", alert.title);
+      else if (res.simulated)
+        showToast?.("LINE · โหมดจำลอง", "ยังไม่ได้ตั้งค่า Official Account");
+      else showToast?.("ส่ง LINE ไม่สำเร็จ", res.detail ?? "");
+    } catch (e) {
+      showToast?.("ส่ง LINE ไม่สำเร็จ", e.message ?? "");
+    }
+  };
 
   const allAlerts = [...(activeAlerts ?? []), ...(resolvedAlerts ?? [])];
   const sorted = [...(activeAlerts ?? [])].sort(
@@ -253,6 +280,7 @@ export function Tab4Alerts({
           alert={top}
           onResolve={resolve}
           onViewDispatch={onViewDispatch}
+          onNotify={handleNotifyLine}
         />
 
         <div className="space-y-4">
@@ -264,9 +292,9 @@ export function Tab4Alerts({
             <div>
               <ChannelRow
                 icon={Icon.Line}
-                name="LINE Notify API"
-                sub="15 ผู้รับ · ทีมปฏิบัติการเกาะเต่า"
-                status="CONNECTED"
+                name="LINE Messaging API"
+                sub={lineConfigured ? "เชื่อมต่อแล้ว · ทีมปฏิบัติการเกาะเต่า" : "ยังไม่ตั้งค่า · โหมดจำลอง"}
+                status={lineConfigured ? "CONNECTED" : "IDLE"}
                 color="#06c755"
               />
               <ChannelRow

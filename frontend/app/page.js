@@ -125,6 +125,7 @@ export default function Home() {
             resolve={resolve} loading={alertLoading}
             focusedAlertId={focusedAlertId} setFocusedAlertId={setFocusedAlert}
             onViewDispatch={() => setActive('dispatch')}
+            showToast={showToast}
           />
         )}
       </main>

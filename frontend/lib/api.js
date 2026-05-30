@@ -45,6 +45,10 @@ export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = fals
 export const fetchIntradayAlerts = (body = {}) =>
   api.post('/api/intraday/alerts', body).then(r => r.data)
 
+// ── Notifications (LINE Messaging API) ───────────────────────────────────────
+export const fetchNotifyStatus = () => api.get('/api/notify/status').then(r => r.data)
+export const sendLineNotify   = (body) => api.post('/api/notify/line', body).then(r => r.data)
+
 // ── Weather ─────────────────────────────────────────────────────────────────
 export const fetchWeather = () => api.get('/api/weather').then(r => r.data)
 
