@@ -13,15 +13,18 @@ PROPHET_REGRESSORS = [
 ]
 
 
-def df_to_prophet(df: pd.DataFrame) -> pd.DataFrame:
+def df_to_prophet(df: pd.DataFrame, target_col: str = 'load_c') -> pd.DataFrame:
     """Convert indexed DataFrame to Prophet format.
 
-    Input:  DataFrame indexed by datetime, columns include load_c + PROPHET_REGRESSORS
+    Input:  DataFrame indexed by datetime, columns include target_col + PROPHET_REGRESSORS
     Output: DataFrame with columns [ds, y, <regressors...>]
+
+    Args:
+        target_col: load column name — 'load_a', 'load_b', or 'load_c' (default).
     """
-    cols_needed = ['load_c'] + PROPHET_REGRESSORS
+    cols_needed = [target_col] + PROPHET_REGRESSORS
     out = df[cols_needed].reset_index()
-    out = out.rename(columns={'datetime': 'ds', 'load_c': 'y'})
+    out = out.rename(columns={'datetime': 'ds', target_col: 'y'})
     return out
 
 
