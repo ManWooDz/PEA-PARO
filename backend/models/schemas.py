@@ -265,3 +265,20 @@ class ForecastSeriesPoint(BaseModel):
 class ForecastSeriesResponse(BaseModel):
     horizon: str
     points:  list[ForecastSeriesPoint]
+
+
+class ScenarioResult(BaseModel):
+    id:              str
+    label:           str
+    icon:            str
+    trigger:         str
+    status:          Literal["safe", "manage", "fail"]
+    peak_support_mw: float
+    extra_cost_thb:  float
+    assets:          list[str]
+    action:          str
+    lead_min:        int
+
+
+class ScenariosResponse(BaseModel):
+    scenarios: list[ScenarioResult]

@@ -85,3 +85,25 @@ def test_infeasible_scenario_is_fail_not_exception():
     trip = next(r for r in res if r["id"] == "d9-trip")
     assert trip["status"] == "fail"
     assert trip["extra_cost_thb"] == 0.0
+
+
+# ── Task 3: scenarios HTTP endpoint ──────────────────────────────────────────
+from fastapi.testclient import TestClient
+
+
+def _client():
+    import main
+    return TestClient(main.app)
+
+
+def test_scenarios_endpoint_returns_three_cards():
+    c = _client()
+    r = c.post("/api/intraday/scenarios", json={"soc_pct": 60.0})
+    assert r.status_code == 200
+    scenarios = r.json()["scenarios"]
+    assert len(scenarios) == 3
+    assert {s["id"] for s in scenarios} == {"grid-drop", "load-spike", "d9-trip"}
+    for s in scenarios:
+        assert s["status"] in ("safe", "manage", "fail")
+        assert isinstance(s["assets"], list)
+        assert "action" in s

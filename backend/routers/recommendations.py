@@ -15,10 +15,12 @@ from data.loader import get_grid_availability
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
 from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
+from models.scenario import evaluate_scenarios
 from models.recommendation import build_recommendations, detect_intraday_alerts
 from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
+    ScenarioResult, ScenariosResponse,
 )
 
 _log = logging.getLogger(__name__)
@@ -154,3 +156,17 @@ def intraday_alerts(req: IntradayRequest):
     return RecommendationsResponse(
         recommendations=[Recommendation(**a) for a in alert_items],
     )
+
+
+class ScenarioRequest(BaseModel):
+    soc_pct: float = 60.0
+
+
+@router.post("/api/intraday/scenarios", response_model=ScenariosResponse)
+def intraday_scenarios(req: ScenarioRequest):
+    # Stress-test the next 6h window (24 × 15-min) against 3 fixed contingencies.
+    a, b, c, ts = _island_loads("6h", _INTRADAY_STEPS, step="15min")
+    grid_cap = get_grid_availability(ts)
+    dt = 1.0 / _STEPS_PER_HOUR
+    results = evaluate_scenarios(a, b, c, ts, grid_cap, dt_hours=dt, soc_pct=req.soc_pct)
+    return ScenariosResponse(scenarios=[ScenarioResult(**r) for r in results])
