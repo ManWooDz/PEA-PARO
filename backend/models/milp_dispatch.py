@@ -77,12 +77,17 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
 
     grid_cap: optional per-step main-grid availability (MW) that bounds grid import each
     step (clamped to the physical cable limit). None → the full physical limit.
+    d8_units / d9_units: optional integer override of the module-level diesel unit
+    counts (Diesel #8 / Diesel #9). None → the default specs. Used by contingency
+    scenarios (e.g. a tripped unit).
     Returns one DispatchRow-compatible dict per step (system asset schedule + line6_mw).
     Raises RuntimeError if the solver does not reach optimality.
     """
     T = len(loads_a)
     n8 = _D8_UNITS if d8_units is None else int(d8_units)
     n9 = _D9_UNITS if d9_units is None else int(d9_units)
+    if n8 < 0 or n9 < 0:
+        raise ValueError("d8_units/d9_units must be >= 0")
     p = pulp.LpProblem("dispatch", pulp.LpMinimize)
 
     grid = [pulp.LpVariable(f"grid_{t}", lowBound=0, upBound=_grid_cap_at(grid_cap, t)) for t in range(T)]

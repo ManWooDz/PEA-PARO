@@ -23,6 +23,7 @@ def test_d9_units_override_default_matches_no_arg():
 def test_d9_units_one_caps_island_c_diesel():
     # Island C load 11 MW; Line 6 cap 8 → C needs ~3 MW from Diesel #9.
     # With only ONE unit (2.5 MW) that is impossible → solver infeasible → RuntimeError.
+    # Battery #7 sits on Island A and cannot cross Line 6, so nothing else can fill C's gap.
     n = 2
     with pytest.raises(RuntimeError):
         solve_milp([40.0]*n, [10.0]*n, [11.0]*n, _ts(n), dt_hours=1.0, d9_units=1)
@@ -35,3 +36,9 @@ def test_d9_units_two_explicit_feasible():
     assert len(rows) == n
     for r in rows:
         assert r["diesel_c_mw"] >= 11.0 - 8.0 - 0.05   # >= ~3 MW from Diesel #9
+
+
+def test_negative_units_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        solve_milp([40.0]*2, [10.0]*2, [3.0]*2, _ts(2), dt_hours=1.0, d9_units=-1)
