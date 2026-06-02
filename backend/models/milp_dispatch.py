@@ -29,7 +29,11 @@ _C_BAT = COST["battery"]    # 12
 _C_D8  = COST["diesel_a"]   # 15
 _C_D9  = COST["diesel_c"]   # 12
 
-_MAX_UP_HOURS = DIESEL_8["max_up_time_hr"]   # 12
+_MAX_UP_HOURS_D8 = DIESEL_8["max_up_time_hr"]   # 12
+_MAX_UP_HOURS_D9 = DIESEL_9["max_up_time_hr"]   # 12
+
+_MW_TO_KW = 1000.0          # objective is in Token (cost/kWh × kWh)
+_DIESEL_ON_MW = 0.05        # output above this = a unit is producing
 
 
 def _grid_rate(ts: datetime) -> float:
@@ -50,7 +54,7 @@ def _status(g, f_bc, sd8, sd9, soc_pct) -> str:
         return "low-soc"
     if f_bc >= _BC_CAP * 0.95:
         return "line6-near"
-    if sd8 > 0.05 or sd9 > 0.05:
+    if sd8 > _DIESEL_ON_MW or sd9 > _DIESEL_ON_MW:
         return "diesel"
     if g >= _GRID_CAP - 1:
         return "grid-limited"
@@ -105,16 +109,16 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         idxs = [t for t in range(T) if timestamps[t].date() == d]
         p += pulp.lpSum(bdis[t] * dt_hours for t in idxs) <= _BAT_DAILY_MWH
 
-    # diesel max-up-time: in any window of W+1 steps, sum(on) <= W  (W = 12h in steps)
-    W = max(1, int(round(_MAX_UP_HOURS / dt_hours)))
-    for onv, n in ((on8, _D8_UNITS), (on9, _D9_UNITS)):
+    # diesel max-up-time: in any window of W+1 steps, sum(on) <= W  (W = max-up in steps)
+    for onv, n, max_up in ((on8, _D8_UNITS, _MAX_UP_HOURS_D8), (on9, _D9_UNITS, _MAX_UP_HOURS_D9)):
+        W = max(1, int(round(max_up / dt_hours)))
         for u in range(n):
             for s in range(0, T - W):
                 p += pulp.lpSum(onv[t][u] for t in range(s, s + W + 1)) <= W
 
     # objective - total Token cost
     p += pulp.lpSum(
-        dt_hours * 1000.0 * (
+        dt_hours * _MW_TO_KW * (
             grid[t] * _grid_rate(timestamps[t])
             + bdis[t] * _C_BAT
             + pulp.lpSum(d8[t]) * _C_D8
@@ -137,7 +141,7 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         sd9 = sum(v.value() or 0.0 for v in d9[t])
         f_bc = fbc[t].value() or 0.0
         socp = (soc[t].value() or 0.0) / _BAT_CAP_MWH * 100.0
-        token = dt_hours * 1000.0 * (
+        token = dt_hours * _MW_TO_KW * (
             g * _grid_rate(ts) + max(0.0, b) * _C_BAT + sd8 * _C_D8 + sd9 * _C_D9
         )
         rows.append({
@@ -152,8 +156,8 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             "soc_pct": round(socp, 1),
             "token_per_hour": round(token, 1),
             "status": _status(g, f_bc, sd8, sd9, socp),
-            "diesel8_units_on": sum(1 for v in on8[t] if (v.value() or 0) > 0.5),
-            "diesel9_units_on": sum(1 for v in on9[t] if (v.value() or 0) > 0.5),
+            "diesel8_units_on": sum(1 for v in d8[t] if (v.value() or 0.0) > _DIESEL_ON_MW),
+            "diesel9_units_on": sum(1 for v in d9[t] if (v.value() or 0.0) > _DIESEL_ON_MW),
             "line6_mw": round(f_bc, 3),
         })
     return rows

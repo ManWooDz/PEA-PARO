@@ -17,7 +17,7 @@ def test_milp_balances_nodes_and_respects_cables():
     assert len(rows) == n
     for i, r in enumerate(rows):
         # system supply = system load (lossless)
-        supply = r["grid_mw"] + max(0.0, r["battery_mw"]) + r["diesel_a_mw"] + r["diesel_c_mw"]
+        supply = r["grid_mw"] + r["battery_mw"] + r["diesel_a_mw"] + r["diesel_c_mw"]
         assert abs(supply - (la[i] + lb[i] + lc[i])) < 0.05
         # cable limits
         assert r["grid_mw"] <= _GRID_CAP + 1e-3
@@ -82,3 +82,13 @@ def test_dispatchrow_has_line6_field_default_zero():
     assert row.line6_mw == 0.0
     row2 = DispatchRow(**{**row.model_dump(), "line6_mw": 3.2})
     assert row2.line6_mw == 3.2
+
+
+def test_milp_max_up_time_makes_sustained_double_diesel_infeasible():
+    import pytest
+    n = 14
+    ts = _ts(n, dt_h=1.0)   # 14 hourly steps from 09:00
+    # Island C load 12 MW > Line 6 cap (8) needs Diesel #9 = 4 MW = BOTH units every
+    # step; max-up-time 12h forbids any unit running all 14 steps → infeasible.
+    with pytest.raises(RuntimeError):
+        solve_milp([40.0] * n, [10.0] * n, [12.0] * n, ts, dt_hours=1.0)
