@@ -1,6 +1,53 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from datetime import datetime, timedelta
+from models.milp_dispatch import solve_milp, _GRID_CAP, _AB_CAP, _BC_CAP, _BAT_CAP_MWH
+
+
+def _ts(n, start="2025-12-28T09:00:00", dt_h=1.0):
+    base = datetime.fromisoformat(start)
+    return [base + timedelta(hours=dt_h * i) for i in range(n)]
+
+
+def test_milp_balances_nodes_and_respects_cables():
+    n = 4
+    la = [40.0] * n; lb = [10.0] * n; lc = [3.0] * n
+    rows = solve_milp(la, lb, lc, _ts(n), dt_hours=1.0, init_soc_pct=65.0)
+    assert len(rows) == n
+    for i, r in enumerate(rows):
+        # system supply = system load (lossless)
+        supply = r["grid_mw"] + max(0.0, r["battery_mw"]) + r["diesel_a_mw"] + r["diesel_c_mw"]
+        assert abs(supply - (la[i] + lb[i] + lc[i])) < 0.05
+        # cable limits
+        assert r["grid_mw"] <= _GRID_CAP + 1e-3
+        assert r["line6_mw"] <= _BC_CAP + 1e-3
+
+
+def test_milp_prefers_grid_over_diesel_when_capacity_allows():
+    # Total load 53 MW << grid cap 72 and cable 6 covers C → all-grid optimal, no diesel.
+    n = 3
+    rows = solve_milp([40.0]*n, [10.0]*n, [3.0]*n, _ts(n), dt_hours=1.0)
+    for r in rows:
+        assert r["diesel_a_mw"] < 0.05 and r["diesel_c_mw"] < 0.05
+
+
+def test_milp_uses_local_diesel_when_cable6_saturated():
+    # Island C load 12 MW > Line 6 cap 8 → C must use Diesel #9 for the remainder.
+    n = 2
+    rows = solve_milp([40.0]*n, [10.0]*n, [12.0]*n, _ts(n), dt_hours=1.0)
+    for r in rows:
+        assert r["line6_mw"] <= _BC_CAP + 1e-3
+        assert r["diesel_c_mw"] >= 12.0 - _BC_CAP - 0.05   # >= ~4 MW
+
+
+def test_milp_battery_only_discharges_in_window():
+    # Steps at 02:00–05:00 (charge window) → battery must NOT discharge.
+    ts = _ts(4, start="2025-12-28T02:00:00", dt_h=1.0)
+    rows = solve_milp([40.0]*4, [10.0]*4, [3.0]*4, ts, dt_hours=1.0)
+    for r in rows:
+        assert r["battery_mw"] <= 0.05   # <=0 means charging or idle, never discharging
+
 from data.forecast_store import get_forecast_series
 
 
