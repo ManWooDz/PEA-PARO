@@ -5,6 +5,7 @@ GET  /api/forecast/series?horizon=7day|6h   — forecast + actual series (CSV)
 GET  /api/dispatch/day-ahead                 — multi-day plan + recommendations
 POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
+import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,12 +13,14 @@ from pydantic import BaseModel
 from data.forecast_store import get_forecast_series
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
-from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly, plan_cost_token
+from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
 from models.recommendation import build_recommendations, detect_intraday_alerts
 from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
 )
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["recommendations"])
 
@@ -29,7 +32,7 @@ _STEPS_PER_HOUR = 4   # 15-min steps in 1h
 _INTRADAY_STEPS = 6 * _STEPS_PER_HOUR   # next 6h window (24 × 15-min) for early-warning
 
 
-def _island_loads(horizon: str, n_steps: int, *, step: str):
+def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float], list[float], list[float], list[datetime]]:
     """Return (loads_a, loads_b, loads_c, timestamps) for the first n_steps.
     step='15min' uses raw 15-min points; step='hourly' averages 4×15-min → hourly.
     """
@@ -51,7 +54,7 @@ def _island_loads(horizon: str, n_steps: int, *, step: str):
         for h in range(n_steps):
             w = slice(h * _STEPS_PER_HOUR, (h + 1) * _STEPS_PER_HOUR)
             wa, wb, wc = sa[w], sb[w], sc[w]
-            if not wa:
+            if not wa or not wb or not wc:
                 break
             a.append(sum(_safe(p) for p in wa) / len(wa))
             b.append(sum(_safe(p) for p in wb) / len(wb))
@@ -67,17 +70,21 @@ def _system_dispatch(strategy: str, days: int) -> list[dict]:
     solver = solve_milp if strategy == "min-cost" else solve_baseline
     if days == 1:
         a, b, c, ts = _island_loads("7day", _STEPS_PER_DAY, step="15min")   # 96 × 15-min
-        dt = 0.25
+        dt = 1.0 / _STEPS_PER_HOUR
         try:
             rows = solver(a, b, c, ts, dt_hours=dt)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
             rows = solve_baseline(a, b, c, ts, dt_hours=dt)
+        # The 7-day series starts at 09:15, so aggregate_to_hourly produces 25
+        # (day, hour) groups (first/last are partial). Slice to exactly days*24 rows.
         return aggregate_to_hourly(rows)[:days * 24]
     else:
         a, b, c, ts = _island_loads("7day", days * 24, step="hourly")
         try:
             return solver(a, b, c, ts, dt_hours=1.0)[:days * 24]
-        except Exception:
+        except Exception as exc:
+            _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
             return solve_baseline(a, b, c, ts, dt_hours=1.0)[:days * 24]
 
 
@@ -104,6 +111,8 @@ class DayAheadResponse(BaseModel):
 
 @router.get("/api/dispatch/day-ahead", response_model=DayAheadResponse)
 def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False):
+    # NOTE: has_solar is accepted for API compatibility but not modeled by the MILP
+    # (solar remains a separate scenario — see spec future work). It has no effect here.
     if strategy not in VALID_STRATEGIES:
         raise HTTPException(status_code=422, detail=f"Unknown strategy '{strategy}'.")
     if days < 1:
