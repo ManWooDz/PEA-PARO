@@ -116,6 +116,31 @@ def test_aggregate_15min_to_hourly():
     assert hourly[0]["soc_pct"] == rows15[3]["soc_pct"]      # end-of-hour SoC (last)
 
 
+from fastapi.testclient import TestClient
+
+
+def _client():
+    import main
+    return TestClient(main.app)
+
+
+def test_day_ahead_min_cost_returns_24_hourly_rows_with_line6():
+    c = _client()
+    r = c.get("/api/dispatch/day-ahead", params={"strategy": "min-cost", "days": 1})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["rows"]) == 24
+    assert all("line6_mw" in row for row in body["rows"])
+    assert body["cost"]["total_thb"] > 0
+
+
+def test_day_ahead_min_cost_cheaper_than_baseline():
+    c = _client()
+    mc = c.get("/api/dispatch/day-ahead", params={"strategy": "min-cost", "days": 1}).json()
+    bl = c.get("/api/dispatch/day-ahead", params={"strategy": "baseline", "days": 1}).json()
+    assert mc["cost"]["total_thb"] <= bl["cost"]["total_thb"] + 1.0
+
+
 from models.milp_dispatch import solve_baseline, plan_cost_token
 
 
