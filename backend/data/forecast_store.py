@@ -11,8 +11,8 @@ from pathlib import Path
 import csv
 
 _FORECAST_DIR = Path(__file__).parent / "forecasts"
-_HORIZONS = {"7day", "6h"}
-_ISLANDS = {"A", "B", "C"}
+_HORIZONS: frozenset[str] = frozenset({"7day", "6h"})
+_ISLANDS:  frozenset[str] = frozenset({"A", "B", "C"})
 
 
 @lru_cache(maxsize=12)

@@ -8,13 +8,14 @@ def test_per_island_series_lengths():
     for island in ("A", "B", "C"):
         pts = get_forecast_series("7day", island=island)
         assert len(pts) == 672, f"{island} 7day must be 672 pts, got {len(pts)}"
-        assert pts[0]["predicted_safe"] is not None
+        # every point must have a usable forecast value (catches a renamed/missing column)
+        assert all(p["predicted_safe"] is not None for p in pts), f"{island} has None predicted_safe"
 
 
 def test_island_loads_differ():
     a = get_forecast_series("7day", island="A")[0]["predicted_safe"]
     c = get_forecast_series("7day", island="C")[0]["predicted_safe"]
-    assert a > c   # Island A (~48 MW) much larger than Island C (~3 MW)
+    assert a > c * 2, f"Island A ({a}) should be far larger than Island C ({c})"
 
 
 def test_default_island_is_c():
