@@ -174,6 +174,38 @@ def plan_cost_token(rows) -> float:
     return round(sum(r["token_per_hour"] for r in rows), 1)
 
 
+def aggregate_to_hourly(rows):
+    """Collapse sub-hourly rows into one row per (day, hour): power fields = mean,
+    token_per_hour = SUM (energy adds up), SoC = end-of-hour (last), units_on = max,
+    status = the worst (most severe) status in the hour."""
+    _SEV = {"normal": 0, "grid-limited": 1, "diesel": 2, "line6-near": 3, "low-soc": 4}
+    groups: dict[tuple, list] = {}
+    order: list[tuple] = []
+    for r in rows:
+        key = (r["day"], r["hour"])
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(r)
+
+    out = []
+    mean_fields = ("load_mw", "grid_mw", "battery_mw", "diesel_a_mw",
+                   "diesel_c_mw", "solar_mw", "line6_mw")
+    for key in order:
+        g = groups[key]
+        n = len(g)
+        row = {"day": key[0], "hour": key[1]}
+        for f in mean_fields:
+            row[f] = round(sum(x[f] for x in g) / n, 3)
+        row["token_per_hour"] = round(sum(x["token_per_hour"] for x in g), 1)
+        row["soc_pct"] = g[-1]["soc_pct"]
+        row["diesel8_units_on"] = max(x["diesel8_units_on"] for x in g)
+        row["diesel9_units_on"] = max(x["diesel9_units_on"] for x in g)
+        row["status"] = max((x["status"] for x in g), key=lambda s: _SEV.get(s, 0))
+        out.append(row)
+    return out
+
+
 def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0):
     """Deterministic network-greedy baseline ('แผนปัจจุบัน') on the SAME network — no
     look-ahead. Decide the battery's naive fixed schedule first (charge in its window,

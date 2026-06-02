@@ -94,6 +94,28 @@ def test_milp_max_up_time_makes_sustained_double_diesel_infeasible():
         solve_milp([40.0] * n, [10.0] * n, [12.0] * n, ts, dt_hours=1.0)
 
 
+from models.milp_dispatch import aggregate_to_hourly
+
+
+def test_aggregate_15min_to_hourly():
+    # 8 fifteen-min steps (2 hours) → 2 hourly rows, means + last SoC.
+    from datetime import timedelta
+    base = datetime(2025, 12, 28, 9, 0)
+    ts = [base + timedelta(minutes=15 * i) for i in range(8)]
+    rows15 = [{
+        "hour": t.hour, "day": 0, "load_mw": 50.0, "grid_mw": 50.0, "battery_mw": 0.0,
+        "diesel_a_mw": 0.0, "diesel_c_mw": 0.0, "solar_mw": 0.0, "soc_pct": 60.0 - i,
+        "token_per_hour": 10.0, "status": "normal", "diesel8_units_on": 0,
+        "diesel9_units_on": 0, "line6_mw": 3.0,
+    } for i, t in enumerate(ts)]
+    hourly = aggregate_to_hourly(rows15)
+    assert len(hourly) == 2
+    assert hourly[0]["hour"] == 9 and hourly[1]["hour"] == 10
+    assert abs(hourly[0]["grid_mw"] - 50.0) < 1e-6           # mean of 4
+    assert abs(hourly[0]["token_per_hour"] - 40.0) < 1e-6    # SUM of 4 (cost adds up)
+    assert hourly[0]["soc_pct"] == rows15[3]["soc_pct"]      # end-of-hour SoC (last)
+
+
 from models.milp_dispatch import solve_baseline, plan_cost_token
 
 
