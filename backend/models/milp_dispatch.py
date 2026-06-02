@@ -161,3 +161,75 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             "line6_mw": round(f_bc, 3),
         })
     return rows
+
+
+def _units_on(power, cap):
+    return int(-(-power // cap)) if power > 0.05 else 0   # ceil(power/cap)
+
+
+def plan_cost_token(rows) -> float:
+    """Total Token cost of a plan (sum of token_per_hour)."""
+    return round(sum(r["token_per_hour"] for r in rows), 1)
+
+
+def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0):
+    """Deterministic network-greedy baseline ('แผนปัจจุบัน') on the SAME network — no
+    look-ahead. Decide the battery's naive fixed schedule first (charge in its window,
+    discharge in its window), route grid downstream to C (capped by cable 6 / cable A->B
+    with Diesel #9 covering C's remainder), then cover the A-side balance with grid
+    (capped) and Diesel #8. Node balance is exact each step.
+    Returns rows in the same shape as solve_milp for a fair cost comparison.
+    """
+    soc_mwh = init_soc_pct / 100.0 * _BAT_CAP_MWH
+    discharged = {}   # per-date MWh discharged
+    day0 = timestamps[0].date()
+    rows = []
+    for t in range(len(loads_a)):
+        ts = timestamps[t]
+        la, lb, lc = loads_a[t], loads_b[t], loads_c[t]
+
+        # 1) Battery naive schedule (decided BEFORE grid so node A balances exactly).
+        bdis = bch = 0.0
+        if _is_charge(ts):
+            headroom = max(0.0, 0.80 * _BAT_CAP_MWH - soc_mwh) / dt_hours
+            bch = min(_BAT_POWER_MW * 0.5, headroom)
+        elif _is_discharge(ts):
+            avail = max(0.0, soc_mwh - _BAT_FLOOR_MWH) / dt_hours
+            budget_left = (_BAT_DAILY_MWH - discharged.get(ts.date(), 0.0)) / dt_hours
+            bdis = max(0.0, min(_BAT_POWER_MW, avail, budget_left, la + lb + lc))
+
+        # 2) Cable flow to C: grid via Line 6 (cheap), Diesel #9 covers the remainder.
+        f_bc = min(_BC_CAP, lc)
+        d9 = min(_D9_UNITS * _D9_CAP, max(0.0, lc - f_bc))
+        f_bc = lc - d9
+        f_ab = lb + f_bc
+        if f_ab > _AB_CAP:                       # A->B cable clip -> push deficit to Diesel #9
+            extra = f_ab - _AB_CAP
+            f_ab = _AB_CAP
+            f_bc = max(0.0, f_bc - extra)
+            d9 = min(_D9_UNITS * _D9_CAP, lc - f_bc)
+            f_bc = lc - d9
+
+        # 3) Node A balance: grid_A + d8 + bdis = la + bch + f_ab
+        grid_needed = la + bch + f_ab - bdis
+        grid_A = min(_GRID_CAP, max(0.0, grid_needed))
+        d8 = min(_D8_UNITS * _D8_CAP, max(0.0, grid_needed - grid_A))
+
+        soc_mwh = min(_BAT_CAP_MWH, max(0.0, soc_mwh + (bch - bdis) * dt_hours))
+        discharged[ts.date()] = discharged.get(ts.date(), 0.0) + bdis * dt_hours
+        socp = soc_mwh / _BAT_CAP_MWH * 100.0
+        token = dt_hours * _MW_TO_KW * (
+            grid_A * _grid_rate(ts) + bdis * _C_BAT + d8 * _C_D8 + d9 * _C_D9
+        )
+        rows.append({
+            "hour": ts.hour, "day": (ts.date() - day0).days,
+            "load_mw": round(la + lb + lc, 3), "grid_mw": round(grid_A, 3),
+            "battery_mw": round(bdis - bch, 3), "diesel_a_mw": round(d8, 3),
+            "diesel_c_mw": round(d9, 3), "solar_mw": 0.0, "soc_pct": round(socp, 1),
+            "token_per_hour": round(token, 1),
+            "status": _status(grid_A, f_bc, d8, d9, socp),
+            "diesel8_units_on": _units_on(d8, _D8_CAP),
+            "diesel9_units_on": _units_on(d9, _D9_CAP),
+            "line6_mw": round(f_bc, 3),
+        })
+    return rows

@@ -92,3 +92,29 @@ def test_milp_max_up_time_makes_sustained_double_diesel_infeasible():
     # step; max-up-time 12h forbids any unit running all 14 steps → infeasible.
     with pytest.raises(RuntimeError):
         solve_milp([40.0] * n, [10.0] * n, [12.0] * n, ts, dt_hours=1.0)
+
+
+from models.milp_dispatch import solve_baseline, plan_cost_token
+
+
+def test_baseline_balances_and_respects_cables():
+    n = 4
+    la, lb, lc = [40.0]*n, [10.0]*n, [3.0]*n
+    rows = solve_baseline(la, lb, lc, _ts(n), dt_hours=1.0, init_soc_pct=65.0)
+    assert len(rows) == n
+    for i, r in enumerate(rows):
+        supply = r["grid_mw"] + max(0.0, r["battery_mw"]) + r["diesel_a_mw"] + r["diesel_c_mw"]
+        assert abs(supply - (la[i] + lb[i] + lc[i])) < 0.05
+        assert r["line6_mw"] <= _BC_CAP + 1e-3
+
+
+def test_milp_cost_not_worse_than_baseline():
+    # Same forecast; MILP (global optimum) must be <= greedy baseline.
+    n = 24
+    ts = _ts(n, start="2025-12-28T00:00:00", dt_h=1.0)
+    la = [45 + 8 * (1 if 9 <= (t.hour) <= 21 else 0) for t in ts]  # daytime peak
+    lb = [11.0] * n
+    lc = [3.0 + 2 * (1 if 18 <= t.hour <= 21 else 0) for t in ts]  # evening peak
+    milp = plan_cost_token(solve_milp(la, lb, lc, ts, dt_hours=1.0))
+    base = plan_cost_token(solve_baseline(la, lb, lc, ts, dt_hours=1.0))
+    assert milp <= base + 1.0   # MILP optimal <= greedy (tiny tolerance)
