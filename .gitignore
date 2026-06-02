@@ -63,6 +63,8 @@ Thumbs.db
 
 # ── Data ─────────────────────────────────────────────────────────────
 backend/data/*.csv
+# but DO bundle the historical CSV for Vercel deploy (docs/ is git-ignored)
+!backend/data/Historical_Load_All.csv
 
 # ── Others ─────────────────────────────────────────────────────────────
 temp/

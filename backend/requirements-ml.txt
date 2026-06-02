@@ -1,0 +1,9 @@
+# Optional ML toolchain — ONLY needed to (re)train the LSTM or regenerate the
+# forecast CSVs in backend/data/forecasts/. NOT installed on the Vercel runtime
+# (TensorFlow alone exceeds the serverless function size limit).
+#   pip install -r requirements-ml.txt
+-r requirements.txt
+scikit-learn==1.4.2
+scipy==1.13.0
+tensorflow>=2.15.0        # LSTM model loading & inference (Keras 3.x)
+holidays>=0.46            # is_holiday feature in src/preprocess.py

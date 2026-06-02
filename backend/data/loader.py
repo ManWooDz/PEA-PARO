@@ -13,13 +13,17 @@ from data.clock import now as sim_now
 
 # ── Path resolution ───────────────────────────────────────────────────────────
 _BACKEND_DIR = Path(__file__).parent.parent          # backend/
-_DOCS_DATA   = _BACKEND_DIR.parent / "docs" / "data" # project_root/docs/data/
+_LOCAL_DATA  = Path(__file__).parent                 # backend/data/  (deployed)
+_DOCS_DATA   = _BACKEND_DIR.parent / "docs" / "data" # project_root/docs/data/ (local dev)
 
-# Prefer the single combined file (Jan 2025 – Feb 2026, all 9 sources + loads).
-# Fall back to the two split files if it's absent.
-CSV_ALL = _DOCS_DATA / "Historical_Load_All.csv"
-CSV1    = _DOCS_DATA / "Historical_Load_Jan-Jun25.csv"
-CSV2    = _DOCS_DATA / "Historical_Load_July25-Feb26.csv"
+# Prefer the combined file bundled in backend/data/ (docs/ is git-ignored and
+# lives outside the serverless function root). Fall back to docs/data, then the
+# two split files, for local development.
+CSV_ALL = _LOCAL_DATA / "Historical_Load_All.csv"
+if not CSV_ALL.exists():
+    CSV_ALL = _DOCS_DATA / "Historical_Load_All.csv"
+CSV1 = _DOCS_DATA / "Historical_Load_Jan-Jun25.csv"
+CSV2 = _DOCS_DATA / "Historical_Load_July25-Feb26.csv"
 
 BAT_CAPACITY_MWH = 30.0
 SOC_START_MWH    = 18.0   # 60 % initial SoC

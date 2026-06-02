@@ -2,10 +2,15 @@
 Koh Tao / 3-Island EMS — FastAPI Backend
 Run: uvicorn main:app --reload --port 8000
 """
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from data.loader import load_historical
-from routers import realtime, dispatch, forecast, alerts, ml_forecast, weather, recommendations, notify, report
+# NOTE: ml_forecast (live LSTM) is intentionally NOT registered — runtime serves
+# precomputed forecasts from CSV, so TensorFlow isn't needed (keeps the serverless
+# bundle small). Install requirements-ml.txt + re-add the router for live inference.
+from routers import realtime, dispatch, forecast, alerts, weather, recommendations, notify, report
 
 app = FastAPI(
     title="PEA Island EMS API",
@@ -13,10 +18,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS origins from env (comma-separated), or "*" to allow all.
+# Default keeps local dev working; on Vercel set CORS_ALLOW_ORIGINS to the
+# frontend domain (or "*" for the demo).
+_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").strip()
+_allow_origins = ["*"] if _origins_env == "*" else [o.strip() for o in _origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
+    allow_origins=_allow_origins,
+    allow_credentials=False if _allow_origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -29,7 +40,6 @@ app.include_router(realtime.router)
 app.include_router(dispatch.router)
 app.include_router(forecast.router)
 app.include_router(alerts.router)
-app.include_router(ml_forecast.router)
 app.include_router(weather.router)
 app.include_router(notify.router)
 app.include_router(report.router)
