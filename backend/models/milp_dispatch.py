@@ -21,6 +21,8 @@ _BC_CAP   = LINES[6]["limit_mw"]                                                
 _BAT_CAP_MWH   = BATTERY_7["capacity_mwh"]                 # 30
 _BAT_POWER_MW  = BATTERY_7["capacity_mw"]                  # 12.5
 _BAT_FLOOR_MWH = 0.20 * _BAT_CAP_MWH                       # 6  (20% floor)
+_BAT_CHARGE_TARGET_MWH    = 0.80 * _BAT_CAP_MWH   # baseline charges only to 80% (leaves headroom)
+_BAT_BASELINE_CHARGE_RATE = 0.5                   # baseline charges at 50% of max power (conservative)
 _BAT_DAILY_MWH = BATTERY_7["daily_discharge_avg_mwh"]      # 25
 _D8_UNITS, _D8_CAP = DIESEL_8["units"], DIESEL_8["capacity_per_unit_mw"]  # 3 x 5
 _D9_UNITS, _D9_CAP = DIESEL_9["units"], DIESEL_9["capacity_per_unit_mw"]  # 2 x 2.5
@@ -164,7 +166,7 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
 
 
 def _units_on(power, cap):
-    return int(-(-power // cap)) if power > 0.05 else 0   # ceil(power/cap)
+    return int(-(-power // cap)) if power > _DIESEL_ON_MW else 0   # ceil(power/cap)
 
 
 def plan_cost_token(rows) -> float:
@@ -191,8 +193,8 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
         # 1) Battery naive schedule (decided BEFORE grid so node A balances exactly).
         bdis = bch = 0.0
         if _is_charge(ts):
-            headroom = max(0.0, 0.80 * _BAT_CAP_MWH - soc_mwh) / dt_hours
-            bch = min(_BAT_POWER_MW * 0.5, headroom)
+            headroom = max(0.0, _BAT_CHARGE_TARGET_MWH - soc_mwh) / dt_hours
+            bch = min(_BAT_POWER_MW * _BAT_BASELINE_CHARGE_RATE, headroom)
         elif _is_discharge(ts):
             avail = max(0.0, soc_mwh - _BAT_FLOOR_MWH) / dt_hours
             budget_left = (_BAT_DAILY_MWH - discharged.get(ts.date(), 0.0)) / dt_hours

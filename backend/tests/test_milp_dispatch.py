@@ -103,7 +103,7 @@ def test_baseline_balances_and_respects_cables():
     rows = solve_baseline(la, lb, lc, _ts(n), dt_hours=1.0, init_soc_pct=65.0)
     assert len(rows) == n
     for i, r in enumerate(rows):
-        supply = r["grid_mw"] + max(0.0, r["battery_mw"]) + r["diesel_a_mw"] + r["diesel_c_mw"]
+        supply = r["grid_mw"] + r["battery_mw"] + r["diesel_a_mw"] + r["diesel_c_mw"]
         assert abs(supply - (la[i] + lb[i] + lc[i])) < 0.05
         assert r["line6_mw"] <= _BC_CAP + 1e-3
 
