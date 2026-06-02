@@ -71,7 +71,8 @@ def _grid_cap_at(grid_cap, t: int) -> float:
     return _GRID_CAP
 
 
-def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0, grid_cap=None):
+def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0, grid_cap=None,
+               d8_units=None, d9_units=None):
     """Solve the dispatch MILP. Inputs are per-step lists (MW) + datetimes.
 
     grid_cap: optional per-step main-grid availability (MW) that bounds grid import each
@@ -80,6 +81,8 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
     Raises RuntimeError if the solver does not reach optimality.
     """
     T = len(loads_a)
+    n8 = _D8_UNITS if d8_units is None else int(d8_units)
+    n9 = _D9_UNITS if d9_units is None else int(d9_units)
     p = pulp.LpProblem("dispatch", pulp.LpMinimize)
 
     grid = [pulp.LpVariable(f"grid_{t}", lowBound=0, upBound=_grid_cap_at(grid_cap, t)) for t in range(T)]
@@ -88,10 +91,10 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
     bch  = [pulp.LpVariable(f"bch_{t}",  lowBound=0, upBound=_BAT_POWER_MW)  for t in range(T)]
     bdis = [pulp.LpVariable(f"bdis_{t}", lowBound=0, upBound=_BAT_POWER_MW)  for t in range(T)]
     soc  = [pulp.LpVariable(f"soc_{t}",  lowBound=_BAT_FLOOR_MWH, upBound=_BAT_CAP_MWH) for t in range(T)]
-    d8   = [[pulp.LpVariable(f"d8_{t}_{j}", lowBound=0, upBound=_D8_CAP) for j in range(_D8_UNITS)] for t in range(T)]
-    d9   = [[pulp.LpVariable(f"d9_{t}_{k}", lowBound=0, upBound=_D9_CAP) for k in range(_D9_UNITS)] for t in range(T)]
-    on8  = [[pulp.LpVariable(f"on8_{t}_{j}", cat="Binary") for j in range(_D8_UNITS)] for t in range(T)]
-    on9  = [[pulp.LpVariable(f"on9_{t}_{k}", cat="Binary") for k in range(_D9_UNITS)] for t in range(T)]
+    d8   = [[pulp.LpVariable(f"d8_{t}_{j}", lowBound=0, upBound=_D8_CAP) for j in range(n8)] for t in range(T)]
+    d9   = [[pulp.LpVariable(f"d9_{t}_{k}", lowBound=0, upBound=_D9_CAP) for k in range(n9)] for t in range(T)]
+    on8  = [[pulp.LpVariable(f"on8_{t}_{j}", cat="Binary") for j in range(n8)] for t in range(T)]
+    on9  = [[pulp.LpVariable(f"on9_{t}_{k}", cat="Binary") for k in range(n9)] for t in range(T)]
 
     init_soc = init_soc_pct / 100.0 * _BAT_CAP_MWH
 
@@ -111,9 +114,9 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         if not _is_discharge(ts):
             p += bdis[t] == 0
         # diesel capacity gating
-        for j in range(_D8_UNITS):
+        for j in range(n8):
             p += d8[t][j] <= _D8_CAP * on8[t][j]
-        for k in range(_D9_UNITS):
+        for k in range(n9):
             p += d9[t][k] <= _D9_CAP * on9[t][k]
 
     # battery daily discharge budget (per calendar date)
@@ -122,7 +125,7 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         p += pulp.lpSum(bdis[t] * dt_hours for t in idxs) <= _BAT_DAILY_MWH
 
     # diesel max-up-time: in any window of W+1 steps, sum(on) <= W  (W = max-up in steps)
-    for onv, n, max_up in ((on8, _D8_UNITS, _MAX_UP_HOURS_D8), (on9, _D9_UNITS, _MAX_UP_HOURS_D9)):
+    for onv, n, max_up in ((on8, n8, _MAX_UP_HOURS_D8), (on9, n9, _MAX_UP_HOURS_D9)):
         W = max(1, int(round(max_up / dt_hours)))
         for u in range(n):
             for s in range(0, T - W):
