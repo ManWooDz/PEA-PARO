@@ -117,6 +117,7 @@ class DispatchRow(BaseModel):
     diesel8_units_on: int
     diesel9_units_on: int
     day: int = 0                   # 0-indexed day offset (multi-day plans); single-day = 0
+    line6_mw: float = 0.0          # MW flowing through Line 6 to Island C (MILP plans)
 
 
 class CostBreakdown(BaseModel):

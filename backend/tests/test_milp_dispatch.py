@@ -21,3 +21,17 @@ def test_island_loads_differ():
 def test_default_island_is_c():
     # Backward-compat: no island arg → Island C series.
     assert get_forecast_series("7day") == get_forecast_series("7day", island="C")
+
+
+from models.schemas import DispatchRow
+
+
+def test_dispatchrow_has_line6_field_default_zero():
+    row = DispatchRow(
+        hour=0, load_mw=1.0, grid_mw=1.0, battery_mw=0.0, diesel_a_mw=0.0,
+        diesel_c_mw=0.0, soc_pct=50.0, token_per_hour=0.0, status="normal",
+        diesel8_units_on=0, diesel9_units_on=0,
+    )
+    assert row.line6_mw == 0.0
+    row2 = DispatchRow(**{**row.model_dump(), "line6_mw": 3.2})
+    assert row2.line6_mw == 3.2
