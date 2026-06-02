@@ -63,16 +63,26 @@ def _status(g, f_bc, sd8, sd9, soc_pct) -> str:
     return "normal"
 
 
-def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0):
+def _grid_cap_at(grid_cap, t: int) -> float:
+    """Per-step main-grid availability cap (MW), clamped to the physical cable limit.
+    grid_cap None → the full physical _GRID_CAP."""
+    if grid_cap is not None and t < len(grid_cap):
+        return min(max(0.0, float(grid_cap[t])), _GRID_CAP)
+    return _GRID_CAP
+
+
+def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0, grid_cap=None):
     """Solve the dispatch MILP. Inputs are per-step lists (MW) + datetimes.
 
+    grid_cap: optional per-step main-grid availability (MW) that bounds grid import each
+    step (clamped to the physical cable limit). None → the full physical limit.
     Returns one DispatchRow-compatible dict per step (system asset schedule + line6_mw).
     Raises RuntimeError if the solver does not reach optimality.
     """
     T = len(loads_a)
     p = pulp.LpProblem("dispatch", pulp.LpMinimize)
 
-    grid = [pulp.LpVariable(f"grid_{t}", lowBound=0, upBound=_GRID_CAP) for t in range(T)]
+    grid = [pulp.LpVariable(f"grid_{t}", lowBound=0, upBound=_grid_cap_at(grid_cap, t)) for t in range(T)]
     fab  = [pulp.LpVariable(f"fab_{t}",  lowBound=0, upBound=_AB_CAP)   for t in range(T)]
     fbc  = [pulp.LpVariable(f"fbc_{t}",  lowBound=0, upBound=_BC_CAP)   for t in range(T)]
     bch  = [pulp.LpVariable(f"bch_{t}",  lowBound=0, upBound=_BAT_POWER_MW)  for t in range(T)]
@@ -206,12 +216,13 @@ def aggregate_to_hourly(rows):
     return out
 
 
-def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0):
+def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=65.0, grid_cap=None):
     """Deterministic network-greedy baseline ('แผนปัจจุบัน') on the SAME network — no
     look-ahead. Decide the battery's naive fixed schedule first (charge in its window,
     discharge in its window), route grid downstream to C (capped by cable 6 / cable A->B
     with Diesel #9 covering C's remainder), then cover the A-side balance with grid
-    (capped) and Diesel #8. Node balance is exact each step.
+    (capped by availability) and Diesel #8. Node balance is exact each step.
+    grid_cap: optional per-step main-grid availability (MW). None → physical limit.
     Returns rows in the same shape as solve_milp for a fair cost comparison.
     """
     soc_mwh = init_soc_pct / 100.0 * _BAT_CAP_MWH
@@ -246,7 +257,7 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
 
         # 3) Node A balance: grid_A + d8 + bdis = la + bch + f_ab
         grid_needed = la + bch + f_ab - bdis
-        grid_A = min(_GRID_CAP, max(0.0, grid_needed))
+        grid_A = min(_grid_cap_at(grid_cap, t), max(0.0, grid_needed))
         d8 = min(_D8_UNITS * _D8_CAP, max(0.0, grid_needed - grid_A))
 
         soc_mwh = min(_BAT_CAP_MWH, max(0.0, soc_mwh + (bch - bdis) * dt_hours))

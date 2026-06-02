@@ -48,6 +48,18 @@ def test_milp_battery_only_discharges_in_window():
     for r in rows:
         assert r["battery_mw"] <= 0.05   # <=0 means charging or idle, never discharging
 
+
+def test_milp_grid_cap_forces_local_generation():
+    # Grid capped below system load → MILP must use battery/diesel for the deficit.
+    n = 4
+    la, lb, lc = [45.0]*n, [11.0]*n, [3.0]*n     # total system load 59 MW
+    grid_cap = [40.0]*n                          # only 40 MW main-grid available
+    rows = solve_milp(la, lb, lc, _ts(n), dt_hours=1.0, grid_cap=grid_cap)
+    for r in rows:
+        assert r["grid_mw"] <= 40.0 + 1e-3                       # respects the availability cap
+        local = max(0.0, r["battery_mw"]) + r["diesel_a_mw"] + r["diesel_c_mw"]
+        assert local >= (59.0 - 40.0) - 0.1                     # covers the ~19 MW deficit
+
 from data.forecast_store import get_forecast_series
 
 

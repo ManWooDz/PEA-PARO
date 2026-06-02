@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series
+from data.loader import get_grid_availability
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
 from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
@@ -71,21 +72,23 @@ def _system_dispatch(strategy: str, days: int) -> list[dict]:
     if days == 1:
         a, b, c, ts = _island_loads("7day", _STEPS_PER_DAY, step="15min")   # 96 × 15-min
         dt = 1.0 / _STEPS_PER_HOUR
+        grid_cap = get_grid_availability(ts)   # real main-grid supply per 15-min step
         try:
-            rows = solver(a, b, c, ts, dt_hours=dt)
+            rows = solver(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
         except Exception as exc:
             _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
-            rows = solve_baseline(a, b, c, ts, dt_hours=dt)
+            rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
         # The 7-day series starts at 09:15, so aggregate_to_hourly produces 25
         # (day, hour) groups (first/last are partial). Slice to exactly days*24 rows.
         return aggregate_to_hourly(rows)[:days * 24]
     else:
         a, b, c, ts = _island_loads("7day", days * 24, step="hourly")
+        grid_cap = get_grid_availability(ts)   # real main-grid supply per hour
         try:
-            return solver(a, b, c, ts, dt_hours=1.0)[:days * 24]
+            return solver(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
         except Exception as exc:
             _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
-            return solve_baseline(a, b, c, ts, dt_hours=1.0)[:days * 24]
+            return solve_baseline(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
 
 
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
