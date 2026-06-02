@@ -71,10 +71,9 @@ def test_grid_drop_increases_local_support_vs_safe_base():
     la, lb, lc = [44.0]*n, [11.0]*n, [3.0]*n
     res = evaluate_scenarios(la, lb, lc, _ts(n), _grid(n, 58.0), dt_hours=1.0)
     gd = next(r for r in res if r["id"] == "grid-drop")
-    assert gd["status"] in ("manage", "fail")
-    if gd["status"] == "manage":
-        assert gd["peak_support_mw"] > 0.0
-        assert gd["assets"]              # at least one asset to pre-stage
+    assert gd["status"] == "manage"          # grid drop forces local support, but system copes
+    assert gd["peak_support_mw"] > 0.0
+    assert gd["assets"]                       # at least one asset to pre-stage
 
 
 def test_infeasible_scenario_is_fail_not_exception():

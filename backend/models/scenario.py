@@ -8,11 +8,12 @@ pre-emptive action. Each scenario is compared against a base plan (the current
 optimum). See docs/superpowers/specs/2026-06-03-intraday-scenario-cards-design.md.
 """
 from models.milp_dispatch import solve_milp, plan_cost_token
+from data.seed import DIESEL_9
 
 # Fixed, demo-tuned stress factors (not user-adjustable).
 GRID_DROP = 0.20       # main-grid availability falls 20%
 LOAD_SPIKE = 0.15      # system-wide load rises 15%
-D9_TRIP_UNITS = 1      # Diesel #9 loses one of its two units
+D9_TRIP_UNITS = DIESEL_9["units"] - 1   # units REMAINING after one of Diesel #9's units trips
 
 _SUPPORT_MARGIN_MW = 0.1     # local-support peak must exceed base by this to count as "manage"
 _DIESEL_LEAD_MIN = 15        # radio + start lead time for a diesel unit
