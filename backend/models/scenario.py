@@ -7,6 +7,10 @@ one adverse change applied, and report whether the system copes plus the recomme
 pre-emptive action. Each scenario is compared against a base plan (the current
 optimum). See docs/superpowers/specs/2026-06-03-intraday-scenario-cards-design.md.
 """
+import logging
+
+_log = logging.getLogger(__name__)
+
 from models.milp_dispatch import solve_milp, plan_cost_token
 from data.seed import DIESEL_9
 
@@ -76,8 +80,12 @@ def evaluate_scenarios(loads_a, loads_b, loads_c, timestamps, grid_cap, *, dt_ho
     """Solve a base plan, then re-solve each of the 3 scenarios with its stress applied.
     Returns a list of result dicts (see _ok_result / _fail_result). A scenario that the
     MILP cannot solve is returned as a 'fail' result, never raised."""
-    base = solve_milp(loads_a, loads_b, loads_c, timestamps,
-                      dt_hours=dt_hours, init_soc_pct=soc_pct, grid_cap=grid_cap)
+    try:
+        base = solve_milp(loads_a, loads_b, loads_c, timestamps,
+                          dt_hours=dt_hours, init_soc_pct=soc_pct, grid_cap=grid_cap)
+    except RuntimeError as exc:
+        _log.warning("base scenario solve infeasible (%s); all scenarios reported as fail", exc)
+        return [_fail_result(sc) for sc in _SCENARIOS]
     base_cost = plan_cost_token(base)
     base_peak = _peak_by_source(base)
 

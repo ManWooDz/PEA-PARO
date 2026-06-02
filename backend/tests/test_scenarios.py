@@ -107,3 +107,12 @@ def test_scenarios_endpoint_returns_three_cards():
         assert s["status"] in ("safe", "manage", "fail")
         assert isinstance(s["assets"], list)
         assert "action" in s
+
+
+def test_infeasible_base_returns_all_fail():
+    # Base itself infeasible (Island C load 20 MW >> Line 6 cap 8 + Diesel #9 5 MW)
+    # → every scenario is reported as 'fail', no exception escapes.
+    n = 1
+    res = evaluate_scenarios([40.0]*n, [10.0]*n, [20.0]*n, _ts(n), _grid(n, 60.0), dt_hours=1.0)
+    assert len(res) == 3
+    assert all(r["status"] == "fail" for r in res)
