@@ -1,6 +1,12 @@
 import axios from 'axios'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// In production (Vercel) the backend is served same-origin under /_/backend
+// (see vercel.json routePrefix) — so no env var or CORS config is needed.
+// Local dev uses the separate uvicorn server on :8000.
+// Override with NEXT_PUBLIC_API_URL if your routing differs.
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'production' ? '/_/backend' : 'http://localhost:8000')
 
 const api = axios.create({
   baseURL: API_BASE,
