@@ -80,3 +80,6 @@ ml/prophet_lstm/data/weather_koh_tao.csv
 ml/prophet_lstm/results/
 # Visual brainstorming companion
 .superpowers/
+
+.vercel
+.env*
