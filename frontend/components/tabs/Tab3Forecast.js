@@ -11,6 +11,7 @@ import { useWeather } from '@/hooks/useWeather'
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt1 = v => (v == null ? '—' : Number(v).toFixed(1))
 const fmt0 = v => (v == null ? '—' : Number(v).toFixed(0))
+const fmt2 = v => (v == null ? '—' : Number(v).toFixed(2))   // chart tooltips: match dispatch-tab precision
 const fmtB = v =>
   v == null ? '—' : `฿${Number(v).toLocaleString('th-TH', { maximumFractionDigits: 0 })}`
 
@@ -39,7 +40,7 @@ function ForecastTip({ active, payload, label }) {
         <div key={p.dataKey} className="flex items-center gap-2">
           <span style={{ color: p.color ?? p.fill }}>●</span>
           <span className="text-muted">{p.name}</span>
-          <span className="mono">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt2(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -57,7 +58,7 @@ function DispatchTip({ active, payload, label }) {
             <span style={{ color: p.fill }}>●</span>
             <span className="text-muted">{p.name}</span>
           </div>
-          <span className="mono">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt2(p.value)} MW</span>
         </div>
       ))}
     </div>
@@ -75,7 +76,7 @@ function WeekTip({ active, payload, label }) {
             <span style={{ color: p.color }}>●</span>
             <span className="text-muted">{p.name}</span>
           </div>
-          <span className="mono">{fmt1(p.value)} MW</span>
+          <span className="mono">{fmt2(p.value)} MW</span>
         </div>
       ))}
     </div>

@@ -283,7 +283,6 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
       t: p.ts?.slice(11, 16) ?? "",
       Grid: +(p.grid_mw?.toFixed(2) ?? 0),
       Battery: +(p.battery_mw?.toFixed(2) ?? 0),
-      "Diesel A": +(p.diesel_a_mw?.toFixed(2) ?? 0),
       "Diesel C": +(p.diesel_c_mw?.toFixed(2) ?? 0),
     })) ?? [];
 
@@ -509,7 +508,9 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
               <div className="text-[10.5px] uppercase eyebrow text-muted">
                 Energy Mix · Per Hour
               </div>
-              <div className="text-xs text-muted mt-0.5">Last 12 hours</div>
+              <div className="text-xs text-muted mt-0.5 thai">
+                12 ชม. ล่าสุด · การเดินเครื่องจริงในอดีต (ไม่ใช่แผน optimize)
+              </div>
             </div>
             <div className="flex items-center gap-2 text-[10px] flex-wrap justify-end">
               <span className="flex items-center gap-1">
@@ -517,7 +518,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   className="w-2 h-2 rounded-full"
                   style={{ background: "var(--primary)" }}
                 />
-                Grid
+                Grid (Line 6)
               </span>
               <span className="flex items-center gap-1">
                 <span
@@ -525,13 +526,6 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   style={{ background: "#10b981" }}
                 />
                 BESS
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "#f59e0b" }}
-                />
-                Diesel A
               </span>
               <span className="flex items-center gap-1">
                 <span
@@ -565,9 +559,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   unit=" MW"
                 />
                 <Tooltip content={<LoadTip />} />
-                <Bar dataKey="Grid" stackId="a" fill="var(--primary)" />
-                <Bar dataKey="Battery" stackId="a" fill="#10b981" />
-                <Bar dataKey="Diesel A" stackId="a" fill="#f59e0b" />
+                <Bar dataKey="Grid" name="Grid (Line 6)" stackId="a" fill="var(--primary)" />
+                <Bar dataKey="Battery" name="BESS" stackId="a" fill="#10b981" />
                 <Bar
                   dataKey="Diesel C"
                   stackId="a"
