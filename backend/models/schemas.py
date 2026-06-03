@@ -117,6 +117,7 @@ class DispatchRow(BaseModel):
     diesel8_units_on: int
     diesel9_units_on: int
     day: int = 0                   # 0-indexed day offset (multi-day plans); single-day = 0
+    line6_mw: float = 0.0          # MW flowing through Line 6 to Island C (MILP plans)
 
 
 class CostBreakdown(BaseModel):
@@ -264,3 +265,20 @@ class ForecastSeriesPoint(BaseModel):
 class ForecastSeriesResponse(BaseModel):
     horizon: str
     points:  list[ForecastSeriesPoint]
+
+
+class ScenarioResult(BaseModel):
+    id:              str
+    label:           str
+    icon:            str
+    trigger:         str
+    status:          Literal["safe", "manage", "fail"]
+    peak_support_mw: float
+    extra_cost_thb:  float
+    assets:          list[str]
+    action:          str
+    lead_min:        int
+
+
+class ScenariosResponse(BaseModel):
+    scenarios: list[ScenarioResult]

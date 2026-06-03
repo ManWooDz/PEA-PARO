@@ -10,5 +10,6 @@ numpy==1.26.4
 python-multipart==0.0.9
 httpx==0.27.0
 requests>=2.31.0          # LINE push + Open-Meteo weather calls
+pulp==2.8.0               # MILP modeling + bundled CBC solver (no system deps)
 pytest==8.2.0
 pytest-asyncio==0.23.6

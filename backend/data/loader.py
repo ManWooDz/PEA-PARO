@@ -39,6 +39,7 @@ _COL_MAP = {
     "7 (Battery A)":"battery_mw",
     "8 (Diesel A)": "diesel_a_mw",
     "9 (Diesel C)": "diesel_c_mw",
+    "Grid":         "grid_avail_mw",   # main-grid supply (cable 1+2+3) — availability cap
     "Load A":       "load_a_mw",
     "Load B":       "load_b_mw",
     "Load C":       "load_c_mw",
@@ -154,6 +155,25 @@ def load_historical() -> pd.DataFrame:
     print(f"[loader] Total {len(_df)} rows | "
           f"{_df['timestamp'].min().date()} to {_df['timestamp'].max().date()}")
     return _df
+
+
+def get_grid_availability(timestamps) -> list[float]:
+    """Main-grid availability (MW) at each timestamp, from the historical 'Grid'
+    column (cable 1+2+3). Used as the per-step grid cap in the MILP. Falls back to
+    the sum of lines 1-3, then to the physical 72 MW, if the column is missing.
+    """
+    df = load_historical()
+    if "grid_avail_mw" in df.columns:
+        series = df["grid_avail_mw"]
+    else:
+        cols = [c for c in ("line1_mw", "line2_mw", "line3_mw") if c in df.columns]
+        series = df[cols].sum(axis=1) if cols else None
+    if series is None:
+        return [72.0] * len(timestamps)
+    s = pd.Series(series.values, index=df["timestamp"]).sort_index()
+    targets = pd.DatetimeIndex([pd.Timestamp(t) for t in timestamps])
+    vals = s.reindex(targets, method="nearest")
+    return [float(v) if pd.notna(v) else 72.0 for v in vals]
 
 
 def load_hourly() -> pd.DataFrame:

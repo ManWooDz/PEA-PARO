@@ -1,0 +1,55 @@
+# ── PEA-PARO full-stack deployment (single host) ────────────────────────────
+# Caddy terminates HTTPS and reverse-proxies:
+#   https://$SITE_ADDRESS/api/*  → backend  (FastAPI, :8000)
+#   https://$SITE_ADDRESS/*      → frontend (Next.js, :3000)
+# Frontend + backend are same-origin, so no CORS config is needed.
+#
+# One variable drives everything — set it in a .env file next to this file:
+#   SITE_ADDRESS=<your-ec2-public-ip-with-dashes>.sslip.io   (e.g. 13-250-1-2.sslip.io)
+#
+# Bring up:   docker compose up -d --build
+# Logs:       docker compose logs -f
+# Update:     git pull && docker compose up -d --build
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      - PEA_SIM_NOW=2025-12-28T09:15:00
+    volumes:
+      # Historical_Load_All.csv is gitignored → supply it from the host.
+      - ./docs/data:/app/docs/data:ro
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Inlined into the client bundle at build time (public origin).
+        NEXT_PUBLIC_API_URL: "https://${SITE_ADDRESS}"
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+volumes:
+  caddy_data:
+  caddy_config:

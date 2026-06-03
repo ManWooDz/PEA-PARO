@@ -5,18 +5,25 @@ GET  /api/forecast/series?horizon=7day|6h   — forecast + actual series (CSV)
 GET  /api/dispatch/day-ahead                 — multi-day plan + recommendations
 POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
+import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series
+from data.loader import get_grid_availability
 from data.seed import PRACTICAL_GRID_KW
-from models.dispatch_optimizer import build_multi_day_plan, compute_plan_cost
+from models.dispatch_optimizer import compute_plan_cost
+from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
+from models.scenario import evaluate_scenarios
 from models.recommendation import build_recommendations, detect_intraday_alerts
 from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
+    ScenarioResult, ScenariosResponse,
 )
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["recommendations"])
 
@@ -28,36 +35,62 @@ _STEPS_PER_HOUR = 4   # 15-min steps in 1h
 _INTRADAY_STEPS = 6 * _STEPS_PER_HOUR   # next 6h window (24 × 15-min) for early-warning
 
 
-def _aggregate_to_hourly_kw(series, hours: int) -> list[float]:
-    """Average 15-min predicted_safe (MW) into hourly kW; pad/truncate to `hours`."""
-    out: list[float] = []
-    for h in range(hours):
-        window = series[h * _STEPS_PER_HOUR:(h + 1) * _STEPS_PER_HOUR]
-        if not window:
-            break
-        vals = [p["predicted_safe"] for p in window if p.get("predicted_safe") is not None]
-        avg_mw = (sum(vals) / len(vals)) if vals else 0.0
-        out.append(avg_mw * 1000.0)
-    if not out:
-        out = [3200.0] * hours
-    while len(out) < hours:
-        out.append(out[-1])
-    return out
+def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float], list[float], list[float], list[datetime]]:
+    """Return (loads_a, loads_b, loads_c, timestamps) for the first n_steps.
+    step='15min' uses raw 15-min points; step='hourly' averages 4×15-min → hourly.
+    """
+    sa = get_forecast_series(horizon, island="A")
+    sb = get_forecast_series(horizon, island="B")
+    sc = get_forecast_series(horizon, island="C")
+
+    def _safe(pt):
+        v = pt.get("predicted_safe")
+        return float(v) if v is not None else 0.0
+
+    if step == "15min":
+        a = [_safe(p) for p in sa[:n_steps]]
+        b = [_safe(p) for p in sb[:n_steps]]
+        c = [_safe(p) for p in sc[:n_steps]]
+        ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in range(min(n_steps, len(sa)))]
+    else:  # hourly
+        a, b, c, ts = [], [], [], []
+        for h in range(n_steps):
+            w = slice(h * _STEPS_PER_HOUR, (h + 1) * _STEPS_PER_HOUR)
+            wa, wb, wc = sa[w], sb[w], sc[w]
+            if not wa or not wb or not wc:
+                break
+            a.append(sum(_safe(p) for p in wa) / len(wa))
+            b.append(sum(_safe(p) for p in wb) / len(wb))
+            c.append(sum(_safe(p) for p in wc) / len(wc))
+            ts.append(datetime.fromisoformat(str(wa[0]["datetime"])))
+    return a, b, c, ts
 
 
-def _weekday_flags(series, days: int) -> list[bool]:
-    """Derive Mon-Fri (peak pricing) flag per day from the forecast datetimes."""
-    flags: list[bool] = []
-    for d in range(days):
-        idx = d * _STEPS_PER_DAY
-        wd = True
-        if idx < len(series):
-            try:
-                wd = datetime.fromisoformat(str(series[idx]["datetime"])).weekday() < 5
-            except ValueError:
-                wd = True
-        flags.append(wd)
-    return flags
+def _system_dispatch(strategy: str, days: int) -> list[dict]:
+    """Build the 3-island system plan. min-cost→MILP, baseline→network-greedy.
+    24h (days==1) solves at 15-min then aggregates to hourly; multi-day solves hourly.
+    Falls back to the greedy baseline if the MILP solver fails."""
+    solver = solve_milp if strategy == "min-cost" else solve_baseline
+    if days == 1:
+        a, b, c, ts = _island_loads("7day", _STEPS_PER_DAY, step="15min")   # 96 × 15-min
+        dt = 1.0 / _STEPS_PER_HOUR
+        grid_cap = get_grid_availability(ts)   # real main-grid supply per 15-min step
+        try:
+            rows = solver(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+        except Exception as exc:
+            _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
+            rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+        # The 7-day series starts at 09:15, so aggregate_to_hourly produces 25
+        # (day, hour) groups (first/last are partial). Slice to exactly days*24 rows.
+        return aggregate_to_hourly(rows)[:days * 24]
+    else:
+        a, b, c, ts = _island_loads("7day", days * 24, step="hourly")
+        grid_cap = get_grid_availability(ts)   # real main-grid supply per hour
+        try:
+            return solver(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
+        except Exception as exc:
+            _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
+            return solve_baseline(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
 
 
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
@@ -83,19 +116,15 @@ class DayAheadResponse(BaseModel):
 
 @router.get("/api/dispatch/day-ahead", response_model=DayAheadResponse)
 def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False):
+    # NOTE: has_solar is accepted for API compatibility but not modeled by the MILP
+    # (solar remains a separate scenario — see spec future work). It has no effect here.
     if strategy not in VALID_STRATEGIES:
         raise HTTPException(status_code=422, detail=f"Unknown strategy '{strategy}'.")
     if days < 1:
         raise HTTPException(status_code=422, detail="days must be >= 1.")
     if days > 7:
         raise HTTPException(status_code=422, detail="days must be <= 7 (7-day forecast horizon).")
-    series = get_forecast_series("7day")
-    hourly_kw = _aggregate_to_hourly_kw(series, hours=days * 24)
-    weekday_flags = _weekday_flags(series, days=days)
-    rows = build_multi_day_plan(
-        hourly_kw, days=days, strategy=strategy, has_solar=has_solar,
-        weekday_flags=weekday_flags,
-    )
+    rows = _system_dispatch(strategy, days)
     cost = compute_plan_cost(rows)
     recs = build_recommendations(rows)
     return DayAheadResponse(
@@ -127,3 +156,17 @@ def intraday_alerts(req: IntradayRequest):
     return RecommendationsResponse(
         recommendations=[Recommendation(**a) for a in alert_items],
     )
+
+
+class ScenarioRequest(BaseModel):
+    soc_pct: float = 60.0
+
+
+@router.post("/api/intraday/scenarios", response_model=ScenariosResponse)
+def intraday_scenarios(req: ScenarioRequest):
+    # Stress-test the next 6h window (24 × 15-min) against 3 fixed contingencies.
+    a, b, c, ts = _island_loads("6h", _INTRADAY_STEPS, step="15min")
+    grid_cap = get_grid_availability(ts)
+    dt = 1.0 / _STEPS_PER_HOUR
+    results = evaluate_scenarios(a, b, c, ts, grid_cap, dt_hours=dt, soc_pct=req.soc_pct)
+    return ScenariosResponse(scenarios=[ScenarioResult(**r) for r in results])

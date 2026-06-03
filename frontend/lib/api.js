@@ -51,6 +51,9 @@ export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = fals
 export const fetchIntradayAlerts = (body = {}) =>
   api.post('/api/intraday/alerts', body).then(r => r.data)
 
+export const fetchIntradayScenarios = (body = {}) =>
+  api.post('/api/intraday/scenarios', body, { timeout: 30000 }).then(r => r.data)
+
 // ── Report (Tab-bar "รายงาน") ────────────────────────────────────────────────
 export const reportUrl = ({ scope = 'current', tab = 'realtime', format = 'html' } = {}) =>
   `${API_BASE}/api/report?scope=${encodeURIComponent(scope)}&tab=${encodeURIComponent(tab)}&format=${encodeURIComponent(format)}`

@@ -1,0 +1,15 @@
+# Caddy reverse proxy. $SITE_ADDRESS comes from the environment (docker-compose).
+# Because it is a real resolvable hostname (sslip.io maps <ip>.sslip.io → <ip>),
+# Caddy automatically obtains a Let's Encrypt certificate → real HTTPS, no domain
+# purchase. Requires ports 80 + 443 open in the EC2 security group.
+{$SITE_ADDRESS} {
+	# API calls go to FastAPI. The backend's routes are already /api/*-prefixed.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

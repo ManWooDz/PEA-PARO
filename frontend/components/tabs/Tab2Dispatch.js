@@ -22,8 +22,9 @@ import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggl
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
+import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
-import { useDayAhead, useIntradayAlerts } from "@/hooks/useRecommendations";
+import { useDayAheadPlans, useIntradayAlerts, useIntradayScenarios } from "@/hooks/useRecommendations";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -399,17 +400,16 @@ export function Tab2Dispatch({
   const [mode, setMode] = useState("day-ahead");
   const [horizonDays, setHorizonDays] = useState(1); // 1 = 24h · 7 = 7 วัน
   const fc = useForecastSeries(mode === "intra-day" ? "6h" : "7day");
-  const dayAhead = useDayAhead({
-    strategy: activeId === "custom" ? "min-cost" : activeId,
-    days: horizonDays,
-    hasSolar,
-  });
+  // MILP day-ahead plans (baseline + min-cost). Custom keeps its slider plan (plans.custom).
+  const da = useDayAheadPlans({ days: horizonDays, hasSolar });
+  const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+  const scenarioData = useIntradayScenarios({ soc_pct: 60 });
 
-  const baselinePlan = plans?.baseline;
+  const baselinePlan = da.plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
 
-  const activePlan = plans?.[activeId] ?? plans?.baseline;
+  const activePlan = planFor(activeId) ?? da.plans?.baseline;
   const rows = activePlan?.rows ?? [];
 
   // ── Custom slider helpers ──
@@ -573,7 +573,7 @@ export function Tab2Dispatch({
           <StrategyCard
             key={s.id}
             strat={s}
-            plan={plans?.[s.id]}
+            plan={planFor(s.id)}
             baselineCost={baselineCost}
             isActive={activeId === s.id}
             onSelect={() => applyPlan(s.id)}
@@ -803,7 +803,7 @@ export function Tab2Dispatch({
             <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
               ★ ไทม์ไลน์คำสั่ง · สิ่งที่ต้องทำ
             </div>
-            <ActionTimeline recommendations={dayAhead.data?.recommendations ?? []} />
+            <ActionTimeline recommendations={da.plans?.[activeId === "custom" ? "min-cost" : activeId]?.recommendations ?? []} />
           </section>
         </>
       )}
@@ -844,6 +844,11 @@ export function Tab2Dispatch({
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}
+          />
+
+          <ScenarioCards
+            scenarios={scenarioData.scenarios}
+            loading={scenarioData.loading}
           />
         </>
       )}
