@@ -404,7 +404,7 @@ export function Tab2Dispatch({
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
-  const scenarios = useIntradayScenarios({ soc_pct: 60 });
+  const scenarioData = useIntradayScenarios({ soc_pct: 60 });
 
   const baselinePlan = da.plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
@@ -847,8 +847,8 @@ export function Tab2Dispatch({
           />
 
           <ScenarioCards
-            scenarios={scenarios.scenarios}
-            loading={scenarios.loading}
+            scenarios={scenarioData.scenarios}
+            loading={scenarioData.loading}
           />
         </>
       )}
