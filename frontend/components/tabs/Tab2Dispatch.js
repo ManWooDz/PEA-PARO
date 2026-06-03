@@ -22,8 +22,9 @@ import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggl
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
+import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
-import { useDayAheadPlans, useIntradayAlerts } from "@/hooks/useRecommendations";
+import { useDayAheadPlans, useIntradayAlerts, useIntradayScenarios } from "@/hooks/useRecommendations";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -403,6 +404,7 @@ export function Tab2Dispatch({
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+  const scenarios = useIntradayScenarios({ soc_pct: 60 });
 
   const baselinePlan = da.plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
@@ -842,6 +844,11 @@ export function Tab2Dispatch({
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}
+          />
+
+          <ScenarioCards
+            scenarios={scenarios.scenarios}
+            loading={scenarios.loading}
           />
         </>
       )}

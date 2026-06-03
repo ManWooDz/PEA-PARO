@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { fetchDayAhead, fetchIntradayAlerts } from '@/lib/api'
+import { fetchDayAhead, fetchIntradayAlerts, fetchIntradayScenarios } from '@/lib/api'
 
 export function useDayAhead({ strategy = 'min-cost', days = 1, hasSolar = false }) {
   const [data, setData] = useState(null)
@@ -60,4 +60,21 @@ export function useIntradayAlerts(body) {
 
   useEffect(() => { refresh() }, [refresh])
   return { recommendations, loading, refresh }
+}
+
+export function useIntradayScenarios(body) {
+  const [scenarios, setScenarios] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    fetchIntradayScenarios(body)
+      .then(d => { if (alive) setScenarios(d.scenarios || []) })
+      .catch(() => { if (alive) setScenarios([]) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [JSON.stringify(body)])    // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { scenarios, loading }
 }
