@@ -30,3 +30,23 @@ def test_predictor_loads_island_c_from_committed_folder():
     assert len(out) == 96
     assert {"datetime", "load_mw", "load_mw_safe"} <= set(out[0])
     assert out[0]["load_mw_safe"] >= out[0]["load_mw"] - 1e-6
+
+
+from ml.forecast_pipeline import backtest_island, _mape_arr
+
+
+def test_mape_arr_known_value():
+    a = np.array([100.0, 200.0]); p = np.array([90.0, 180.0])
+    assert round(_mape_arr(a, p), 2) == 10.0
+
+
+def test_backtest_island_c_produces_frames():
+    # ~1100 rows → enough usable windows after dropping the first 672 (lag_672).
+    df = _synthetic_history(n=1100)
+    res = backtest_island(df, "C")
+    for hz in ("6h", "7day"):
+        frame = res[hz]["frame"]
+        assert list(frame.columns) == ["datetime", "actual", "lstm", "lstm_margin", "hybrid", "prophet"]
+        assert len(frame) > 0
+        assert (frame["lstm_margin"] >= frame["lstm"]).all()   # margin non-negative
+    assert res["6h"]["mape_pct"] >= 0.0
