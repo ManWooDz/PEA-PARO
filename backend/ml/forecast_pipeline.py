@@ -68,26 +68,35 @@ def backtest_island(load_df: pd.DataFrame, island: str = "C") -> dict:
 
     win_index = df.index[LOOKBACK: LOOKBACK + len(y_pred)]
     return {
-        "6h":   _slice_blocks(win_index, y_true, y_pred, pred.margin_6h, _H6),
-        "7day": _slice_blocks(win_index, y_true, y_pred, pred.margin_6h_24h, HORIZON),
+        "6h":   _slice_blocks(win_index, y_true, y_pred, pred.margin_6h, pred.margin_6h_24h, _H6),
+        "7day": _slice_blocks(win_index, y_true, y_pred, pred.margin_6h, pred.margin_6h_24h, HORIZON),
     }
 
 
-def _slice_blocks(win_index, y_true, y_pred, margin, block) -> dict:
-    """Non-overlapping `block`-step rolling backtest (clean; 6h uses 24-step blocks,
-    7day uses 96-step blocks)."""
+def _block_margins(block: int, m6: float, m24: float) -> np.ndarray:
+    """Per-step safety margin within one forecast block: steps 0-23 (first 6h) use the
+    6h margin, steps 24+ use the 6h-24h margin — mirrors predictor.predict's per-band band.
+    For a 24-step (6h) block this is uniformly m6."""
+    return np.where(np.arange(block) < 24, float(m6), float(m24))
+
+
+def _slice_blocks(win_index, y_true, y_pred, m6, m24, block) -> dict:
+    """Non-overlapping `block`-step rolling backtest (6h: 24-step, 7day: 96-step blocks),
+    with per-step safety margins matching predictor.predict."""
+    bm = _block_margins(block, m6, m24)
     n_blocks = len(y_pred) // block
-    if n_blocks == 0:                                       # short series → first window
-        idx = win_index[:block]
-        return _frame(idx, y_true[0][:block], y_pred[0][:block], margin)
+    if n_blocks == 0:                                       # short series → first window, clamped
+        k = min(block, len(win_index))
+        return _frame(win_index[:k], y_true[0][:k], y_pred[0][:k], bm[:k])
     idx  = win_index[: n_blocks * block]
     true = np.concatenate([y_true[i * block, :block] for i in range(n_blocks)])
     pred = np.concatenate([y_pred[i * block, :block] for i in range(n_blocks)])
-    return _frame(idx, true, pred, margin)
+    margins = np.tile(bm, n_blocks)
+    return _frame(idx, true, pred, margins)
 
 
 def _frame(idx, true, pred, margin) -> dict:
-    safe = pred + float(margin)
+    safe = pred + np.asarray(margin, dtype=float)
     frame = pd.DataFrame({
         "datetime":    [t.strftime("%Y-%m-%d %H:%M:%S") for t in idx],
         "actual":      np.round(true, 4),
