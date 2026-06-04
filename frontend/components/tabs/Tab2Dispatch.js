@@ -295,10 +295,12 @@ function StrategyCard({ strat, plan, baselineCost, baselineLitres, isActive, onS
               {vsBaseline >= 0 ? "+" : "−"}
               {Math.abs(vsBaselinePct).toFixed(1)}%
             </div>
-            <div className="mono text-[11px] thai" style={{ color: litresSaved >= 0 ? "#10b981" : "#ef4444" }}>
-              ประหยัดน้ำมัน {litresSaved >= 0 ? "" : "−"}
-              {Math.abs(Math.round(litresSaved)).toLocaleString("th-TH")} ลิตร
-            </div>
+            {baselineLitres > 0 && (
+              <div className="mono text-[11px] thai" style={{ color: litresSaved >= 0 ? "#10b981" : "#ef4444" }}>
+                {litresSaved >= 0 ? "ประหยัดน้ำมัน " : "ใช้น้ำมันเพิ่ม "}
+                {Math.abs(Math.round(litresSaved)).toLocaleString("th-TH")} ลิตร
+              </div>
+            )}
           </div>
         )}
       </div>
