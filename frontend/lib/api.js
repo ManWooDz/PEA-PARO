@@ -43,6 +43,9 @@ export const fetchForecastDispatch = (body = {}) =>
 export const fetchForecastSeries = (horizon = '7day') =>
   api.get('/api/forecast/series', { params: { horizon } }).then(r => r.data)
 
+export const fetchForecastAccuracy = ({ island = 'C', horizon = '6h' } = {}) =>
+  api.get('/api/forecast/accuracy', { params: { island, horizon } }).then(r => r.data)
+
 export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false } = {}) =>
   api.get('/api/dispatch/day-ahead', {
     params: { strategy, days, has_solar: hasSolar },

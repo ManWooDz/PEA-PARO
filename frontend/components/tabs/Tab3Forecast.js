@@ -7,6 +7,7 @@ import {
 } from 'recharts'
 import { Dot } from '@/components/shared/Dot'
 import { useWeather } from '@/hooks/useWeather'
+import { useForecastAccuracy } from '@/hooks/useForecastAccuracy'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt1 = v => (v == null ? '—' : Number(v).toFixed(1))
@@ -113,6 +114,7 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
   // ── Solar/weather overlay state ────────────────────────────────────────────
   const [showWeather, setShowWeather] = useState(false)
   const { weather } = useWeather()
+  const accuracy = useForecastAccuracy({ island: 'C', horizon: '6h' })
 
   // Build hour-of-day map of solar irradiance
   const solarByHour = {}
@@ -207,6 +209,26 @@ export function Tab3Forecast({ fd, week, hours, setHorizon, loading, focusedHour
               <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">ส่วนเผื่อความปลอดภัย</div>
               <div className="font-semibold mono">
                 +{(fd.margin_mw * 1000).toFixed(0)} kW
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">MAPE (backtest)</div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold mono">
+                  {accuracy ? `${accuracy.mape_pct.toFixed(2)}%` : '—'}
+                </span>
+                {accuracy && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase eyebrow thai"
+                    style={{
+                      background: accuracy.within_target ? '#10b98118' : '#ef444418',
+                      color: accuracy.within_target ? '#10b981' : '#ef4444',
+                      border: `1px solid ${accuracy.within_target ? '#10b981' : '#ef4444'}40`,
+                    }}
+                  >
+                    {accuracy.within_target ? '✓ ผ่านเกณฑ์ ≤10%' : 'เกิน 10%'}
+                  </span>
+                )}
               </div>
             </div>
             <div>

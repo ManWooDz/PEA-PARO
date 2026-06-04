@@ -189,7 +189,7 @@ const STRATEGIES = [
 ];
 
 // ── Strategy summary card ───────────────────────────────────────────
-function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
+function StrategyCard({ strat, plan, baselineCost, baselineLitres, isActive, onSelect }) {
   if (!plan) {
     return (
       <button
@@ -221,6 +221,8 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
   const net = revenue - totalCost;
   const vsBaseline = baselineCost ? totalCost - baselineCost : 0;
   const vsBaselinePct = baselineCost ? (vsBaseline / baselineCost) * 100 : 0;
+  const litres = plan.cost?.diesel_litres ?? 0;
+  const litresSaved = baselineLitres ? baselineLitres - litres : 0;
 
   return (
     <button
@@ -254,6 +256,9 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
           <div className="mono font-semibold text-base">
             {fmt2(dieselMwh)}{" "}
             <span className="text-[11px] text-muted thai">MWh ดีเซล</span>
+          </div>
+          <div className="mono text-[11px] text-muted thai">
+            ≈ {Math.round(litres).toLocaleString("th-TH")} ลิตร
           </div>
         </div>
         <div className="text-right">
@@ -290,6 +295,12 @@ function StrategyCard({ strat, plan, baselineCost, isActive, onSelect }) {
               {vsBaseline >= 0 ? "+" : "−"}
               {Math.abs(vsBaselinePct).toFixed(1)}%
             </div>
+            {baselineLitres > 0 && (
+              <div className="mono text-[11px] thai" style={{ color: litresSaved >= 0 ? "#10b981" : "#ef4444" }}>
+                {litresSaved >= 0 ? "ประหยัดน้ำมัน " : "ใช้น้ำมันเพิ่ม "}
+                {Math.abs(Math.round(litresSaved)).toLocaleString("th-TH")} ลิตร
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -408,6 +419,7 @@ export function Tab2Dispatch({
 
   const baselinePlan = da.plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
+  const baselineLitres = baselinePlan?.cost?.diesel_litres ?? 0;
 
   const activePlan = planFor(activeId) ?? da.plans?.baseline;
   const rows = activePlan?.rows ?? [];
@@ -575,6 +587,7 @@ export function Tab2Dispatch({
             strat={s}
             plan={planFor(s.id)}
             baselineCost={baselineCost}
+            baselineLitres={baselineLitres}
             isActive={activeId === s.id}
             onSelect={() => applyPlan(s.id)}
           />
