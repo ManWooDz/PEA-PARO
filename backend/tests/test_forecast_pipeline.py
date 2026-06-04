@@ -50,3 +50,17 @@ def test_backtest_island_c_produces_frames():
         assert len(frame) > 0
         assert (frame["lstm_margin"] >= frame["lstm"]).all()   # margin non-negative
     assert res["6h"]["mape_pct"] >= 0.0
+
+
+def test_cli_load_input_parses_load_c(tmp_path):
+    from scripts.generate_forecasts import load_input_history
+    csv = tmp_path / "hist.csv"
+    csv.write_text(
+        "Date,Load A,Load B,Load C\n"
+        "1/1/2025 00:00,40,11,3\n"
+        "1/1/2025 00:15,41,11.2,3.1\n"
+    )
+    df = load_input_history(str(csv))
+    assert isinstance(df.index, pd.DatetimeIndex)
+    assert "load_c_mw" in df.columns
+    assert len(df) == 2
