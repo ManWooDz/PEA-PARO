@@ -23,6 +23,22 @@ def test_compute_accuracy_island_c_meets_target():
     assert acc["within_target"] is True
 
 
+from models.dispatch_optimizer import compute_plan_cost
+from data.seed import DIESEL_L_PER_KWH
+
+
+def test_compute_plan_cost_diesel_litres():
+    # Two hourly rows, total diesel = (2+1)+(0+3) = 6 MWh → 6000 kWh × 0.27 = 1620 L
+    rows = [
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 1,
+         "hour": 0, "token_per_hour": 0},
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 0, "diesel_c_mw": 3,
+         "hour": 1, "token_per_hour": 0},
+    ]
+    cost = compute_plan_cost(rows)
+    assert cost["diesel_litres"] == round(6 * 1000 * DIESEL_L_PER_KWH, 1)   # 1620.0
+
+
 from fastapi.testclient import TestClient
 
 

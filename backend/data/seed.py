@@ -13,6 +13,10 @@ COST = {
     "sale":          4.0,  # Customer tariff (Token/kWh) — assumed same as design
 }
 
+# Diesel genset fuel use — standard assumption (~3.7 kWh per litre), NOT a
+# PEA-supplied figure. Used to report fuel volume (litres) alongside ฿ cost.
+DIESEL_L_PER_KWH = 0.27
+
 # ── Submarine cable operating limits (MW) ────────────────────────────────────
 LINES = {
     1: {"name": "Mainland-Island A (115kV)", "limit_mw": 32, "voltage": "115kV"},

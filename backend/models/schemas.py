@@ -124,6 +124,7 @@ class CostBreakdown(BaseModel):
     grid_thb: float                # ฿ (was grid_tokens)
     battery_thb: float             # ฿ (was battery_tokens)
     diesel_thb: float              # ฿ combined A+C (was diesel_a_tokens + diesel_c_tokens)
+    diesel_litres: float = 0.0     # diesel fuel volume (litres) — assumption-based
     total_thb: float               # ฿ (was total_tokens)
 
 

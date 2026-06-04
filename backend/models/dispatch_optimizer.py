@@ -11,7 +11,7 @@ Internal calculations are in kW; output converted to MW.
 grid_available_kw defaults to PRACTICAL_GRID_KW (~1.3 MW) and can be
 overridden at call-time with a live SCADA reading.
 """
-from data.seed import COST, LINES, PRACTICAL_GRID_KW, ISLAND_C_LOAD_PROFILE, ISLAND_C_PEAK_KW, LINE6_LIMIT_KW_PHYSICAL
+from data.seed import COST, LINES, PRACTICAL_GRID_KW, ISLAND_C_LOAD_PROFILE, ISLAND_C_PEAK_KW, LINE6_LIMIT_KW_PHYSICAL, DIESEL_L_PER_KWH
 from models.battery import compute_battery_schedule, is_discharge_hour
 from models.diesel import commit_units, make_initial_states, DIESEL_8, DIESEL_9
 
@@ -228,9 +228,12 @@ def compute_plan_cost(rows: list[dict]) -> dict:
     dc_t   = sum(r["diesel_c_mw"]         * 1000 * COST["diesel_c"]  for r in rows)
     total  = sum(r["token_per_hour"]                                   for r in rows)
     grid_t = max(0.0, total - bat_t - da_t - dc_t)
+    diesel_mwh    = sum(r["diesel_a_mw"] + r["diesel_c_mw"] for r in rows)   # hourly rows → MWh
+    diesel_litres = round(diesel_mwh * 1000 * DIESEL_L_PER_KWH, 1)
     return {
         "grid_thb":    round(grid_t,      1),
         "battery_thb": round(bat_t,       1),
         "diesel_thb":  round(da_t + dc_t, 1),
+        "diesel_litres": diesel_litres,
         "total_thb":   round(total,       1),
     }
