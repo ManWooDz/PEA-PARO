@@ -16,11 +16,11 @@ def test_mape_skips_nonpositive_actual():
 
 
 def test_compute_accuracy_island_c_meets_target():
-    acc = compute_accuracy("7day", "C")
-    assert acc["island"] == "C" and acc["horizon"] == "7day"
+    acc = compute_accuracy("6h", "C")
+    assert acc["island"] == "C" and acc["horizon"] == "6h"
     assert acc["n_points"] > 0
-    assert 0.0 < acc["mape_pct"] < 15.0      # actual CSV yields ~10.4%; confirm sane range
-    assert isinstance(acc["within_target"], bool)
+    assert 0.0 < acc["mape_pct"] < 10.0      # 6h rolling backtest ≈ 7.1%
+    assert acc["within_target"] is True
 
 
 from fastapi.testclient import TestClient
@@ -33,9 +33,9 @@ def _client():
 
 def test_accuracy_endpoint_returns_within_target():
     c = _client()
-    r = c.get("/api/forecast/accuracy", params={"island": "C", "horizon": "7day"})
+    r = c.get("/api/forecast/accuracy", params={"island": "C", "horizon": "6h"})
     assert r.status_code == 200
     body = r.json()
-    assert isinstance(body["within_target"], bool)
-    assert 0.0 < body["mape_pct"] < 15.0      # actual CSV yields ~10.4%
+    assert body["within_target"] is True
+    assert 0.0 < body["mape_pct"] < 10.0
     assert body["n_points"] > 0

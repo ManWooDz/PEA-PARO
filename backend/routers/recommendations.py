@@ -182,7 +182,7 @@ class AccuracyResponse(BaseModel):
 
 
 @router.get("/api/forecast/accuracy", response_model=AccuracyResponse)
-def forecast_accuracy(island: str = "C", horizon: str = "7day"):
+def forecast_accuracy(island: str = "C", horizon: str = "6h"):
     try:
         data = compute_accuracy(horizon, island)
     except ValueError as e:
