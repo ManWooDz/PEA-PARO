@@ -59,11 +59,13 @@ def _mape(pairs: list[tuple[float, float]]) -> float:
 
 
 def compute_accuracy(horizon: str, island: str = "C") -> dict:
-    """Backtest accuracy of the LSTM point forecast (`predicted`) vs `actual`,
-    read from the served forecast CSV. Returns MAPE %, RMSE (MW), n, within_target."""
+    """Backtest accuracy of the deployed **LSTM+Margin** forecast (`predicted_safe`)
+    vs `actual`, read from the served forecast CSV — this is the conservative forecast
+    the app actually uses for dispatch, and the team's headline metric. Returns MAPE %,
+    RMSE (MW), n, within_target."""
     pts = get_forecast_series(horizon, island=island)
-    pairs = [(p["actual"], p["predicted"]) for p in pts
-             if p.get("actual") is not None and p["actual"] > 0 and p.get("predicted") is not None]
+    pairs = [(p["actual"], p["predicted_safe"]) for p in pts
+             if p.get("actual") is not None and p["actual"] > 0 and p.get("predicted_safe") is not None]
     mape = _mape(pairs)
     rmse = round(math.sqrt(sum((a - p) ** 2 for a, p in pairs) / len(pairs)), 3) if pairs else 0.0
     return {

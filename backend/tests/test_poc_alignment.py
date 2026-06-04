@@ -19,7 +19,7 @@ def test_compute_accuracy_island_c_meets_target():
     acc = compute_accuracy("6h", "C")
     assert acc["island"] == "C" and acc["horizon"] == "6h"
     assert acc["n_points"] > 0
-    assert 0.0 < acc["mape_pct"] < 10.0      # 6h rolling backtest ≈ 7.1%
+    assert 0.0 < acc["mape_pct"] < 7.0       # 6h LSTM+Margin rolling backtest ≈ 5.0%
     assert acc["within_target"] is True
 
 
@@ -53,5 +53,5 @@ def test_accuracy_endpoint_returns_within_target():
     assert r.status_code == 200
     body = r.json()
     assert body["within_target"] is True
-    assert 0.0 < body["mape_pct"] < 10.0
+    assert 0.0 < body["mape_pct"] < 7.0      # LSTM+Margin ≈ 5.0%
     assert body["n_points"] > 0
