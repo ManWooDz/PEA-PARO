@@ -48,3 +48,27 @@ def _to_float(v):
         return round(float(v), 4)
     except (TypeError, ValueError):
         return None
+
+
+import math
+
+
+def _mape(pairs: list[tuple[float, float]]) -> float:
+    """Mean Absolute Percentage Error (%) over (actual, predicted) pairs.
+    Rows with a missing or non-positive actual are skipped to avoid divide-by-zero."""
+    vals = [abs(a - p) / a for a, p in pairs if a is not None and a > 0 and p is not None]
+    return round(sum(vals) / len(vals) * 100.0, 2) if vals else 0.0
+
+
+def compute_accuracy(horizon: str, island: str = "C") -> dict:
+    """Backtest accuracy of the LSTM point forecast (`predicted`) vs `actual`,
+    read from the served forecast CSV. Returns MAPE %, RMSE (MW), n, within_target."""
+    pts = get_forecast_series(horizon, island=island)
+    pairs = [(p["actual"], p["predicted"]) for p in pts
+             if p.get("actual") is not None and p.get("predicted") is not None]
+    mape = _mape(pairs)
+    rmse = round(math.sqrt(sum((a - p) ** 2 for a, p in pairs) / len(pairs)), 3) if pairs else 0.0
+    return {
+        "island": island, "horizon": horizon, "mape_pct": mape,
+        "rmse_mw": rmse, "n_points": len(pairs), "within_target": mape <= 10.0,
+    }

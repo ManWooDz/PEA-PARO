@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from data.forecast_store import get_forecast_series
+from data.forecast_store import get_forecast_series, compute_accuracy
 from data.loader import get_grid_availability
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
@@ -170,3 +170,23 @@ def intraday_scenarios(req: ScenarioRequest):
     dt = 1.0 / _STEPS_PER_HOUR
     results = evaluate_scenarios(a, b, c, ts, grid_cap, dt_hours=dt, soc_pct=req.soc_pct)
     return ScenariosResponse(scenarios=[ScenarioResult(**r) for r in results])
+
+
+class AccuracyResponse(BaseModel):
+    island: str
+    horizon: str
+    mape_pct: float
+    rmse_mw: float
+    n_points: int
+    within_target: bool
+
+
+@router.get("/api/forecast/accuracy", response_model=AccuracyResponse)
+def forecast_accuracy(island: str = "C", horizon: str = "7day"):
+    try:
+        data = compute_accuracy(horizon, island)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return AccuracyResponse(**data)
