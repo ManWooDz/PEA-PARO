@@ -9,6 +9,7 @@ Files live in backend/data/forecasts/<ISLAND>/forecast_<horizon>.csv.
 from functools import lru_cache
 from pathlib import Path
 import csv
+import math
 
 _FORECAST_DIR = Path(__file__).parent / "forecasts"
 _HORIZONS: frozenset[str] = frozenset({"7day", "6h"})
@@ -50,9 +51,6 @@ def _to_float(v):
         return None
 
 
-import math
-
-
 def _mape(pairs: list[tuple[float, float]]) -> float:
     """Mean Absolute Percentage Error (%) over (actual, predicted) pairs.
     Rows with a missing or non-positive actual are skipped to avoid divide-by-zero."""
@@ -65,7 +63,7 @@ def compute_accuracy(horizon: str, island: str = "C") -> dict:
     read from the served forecast CSV. Returns MAPE %, RMSE (MW), n, within_target."""
     pts = get_forecast_series(horizon, island=island)
     pairs = [(p["actual"], p["predicted"]) for p in pts
-             if p.get("actual") is not None and p.get("predicted") is not None]
+             if p.get("actual") is not None and p["actual"] > 0 and p.get("predicted") is not None]
     mape = _mape(pairs)
     rmse = round(math.sqrt(sum((a - p) ** 2 for a, p in pairs) / len(pairs)), 3) if pairs else 0.0
     return {
