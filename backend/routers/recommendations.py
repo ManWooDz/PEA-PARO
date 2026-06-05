@@ -6,8 +6,9 @@ GET  /api/dispatch/day-ahead                 — multi-day plan + recommendation
 POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
 import logging
+import tempfile, os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series, compute_accuracy
@@ -23,6 +24,8 @@ from models.schemas import (
     ScenarioResult, ScenariosResponse,
 )
 from ml.capabilities import regenerate_available
+from ml.forecast_pipeline import generate_forecasts
+from scripts.generate_forecasts import load_input_history
 from models.schemas import CapabilitiesResponse, RegenerateResponse
 
 _log = logging.getLogger(__name__)
@@ -198,3 +201,65 @@ def forecast_accuracy(island: str = "C", horizon: str = "6h"):
 def forecast_capabilities():
     """Tell the UI whether the upload→regenerate control should be shown."""
     return CapabilitiesResponse(regenerate_available=regenerate_available(), island="C")
+
+
+# Forecast regeneration is C-only and TF-heavy; it may take ~30-60 s.
+_MAPE_TARGET = 10.0
+
+
+@router.post("/api/forecast/regenerate", response_model=RegenerateResponse)
+async def regenerate_forecast(file: UploadFile = File(...)):
+    """Upload a historical-load CSV and rebuild Island C's served forecast CSVs.
+
+    Guarded: on TF-free deployments (e.g. Vercel) returns 503, never 500.
+    Synchronous — the frontend uses a long timeout + spinner.
+    """
+    if not regenerate_available():
+        raise HTTPException(
+            status_code=503,
+            detail="การสร้างพยากรณ์ใหม่ไม่รองรับบน deployment นี้ "
+                   "(ต้องใช้ TensorFlow + โมเดล — ใช้ได้บน EC2 image เท่านั้น). "
+                   "Forecast regeneration is not supported on this deployment.",
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=422, detail="Uploaded file is empty.")
+
+    # Persist to a temp CSV so the existing parser (which takes a path) can read it.
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False) as tmp:
+            tmp.write(raw)
+            tmp_path = tmp.name
+        try:
+            hist = load_input_history(tmp_path)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        n_rows = len(hist)
+        try:
+            summary = generate_forecasts(hist)           # writes data/forecasts/C/*.csv
+        except (ValueError, FileNotFoundError) as e:
+            # Too-few rows / missing artifact discovered at run time.
+            raise HTTPException(status_code=422, detail=f"Regeneration failed: {e}")
+        except Exception as e:                            # noqa: BLE001 — TF/runtime faults
+            _log.exception("regenerate failed")
+            raise HTTPException(status_code=500, detail=f"Regeneration error: {e}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+    # The served forecast just changed on disk — drop the cached series.
+    get_forecast_series.cache_clear()
+
+    m = summary["C"]
+    return RegenerateResponse(
+        island="C",
+        mape_6h_pct=m["6h"],
+        mape_7day_pct=m["7day"],
+        within_target=m["6h"] <= _MAPE_TARGET,
+        n_rows_in=n_rows,
+        message=f"สร้างพยากรณ์ใหม่สำเร็จ — Island C · {n_rows} แถว · "
+                f"MAPE 6h {m['6h']:.2f}% / 7day {m['7day']:.2f}%",
+    )
