@@ -22,6 +22,8 @@ from models.schemas import (
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
     ScenarioResult, ScenariosResponse,
 )
+from ml.capabilities import regenerate_available
+from models.schemas import CapabilitiesResponse, RegenerateResponse
 
 _log = logging.getLogger(__name__)
 
@@ -190,3 +192,9 @@ def forecast_accuracy(island: str = "C", horizon: str = "6h"):
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return AccuracyResponse(**data)
+
+
+@router.get("/api/forecast/capabilities", response_model=CapabilitiesResponse)
+def forecast_capabilities():
+    """Tell the UI whether the upload→regenerate control should be shown."""
+    return CapabilitiesResponse(regenerate_available=regenerate_available(), island="C")

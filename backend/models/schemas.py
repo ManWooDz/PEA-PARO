@@ -283,3 +283,17 @@ class ScenarioResult(BaseModel):
 
 class ScenariosResponse(BaseModel):
     scenarios: list[ScenarioResult]
+
+
+class CapabilitiesResponse(BaseModel):
+    regenerate_available: bool
+    island: str = "C"
+
+
+class RegenerateResponse(BaseModel):
+    island: str
+    mape_6h_pct: float
+    mape_7day_pct: float
+    within_target: bool
+    n_rows_in: int
+    message: str
