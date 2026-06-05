@@ -55,3 +55,20 @@ def test_accuracy_endpoint_returns_within_target():
     assert body["within_target"] is True
     assert 0.0 < body["mape_pct"] < 7.0      # LSTM+Margin ≈ 5.0%
     assert body["n_points"] > 0
+
+
+def test_forecast_series_per_island():
+    c = _client()
+    # Island A load is far larger than Island C → distinct series.
+    a = c.get("/api/forecast/series", params={"horizon": "6h", "island": "A"})
+    cc = c.get("/api/forecast/series", params={"horizon": "6h", "island": "C"})
+    assert a.status_code == 200 and cc.status_code == 200
+    a_first = a.json()["points"][0]["predicted"]
+    c_first = cc.json()["points"][0]["predicted"]
+    assert a_first > 15.0          # Island A >> Island C
+    assert c_first < 8.0
+    # default (no island) stays Island C (backward compat)
+    d = c.get("/api/forecast/series", params={"horizon": "6h"})
+    assert d.json()["points"][0]["predicted"] == c_first
+    # bad island → 422
+    assert c.get("/api/forecast/series", params={"horizon": "6h", "island": "Z"}).status_code == 422

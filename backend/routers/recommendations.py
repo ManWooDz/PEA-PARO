@@ -99,9 +99,9 @@ def _system_dispatch(strategy: str, days: int) -> list[dict]:
 
 
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
-def forecast_series(horizon: str = "7day"):
+def forecast_series(horizon: str = "7day", island: str = "C"):
     try:
-        pts = get_forecast_series(horizon)
+        pts = get_forecast_series(horizon, island=island)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except FileNotFoundError as e:
