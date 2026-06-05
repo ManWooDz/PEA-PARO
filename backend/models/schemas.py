@@ -125,6 +125,8 @@ class CostBreakdown(BaseModel):
     battery_thb: float             # ฿ (was battery_tokens)
     diesel_thb: float              # ฿ combined A+C (was diesel_a_tokens + diesel_c_tokens)
     diesel_litres: float = 0.0     # diesel fuel volume (litres) — assumption-based
+    diesel_a_litres: float = 0.0   # Diesel #8 (Island A) fuel volume (litres)
+    diesel_c_litres: float = 0.0   # Diesel #9 (Island C) fuel volume (litres)
     total_thb: float               # ฿ (was total_tokens)
 
 

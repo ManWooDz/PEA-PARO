@@ -228,12 +228,15 @@ def compute_plan_cost(rows: list[dict]) -> dict:
     dc_t   = sum(r["diesel_c_mw"]         * 1000 * COST["diesel_c"]  for r in rows)
     total  = sum(r["token_per_hour"]                                   for r in rows)
     grid_t = max(0.0, total - bat_t - da_t - dc_t)
-    diesel_mwh    = sum(r["diesel_a_mw"] + r["diesel_c_mw"] for r in rows)   # hourly rows → MWh
-    diesel_litres = round(diesel_mwh * 1000 * DIESEL_L_PER_KWH, 1)
+    diesel_a_litres = round(sum(r["diesel_a_mw"] for r in rows) * 1000 * DIESEL_L_PER_KWH, 1)
+    diesel_c_litres = round(sum(r["diesel_c_mw"] for r in rows) * 1000 * DIESEL_L_PER_KWH, 1)
+    diesel_litres   = round(diesel_a_litres + diesel_c_litres, 1)
     return {
         "grid_thb":    round(grid_t,      1),
         "battery_thb": round(bat_t,       1),
         "diesel_thb":  round(da_t + dc_t, 1),
         "diesel_litres": diesel_litres,
+        "diesel_a_litres": diesel_a_litres,
+        "diesel_c_litres": diesel_c_litres,
         "total_thb":   round(total,       1),
     }

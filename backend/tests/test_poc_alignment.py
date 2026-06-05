@@ -72,3 +72,18 @@ def test_forecast_series_per_island():
     assert d.json()["points"][0]["predicted"] == c_first
     # bad island → 422
     assert c.get("/api/forecast/series", params={"horizon": "6h", "island": "Z"}).status_code == 422
+
+
+def test_compute_plan_cost_per_island_litres():
+    # diesel A = 2+0 = 2 MWh; diesel C = 1+3 = 4 MWh.
+    rows = [
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 1,
+         "hour": 0, "token_per_hour": 0},
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 0, "diesel_c_mw": 3,
+         "hour": 1, "token_per_hour": 0},
+    ]
+    cost = compute_plan_cost(rows)
+    assert cost["diesel_a_litres"] == round(2 * 1000 * DIESEL_L_PER_KWH, 1)   # 540.0
+    assert cost["diesel_c_litres"] == round(4 * 1000 * DIESEL_L_PER_KWH, 1)   # 1080.0
+    # per-island parts sum to the existing total
+    assert round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1) == cost["diesel_litres"]
