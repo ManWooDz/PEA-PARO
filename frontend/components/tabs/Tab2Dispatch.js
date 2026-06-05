@@ -21,6 +21,7 @@ import { useApplyPlan } from "@/hooks/useApplyPlan";
 import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
+import { FuelReservePanel } from "@/components/tabs/dispatch/FuelReservePanel";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
 import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
@@ -593,6 +594,14 @@ export function Tab2Dispatch({
           />
         ))}
       </section>
+
+      {/* ── 7-day diesel fuel reserve (procurement planning) ── */}
+      {horizonDays === 7 && (
+        <FuelReservePanel
+          baseline={da.plans?.baseline?.cost}
+          minCost={da.plans?.["min-cost"]?.cost}
+        />
+      )}
 
       {/* ── Custom Dispatch ── */}
       <section className="panel rounded-xl p-5">
