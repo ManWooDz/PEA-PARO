@@ -18,6 +18,7 @@ import {
 import { Dot } from "@/components/shared/Dot";
 import { useWeather } from "@/hooks/useWeather";
 import { useForecastAccuracy } from "@/hooks/useForecastAccuracy";
+import { ForecastRegenerateControl } from "@/components/tabs/forecast/ForecastRegenerateControl";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
@@ -151,7 +152,7 @@ export function Tab3Forecast({
   // ── Solar/weather overlay state ────────────────────────────────────────────
   const [showWeather, setShowWeather] = useState(false);
   const { weather } = useWeather();
-  const accuracy = useForecastAccuracy({ island: "C", horizon: "6h" });
+  const { accuracy, reload: reloadAccuracy } = useForecastAccuracy({ island: "C", horizon: "6h" });
 
   // Build hour-of-day map of solar irradiance
   const solarByHour = {};
@@ -302,6 +303,9 @@ export function Tab3Forecast({
                   : "—"}
               </div>
             </div>
+          </div>
+          <div className="mt-3">
+            <ForecastRegenerateControl onDone={() => reloadAccuracy()} />
           </div>
         </section>
       )}
