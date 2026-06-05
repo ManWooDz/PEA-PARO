@@ -34,8 +34,11 @@ export const fetchForecastDispatch = (body = {}) =>
   }, { timeout: 90000 }).then(r => r.data)
 
 // ── Actionable Recommendations ───────────────────────────────────────────────
-export const fetchForecastSeries = (horizon = '7day') =>
-  api.get('/api/forecast/series', { params: { horizon } }).then(r => r.data)
+export const fetchForecastSeries = (arg = '7day') => {
+  const { horizon = '7day', island = 'C' } =
+    typeof arg === 'string' ? { horizon: arg } : (arg || {})
+  return api.get('/api/forecast/series', { params: { horizon, island } }).then(r => r.data)
+}
 
 export const fetchForecastAccuracy = ({ island = 'C', horizon = '6h' } = {}) =>
   api.get('/api/forecast/accuracy', { params: { island, horizon } }).then(r => r.data)
