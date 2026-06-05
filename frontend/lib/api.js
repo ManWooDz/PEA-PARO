@@ -40,6 +40,21 @@ export const fetchForecastSeries = (horizon = '7day') =>
 export const fetchForecastAccuracy = ({ island = 'C', horizon = '6h' } = {}) =>
   api.get('/api/forecast/accuracy', { params: { island, horizon } }).then(r => r.data)
 
+export const fetchForecastCapabilities = () =>
+  api.get('/api/forecast/capabilities').then(r => r.data)
+
+// Multipart upload; regeneration can take ~30-60s → long timeout.
+// Pass Content-Type multipart/form-data so Axios overrides the instance JSON
+// default and attaches the correct boundary for the FormData body.
+export const regenerateForecast = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/api/forecast/regenerate', form, {
+    timeout: 120000,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
 export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false } = {}) =>
   api.get('/api/dispatch/day-ahead', {
     params: { strategy, days, has_solar: hasSolar },
