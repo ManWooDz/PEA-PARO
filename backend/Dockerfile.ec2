@@ -1,0 +1,26 @@
+# ── PEA-PARO backend — EC2 image WITH TensorFlow ────────────────────────────
+# Same app as the slim Dockerfile, but installs requirements-ec2.txt (adds
+# tensorflow + holidays) so POST /api/forecast/regenerate works. The trained
+# Island-C artifacts under backend/ml/artifacts/C/ are tracked in git and copied
+# in with the app code. Build from the ./backend dir:
+#   docker build -f Dockerfile.ec2 -t pea-paro-backend:ec2 .
+FROM python:3.11-slim
+
+WORKDIR /app/backend
+
+# TF needs a C++ runtime at import time on slim Python images.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install deps first for layer caching (TF wheel is large; build ~10-15 min).
+COPY requirements-ec2.txt .
+RUN pip install --no-cache-dir -r requirements-ec2.txt
+
+# App code (includes ml/artifacts/<island>/ and data/forecasts/*.csv from git).
+COPY . /app/backend/
+
+ENV PEA_SIM_NOW=2025-12-28T09:15:00
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

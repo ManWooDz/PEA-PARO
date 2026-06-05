@@ -144,3 +144,23 @@ IP keeps the address fixed; it is free while attached to a running instance.)
 | Home-page KPIs look random | `Historical_Load_All.csv` missing — confirm `ls ~/PEA-PARO/docs/data/` shows it, then `docker compose restart backend` |
 | Forecast/dispatch empty | Forecast CSVs missing — they are in git, so ensure the clone succeeded (`ls backend/data/forecasts/C/`) |
 | Site unreachable | Security group inbound 80/443 open? Instance running? `docker compose ps` all "Up"? |
+
+---
+
+## Forecast regeneration (Phase 2b) — image variants
+
+The web "upload → regenerate forecast" control (Tab 3, Island C) needs TensorFlow
+and the trained model artifacts.
+
+- **Slim image** (`backend/Dockerfile`, `requirements-deploy.txt`) — no TensorFlow.
+  Used by Vercel and the default AWS deploy. `GET /api/forecast/capabilities`
+  returns `regenerate_available: false`, the UI hides the upload control, and
+  `POST /api/forecast/regenerate` returns **503** (graceful degrade — never 500).
+- **EC2 image** (`backend/Dockerfile.ec2`, `requirements-ec2.txt`) — adds
+  `tensorflow` + `holidays`. `regenerate_available: true`; the upload control is
+  shown and regeneration runs server-side (~30-60 s). Build:
+  `cd backend && docker build -f Dockerfile.ec2 -t pea-paro-backend:ec2 .`
+
+No data bind-mount is needed for regeneration — the historical CSV arrives via the
+upload. The Island-C artifacts ship in the image (tracked under
+`backend/ml/artifacts/C/`).
