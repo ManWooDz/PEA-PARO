@@ -59,8 +59,10 @@ def test_regenerate_happy_path_is_tf_free_via_monkeypatch(monkeypatch):
     calls = {"gen": 0, "cache_clear": 0}
 
     def fake_generate(df, out_dir=None):
+        # Stub the heavy TF pipeline (no CSV write). The endpoint reports MAPE via
+        # compute_accuracy, which reads the EXISTING committed Island-C CSVs.
         calls["gen"] += 1
-        return {"C": {"6h": 5.03, "7day": 7.10}}
+        return {"C": {"6h": 0.0, "7day": 0.0}}
 
     monkeypatch.setattr(rec, "generate_forecasts", fake_generate)
     monkeypatch.setattr(rec.get_forecast_series, "cache_clear",
@@ -70,8 +72,9 @@ def test_regenerate_happy_path_is_tf_free_via_monkeypatch(monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["island"] == "C"
+    # MAPE comes from compute_accuracy (LSTM+Margin) on the committed CSVs.
     assert body["mape_6h_pct"] == 5.03
-    assert body["mape_7day_pct"] == 7.10
+    assert body["mape_7day_pct"] == 7.14
     assert body["within_target"] is True          # 5.03 <= 10
     assert body["n_rows_in"] == 2
     assert calls["gen"] == 1

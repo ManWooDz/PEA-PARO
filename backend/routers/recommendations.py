@@ -239,7 +239,7 @@ async def regenerate_forecast(file: UploadFile = File(...)):
 
         n_rows = len(hist)
         try:
-            summary = generate_forecasts(hist)           # writes data/forecasts/C/*.csv
+            generate_forecasts(hist)                     # writes data/forecasts/C/*.csv
         except (ValueError, FileNotFoundError) as e:
             # Too-few rows / missing artifact discovered at run time.
             raise HTTPException(status_code=422, detail=f"Regeneration failed: {e}")
@@ -250,16 +250,20 @@ async def regenerate_forecast(file: UploadFile = File(...)):
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-    # The served forecast just changed on disk — drop the cached series.
+    # The served forecast just changed on disk — drop the cached series so the
+    # accuracy recompute (and the app) read the freshly-written CSVs.
     get_forecast_series.cache_clear()
 
-    m = summary["C"]
+    # Report the SAME metric the MAPE badge shows — LSTM+Margin (predicted_safe),
+    # recomputed from the new CSVs — so the success message and the badge agree.
+    acc6 = compute_accuracy("6h", "C")
+    acc7 = compute_accuracy("7day", "C")
     return RegenerateResponse(
         island="C",
-        mape_6h_pct=m["6h"],
-        mape_7day_pct=m["7day"],
-        within_target=m["6h"] <= _MAPE_TARGET,
+        mape_6h_pct=acc6["mape_pct"],
+        mape_7day_pct=acc7["mape_pct"],
+        within_target=acc6["within_target"],
         n_rows_in=n_rows,
         message=f"สร้างพยากรณ์ใหม่สำเร็จ — Island C · {n_rows} แถว · "
-                f"MAPE 6h {m['6h']:.2f}% / 7day {m['7day']:.2f}%",
+                f"MAPE 6h {acc6['mape_pct']:.2f}% / 7day {acc7['mape_pct']:.2f}% (LSTM+Margin)",
     )
