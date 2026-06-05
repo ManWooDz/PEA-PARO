@@ -18,6 +18,7 @@ import {
 import { Dot } from "@/components/shared/Dot";
 import { useWeather } from "@/hooks/useWeather";
 import { useForecastAccuracy } from "@/hooks/useForecastAccuracy";
+import { useForecastSeries } from "@/hooks/useForecastSeries";
 import { ForecastRegenerateControl } from "@/components/tabs/forecast/ForecastRegenerateControl";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -151,8 +152,11 @@ export function Tab3Forecast({
 }) {
   // ── Solar/weather overlay state ────────────────────────────────────────────
   const [showWeather, setShowWeather] = useState(false);
+  const [island, setIsland] = useState("C");
   const { weather } = useWeather();
-  const { accuracy, reload: reloadAccuracy } = useForecastAccuracy({ island: "C", horizon: "6h" });
+  const { accuracy, reload: reloadAccuracy } = useForecastAccuracy({ island, horizon: "6h" });
+  const seriesHorizon = hours === 6 ? "6h" : "7day";
+  const { points: islandPoints, loading: seriesLoading } = useForecastSeries(seriesHorizon, island);
 
   // Build hour-of-day map of solar irradiance
   const solarByHour = {};
@@ -163,13 +167,13 @@ export function Tab3Forecast({
 
   // ── Chart data ─────────────────────────────────────────────────────────────
 
-  /** 15-min LSTM forecast → AreaChart (all points, thin x-axis labels) */
-  const forecastData =
-    fd?.forecast_15min?.map((p) => ({
-      t: p.datetime?.slice(11, 16) ?? "",
-      Load: +(p.load_mw?.toFixed(2) ?? 0),
-      Safe: +(p.load_mw_safe?.toFixed(2) ?? 0),
-    })) ?? [];
+  /** 15-min LSTM forecast for the selected island → AreaChart */
+  const fcPoints = islandPoints.slice(0, hours * 4);   // 24 pts (6h) or 96 pts (24h)
+  const forecastData = fcPoints.map((p) => ({
+    t:    String(p.datetime).slice(11, 16),
+    Load: +((p.predicted ?? 0).toFixed(2)),
+    Safe: +((p.predicted_safe ?? 0).toFixed(2)),
+  }));
 
   // Augment chart data with solar values (matched by hour, t is "HH:MM")
   const chartData = forecastData.map((d) => ({
@@ -197,11 +201,10 @@ export function Tab3Forecast({
     })) ?? [];
 
   // ── KPI helpers ────────────────────────────────────────────────────────────
-  const peakSafe =
-    fd?.forecast_15min?.reduce(
-      (mx, p) => Math.max(mx, p.load_mw_safe ?? 0),
-      0,
-    ) ?? 0;
+  const peakSafe = fcPoints.reduce((mx, p) => Math.max(mx, p.predicted_safe ?? 0), 0);
+  const marginKw = fcPoints.length
+    ? Math.round(((fcPoints[0].predicted_safe ?? 0) - (fcPoints[0].predicted ?? 0)) * 1000)
+    : 0;
   const cost = fd?.cost;
 
   // x-axis label thinning: ~8 labels across the chart
@@ -243,6 +246,33 @@ export function Tab3Forecast({
         </div>
       </section>
 
+      {/* ── island selector (A/B/C) ── */}
+      <section>
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          เลือกเกาะ
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { id: "A", label: "เกาะ A" },
+            { id: "B", label: "เกาะ B" },
+            { id: "C", label: "เกาะ C (เกาะเต่า)" },
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setIsland(id)}
+              className="px-4 py-1.5 rounded-lg text-sm border font-medium thai transition cursor-pointer"
+              style={
+                island === id
+                  ? { borderColor: "var(--primary)", background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }
+                  : { borderColor: "var(--border-soft)", background: "var(--surface-2)", color: "var(--muted)" }
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* ── model / run info ── */}
       {fd && (
         <section>
@@ -254,7 +284,7 @@ export function Tab3Forecast({
               <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">
                 โมเดล
               </div>
-              <div className="font-semibold mono">LSTM · Island C</div>
+              <div className="font-semibold mono">LSTM · Island {island}</div>
             </div>
             <div>
               <div className="text-[11px] text-muted eyebrow uppercase mb-0.5 thai">
@@ -267,7 +297,7 @@ export function Tab3Forecast({
                 ส่วนเผื่อความปลอดภัย
               </div>
               <div className="font-semibold mono">
-                +{(fd.margin_mw * 1000).toFixed(0)} kW
+                +{marginKw} kW
               </div>
             </div>
             <div>
@@ -334,7 +364,7 @@ export function Tab3Forecast({
               ☀️ แสดงแนวโน้ม Solar / อากาศ
             </button>
           </div>
-          {loading && !forecastData.length ? (
+          {seriesLoading && !forecastData.length ? (
             <div className="h-[220px] flex items-center justify-center text-muted text-sm gap-2">
               <Dot color="var(--primary)" pulse />
               <span>กำลังคำนวณ LSTM…</span>
@@ -403,17 +433,19 @@ export function Tab3Forecast({
                   </>
                 )}
                 <Tooltip content={<ForecastTip />} />
-                <ReferenceLine
-                  y={8}
-                  stroke="#ef4444"
-                  strokeDasharray="4 2"
-                  label={{
-                    value: "Line 6 Cap 8 MW",
-                    position: "insideTopRight",
-                    fontSize: 9,
-                    fill: "#ef4444",
-                  }}
-                />
+                {island === "C" && (
+                  <ReferenceLine
+                    y={8}
+                    stroke="#ef4444"
+                    strokeDasharray="4 2"
+                    label={{
+                      value: "Line 6 Cap 8 MW",
+                      position: "insideTopRight",
+                      fontSize: 9,
+                      fill: "#ef4444",
+                    }}
+                  />
+                )}
                 {focusedHour != null && (
                   <ReferenceLine
                     x={`${String(focusedHour).padStart(2, "0")}:00`}
@@ -453,7 +485,7 @@ export function Tab3Forecast({
       {dispatchData.length > 0 && (
         <section>
           <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
-            แผนการจ่ายไฟ · 24 ชม.
+            แผนจ่ายไฟระบบ · 24 ชม. (optimize 3 เกาะ → จ่ายเกาะ C)
           </div>
           <div className="panel rounded-xl p-4">
             <ResponsiveContainer width="100%" height={220}>
