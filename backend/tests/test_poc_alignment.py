@@ -87,3 +87,29 @@ def test_compute_plan_cost_per_island_litres():
     assert cost["diesel_c_litres"] == round(4 * 1000 * DIESEL_L_PER_KWH, 1)   # 1080.0
     # per-island parts sum to the existing total
     assert round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1) == cost["diesel_litres"]
+
+
+from data.seed import DIESEL_8_STARTUP_LITRES, DIESEL_9_STARTUP_LITRES
+
+
+def test_diesel_startup_constants_from_ramp():
+    # #8: t_ramp=1/0.01=100s; energy=0.5*(100/3600)*5=0.0694 MWh; *1000*0.27 ≈ 18.75 L
+    assert abs(DIESEL_8_STARTUP_LITRES - 18.75) < 0.2
+    # #9: t_ramp=1/0.03=33.3s; energy=0.5*(33.3/3600)*2.5=0.01157 MWh; *1000*0.27 ≈ 3.12 L
+    assert abs(DIESEL_9_STARTUP_LITRES - 3.12) < 0.2
+
+
+def test_compute_plan_cost_folds_startup_litres():
+    # One Diesel-#9 start + steady Diesel-#8: startup litres added to the C island total.
+    rows = [
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 0,
+         "hour": 0, "token_per_hour": 0, "diesel8_starts": 1, "diesel9_starts": 0},
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 1,
+         "hour": 1, "token_per_hour": 0, "diesel8_starts": 0, "diesel9_starts": 1},
+    ]
+    cost = compute_plan_cost(rows)
+    # diesel A energy = 4 MWh → 1080 L, + 1 start × 18.75
+    assert cost["diesel_a_litres"] == round(4 * 1000 * DIESEL_L_PER_KWH + DIESEL_8_STARTUP_LITRES, 1)
+    # diesel C energy = 1 MWh → 270 L, + 1 start × 3.12
+    assert cost["diesel_c_litres"] == round(1 * 1000 * DIESEL_L_PER_KWH + DIESEL_9_STARTUP_LITRES, 1)
+    assert cost["diesel_litres"] == round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1)
