@@ -271,8 +271,10 @@ def apply_schedule(req: ApplyScheduleRequest):
     """Persist the operator's current plan as the active Early-Warning reference."""
     if not req.steps:
         raise HTTPException(status_code=422, detail="ไม่มีข้อมูลตารางสำหรับอัปโหลด.")
-    uploaded_at = store_plan([s.model_dump() for s in req.steps])
-    return ApplyScheduleResponse(uploaded_at=uploaded_at, n_steps=len(req.steps))
+    store_plan([s.model_dump() for s in req.steps])
+    # Report the stored count (unique HH:MM slots) so apply and /active always agree.
+    plan = get_plan()
+    return ApplyScheduleResponse(uploaded_at=plan["uploaded_at"], n_steps=plan["n_steps"])
 
 
 @router.get("/api/dispatch/schedule/active", response_model=ActivePlanResponse)

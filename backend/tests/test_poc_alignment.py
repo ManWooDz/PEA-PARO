@@ -245,6 +245,8 @@ def test_apply_then_active_reports_uploaded():
 
 
 def test_apply_rejects_empty_steps():
+    from models import plan_store
+    plan_store.clear()
     c = _client()
     r = c.post("/api/dispatch/schedule/apply", json={"steps": []})
     assert r.status_code == 422
