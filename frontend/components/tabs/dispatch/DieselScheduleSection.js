@@ -21,16 +21,19 @@ const shiftHHMM = (iso, deltaSec) => {
 };
 
 // Contiguous runs where the source output exceeds the threshold (MW).
-function runsOf(steps, key, threshold = 0.05) {
+// unitsKey (optional) names the step's unit-count field; the run reports the
+// peak number of units committed across it (how many gensets to start).
+function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
   const runs = [];
   let cur = null;
   for (const s of steps) {
     const v = key === "bess" ? Math.max(0, s.battery_mw) : s[key];
     if (v > threshold) {
-      if (!cur) cur = { startIso: s.datetime, endIso: s.datetime, sum: 0, n: 0 };
+      if (!cur) cur = { startIso: s.datetime, endIso: s.datetime, sum: 0, n: 0, units: 0 };
       cur.endIso = s.datetime;
       cur.sum += v;
       cur.n += 1;
+      if (unitsKey) cur.units = Math.max(cur.units, s[unitsKey] ?? 0);
     } else if (cur) {
       runs.push(cur);
       cur = null;
@@ -42,17 +45,18 @@ function runsOf(steps, key, threshold = 0.05) {
     start: hhmm(r.startIso),
     end: shiftHHMM(r.endIso, 15 * 60),   // each step covers 15 min
     avg: r.sum / r.n,
+    units: r.units,
   }));
 }
 
 const SOURCES = [
-  { key: "diesel_a_mw", label: "Diesel #8 (เกาะ A)", color: "#f59e0b" },
-  { key: "diesel_c_mw", label: "Diesel #9 (เกาะ C)", color: "#ef4444" },
-  { key: "bess",        label: "BESS แบตเตอรี่",      color: "#6366f1" },
+  { key: "diesel_a_mw", unitsKey: "diesel8_units_on", label: "Diesel #8 (เกาะ A)", color: "#f59e0b" },
+  { key: "diesel_c_mw", unitsKey: "diesel9_units_on", label: "Diesel #9 (เกาะ C)", color: "#ef4444" },
+  { key: "bess",        unitsKey: null,               label: "BESS แบตเตอรี่",      color: "#6366f1" },
 ];
 
 function OnPeriodRow({ src, steps }) {
-  const runs = runsOf(steps, src.key);
+  const runs = runsOf(steps, src.key, { unitsKey: src.unitsKey });
   const lead = LEAD_MIN[src.key];   // undefined for BESS
   // BESS only ever discharges in the on-period table (charging is excluded), so an
   // empty BESS row means "charge-only", distinct from a diesel that simply stays off.
@@ -77,6 +81,9 @@ function OnPeriodRow({ src, steps }) {
                 <div key={i} className="text-sm">
                   <span className="mono">{r.start}–{r.end}</span>{" "}
                   <span className="text-muted text-xs">· เฉลี่ย {fmt1(r.avg)} MW</span>
+                  {src.unitsKey && r.units > 0 && (
+                    <span className="text-muted text-xs">{" "}· {r.units} เครื่อง</span>
+                  )}
                   {warmup != null && (
                     <span className="text-muted text-[11px] thai block">
                       สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{lead} นาที ก่อนถึง {r.start}
