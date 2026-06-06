@@ -125,3 +125,17 @@ def test_schedule_schemas_construct():
     resp = ScheduleResponse(date="2025-12-29", steps=[step])
     assert resp.date == "2025-12-29"
     assert resp.steps[0].diesel9_units_on == 2
+
+
+def test_schedule_endpoint_returns_96_steps():
+    c = _client()
+    r = c.get("/api/dispatch/schedule")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["date"] == "2025-12-29"          # tomorrow of frozen clock 2025-12-28
+    assert len(body["steps"]) == 96
+    s0 = body["steps"][0]
+    assert s0["datetime"].endswith("T00:00:00")  # first step is midnight
+    for k in ("diesel_a_mw", "diesel_c_mw", "diesel8_units_on",
+              "diesel9_units_on", "battery_mw"):
+        assert k in s0

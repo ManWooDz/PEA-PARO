@@ -7,12 +7,13 @@ POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
 import logging
 import tempfile, os
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series, compute_accuracy
 from data.loader import get_grid_availability
+from data.clock import now as sim_now
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
 from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
@@ -22,6 +23,7 @@ from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
     ScenarioResult, ScenariosResponse,
+    ScheduleStep, ScheduleResponse,
 )
 from ml.capabilities import regenerate_available
 from ml.forecast_pipeline import generate_forecasts
@@ -98,6 +100,49 @@ def _system_dispatch(strategy: str, days: int) -> list[dict]:
             return solve_baseline(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
 
 
+def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list[datetime], str]:
+    """15-min loads for tomorrow (the next calendar day after the sim clock).
+    Slices the 7-day forecast to tomorrow's date -> 96 points per island.
+    Returns (loads_a, loads_b, loads_c, timestamps, date_str)."""
+    tomorrow = (sim_now() + timedelta(days=1)).date()
+    sa = get_forecast_series("7day", island="A")
+    sb = get_forecast_series("7day", island="B")
+    sc = get_forecast_series("7day", island="C")
+
+    def _safe(pt):
+        v = pt.get("predicted_safe")
+        return float(v) if v is not None else 0.0
+
+    idx = [i for i, p in enumerate(sa)
+           if datetime.fromisoformat(str(p["datetime"])).date() == tomorrow]
+    if len(idx) < _STEPS_PER_DAY:
+        raise HTTPException(
+            status_code=503,
+            detail=f"พยากรณ์ไม่ครอบคลุมวันพรุ่งนี้ ({tomorrow}) ครบ 96 ช่วง 15 นาที.",
+        )
+    idx = idx[:_STEPS_PER_DAY]
+    a = [_safe(sa[i]) for i in idx]
+    b = [_safe(sb[i]) for i in idx]
+    c = [_safe(sc[i]) for i in idx]
+    ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in idx]
+    return a, b, c, ts, tomorrow.isoformat()
+
+
+def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
+    """Solve the min-cost 15-min schedule for tomorrow (no hourly aggregation).
+    Returns (rows, timestamps, date_str). Falls back to the greedy baseline if
+    the MILP solver fails."""
+    a, b, c, ts, date_str = _tomorrow_15min_loads()
+    dt = 1.0 / _STEPS_PER_HOUR
+    grid_cap = get_grid_availability(ts)
+    try:
+        rows = solve_milp(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    except Exception as exc:
+        _log.warning("schedule MILP failed (%s); falling back to baseline", exc)
+        rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    return rows, ts, date_str
+
+
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
 def forecast_series(horizon: str = "7day", island: str = "C"):
     try:
@@ -138,6 +183,24 @@ def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False
         cost=CostBreakdown(**cost),
         recommendations=[Recommendation(**r) for r in recs],
     )
+
+
+@router.get("/api/dispatch/schedule", response_model=ScheduleResponse)
+def dispatch_schedule():
+    """Recommended 15-min operator schedule for tomorrow (96 steps, min-cost)."""
+    rows, ts, date_str = _solve_tomorrow_schedule()
+    steps = [
+        ScheduleStep(
+            datetime=t.isoformat(),
+            diesel_a_mw=r["diesel_a_mw"],
+            diesel_c_mw=r["diesel_c_mw"],
+            diesel8_units_on=r["diesel8_units_on"],
+            diesel9_units_on=r["diesel9_units_on"],
+            battery_mw=r["battery_mw"],
+        )
+        for t, r in zip(ts, rows)
+    ]
+    return ScheduleResponse(date=date_str, steps=steps)
 
 
 class IntradayRequest(BaseModel):
