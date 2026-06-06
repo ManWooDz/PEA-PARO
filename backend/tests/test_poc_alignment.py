@@ -228,3 +228,32 @@ def test_apply_active_schemas_construct():
     assert act.uploaded is True
     empty = ActivePlanResponse(uploaded=False)
     assert empty.uploaded_at is None and empty.n_steps == 0
+
+
+def test_apply_then_active_reports_uploaded():
+    from models import plan_store
+    plan_store.clear()
+    c = _client()
+    steps = c.get("/api/dispatch/schedule").json()["steps"]
+    r = c.post("/api/dispatch/schedule/apply", json={"steps": steps})
+    assert r.status_code == 200
+    assert r.json()["n_steps"] == 96
+    act = c.get("/api/dispatch/schedule/active").json()
+    assert act["uploaded"] is True
+    assert act["n_steps"] == 96
+    plan_store.clear()
+
+
+def test_apply_rejects_empty_steps():
+    c = _client()
+    r = c.post("/api/dispatch/schedule/apply", json={"steps": []})
+    assert r.status_code == 422
+
+
+def test_active_reports_not_uploaded_when_cleared():
+    from models import plan_store
+    plan_store.clear()
+    c = _client()
+    act = c.get("/api/dispatch/schedule/active").json()
+    assert act["uploaded"] is False
+    assert act["n_steps"] == 0

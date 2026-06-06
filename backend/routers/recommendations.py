@@ -26,8 +26,10 @@ from models.schemas import (
     ScenarioResult, ScenariosResponse,
     ScheduleStep, ScheduleResponse,
     RecostRequest, RecostResponse, RecostWarning,
+    ApplyScheduleRequest, ApplyScheduleResponse, ActivePlanResponse,
 )
 from models.schedule_edit import recost as recost_schedule
+from models.plan_store import store_plan, get_plan
 from ml.capabilities import regenerate_available
 from ml.forecast_pipeline import generate_forecasts
 from scripts.generate_forecasts import load_input_history
@@ -262,6 +264,24 @@ def dispatch_schedule_recost(req: RecostRequest):
         steps=[ScheduleStep(**s) for s in steps],
         warnings=[RecostWarning(**w) for w in warnings],
     )
+
+
+@router.post("/api/dispatch/schedule/apply", response_model=ApplyScheduleResponse)
+def apply_schedule(req: ApplyScheduleRequest):
+    """Persist the operator's current plan as the active Early-Warning reference."""
+    if not req.steps:
+        raise HTTPException(status_code=422, detail="ไม่มีข้อมูลตารางสำหรับอัปโหลด.")
+    uploaded_at = store_plan([s.model_dump() for s in req.steps])
+    return ApplyScheduleResponse(uploaded_at=uploaded_at, n_steps=len(req.steps))
+
+
+@router.get("/api/dispatch/schedule/active", response_model=ActivePlanResponse)
+def active_schedule():
+    """Report the active uploaded plan (for the UI's reference status)."""
+    plan = get_plan()
+    if plan is None:
+        return ActivePlanResponse(uploaded=False, uploaded_at=None, n_steps=0)
+    return ActivePlanResponse(uploaded=True, uploaded_at=plan["uploaded_at"], n_steps=plan["n_steps"])
 
 
 class IntradayRequest(BaseModel):
