@@ -20,7 +20,7 @@ import { ApplyPlanDialog } from "@/components/operational/ApplyPlanDialog";
 import { useApplyPlan } from "@/hooks/useApplyPlan";
 import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
-import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
+import { DieselScheduleSection } from "@/components/tabs/dispatch/DieselScheduleSection";
 import { FuelReservePanel } from "@/components/tabs/dispatch/FuelReservePanel";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
 import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
@@ -825,13 +825,8 @@ export function Tab2Dispatch({
         </div>
       </section>
 
-          {/* ── Action Timeline (day-ahead) — replaces the old hourly table ── */}
-          <section>
-            <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
-              ★ ไทม์ไลน์คำสั่ง · สิ่งที่ต้องทำ
-            </div>
-            <ActionTimeline recommendations={da.plans?.[activeId === "custom" ? "min-cost" : activeId]?.recommendations ?? []} />
-          </section>
+          {/* ── 15-min day-ahead diesel schedule (B1) — replaces the Action Timeline ── */}
+          <DieselScheduleSection />
         </>
       )}
 
