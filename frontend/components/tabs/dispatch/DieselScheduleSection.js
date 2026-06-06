@@ -54,6 +54,9 @@ const SOURCES = [
 function OnPeriodRow({ src, steps }) {
   const runs = runsOf(steps, src.key);
   const lead = LEAD_MIN[src.key];   // undefined for BESS
+  // BESS only ever discharges in the on-period table (charging is excluded), so an
+  // empty BESS row means "charge-only", distinct from a diesel that simply stays off.
+  const emptyLabel = src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
   return (
     <tr className="border-b hairline last:border-0 align-top">
       <td className="py-2 pr-3">
@@ -61,20 +64,27 @@ function OnPeriodRow({ src, steps }) {
       </td>
       <td className="py-2 px-2">
         {runs.length === 0 ? (
-          <span className="text-xs text-muted thai">ไม่เดินเครื่อง</span>
+          <span className="text-xs text-muted thai">{emptyLabel}</span>
         ) : (
           <div className="flex flex-col gap-1">
-            {runs.map((r, i) => (
-              <div key={i} className="text-sm">
-                <span className="mono">{r.start}–{r.end}</span>{" "}
-                <span className="text-muted text-xs">· เฉลี่ย {fmt1(r.avg)} MW</span>
-                {lead != null && (
-                  <span className="text-muted text-[11px] thai block">
-                    สตาร์ท {shiftHHMM(r.startIso, -Math.round(lead * 60))} — วอร์ม ~{lead} นาที ก่อนถึง {r.start}
-                  </span>
-                )}
-              </div>
-            ))}
+            {runs.map((r, i) => {
+              // Warm-up start can fall before 00:00 (the prior night) when a run
+              // begins right at midnight — flag the day rollover so the operator
+              // doesn't read a late-evening time as "today".
+              const warmup = lead != null ? shiftHHMM(r.startIso, -Math.round(lead * 60)) : null;
+              const crossedMidnight = warmup != null && warmup > r.start;
+              return (
+                <div key={i} className="text-sm">
+                  <span className="mono">{r.start}–{r.end}</span>{" "}
+                  <span className="text-muted text-xs">· เฉลี่ย {fmt1(r.avg)} MW</span>
+                  {warmup != null && (
+                    <span className="text-muted text-[11px] thai block">
+                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{lead} นาที ก่อนถึง {r.start}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </td>
@@ -105,8 +115,11 @@ export function DieselScheduleSection() {
           </div>
         </div>
         <a
-          href={scheduleCsvUrl()}
-          className="px-3 py-2 rounded-lg text-sm border hairline thai hover:opacity-90 transition"
+          href={loading ? undefined : scheduleCsvUrl()}
+          aria-disabled={loading}
+          className={`px-3 py-2 rounded-lg text-sm border hairline thai transition ${
+            loading ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+          }`}
           style={{ background: "var(--surface-2)" }}
         >
           ⬇ ดาวน์โหลด CSV
