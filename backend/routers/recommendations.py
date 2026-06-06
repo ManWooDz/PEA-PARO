@@ -372,8 +372,10 @@ async def regenerate_forecast(file: UploadFile = File(...)):
             os.unlink(tmp_path)
 
     # The served forecast just changed on disk — drop the cached series so the
-    # accuracy recompute (and the app) read the freshly-written CSVs.
+    # accuracy recompute (and the app) read the freshly-written CSVs. Also evict the
+    # solved-schedule cache so the day-ahead schedule/recost re-solve on the new forecast.
     get_forecast_series.cache_clear()
+    _schedule_cache.clear()
 
     # Report the SAME metric the MAPE badge shows — LSTM+Margin (predicted_safe),
     # recomputed from the new CSVs — so the success message and the badge agree.
