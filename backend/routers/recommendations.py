@@ -6,9 +6,10 @@ GET  /api/dispatch/day-ahead                 — multi-day plan + recommendation
 POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
 import logging
-import tempfile, os
+import tempfile, os, csv, io
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series, compute_accuracy
@@ -204,6 +205,29 @@ def dispatch_schedule():
         for t, r in zip(ts, rows)
     ]
     return ScheduleResponse(date=date_str, steps=steps)
+
+
+@router.get("/api/dispatch/schedule.csv")
+def dispatch_schedule_csv():
+    """Tomorrow's 15-min schedule as a downloadable CSV for diesel controllers."""
+    rows, ts, date_str = _solve_tomorrow_schedule()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["datetime", "diesel_8_island_a_mw", "diesel_9_island_c_mw",
+                "diesel_8_units", "diesel_9_units", "bess_mw"])
+    for t, r in zip(ts, rows):
+        w.writerow([
+            t.isoformat(),
+            round(r["diesel_a_mw"], 3),
+            round(r["diesel_c_mw"], 3),
+            r["diesel8_units_on"],
+            r["diesel9_units_on"],
+            round(max(0.0, r["battery_mw"]), 3),   # discharge supplied; charging shown as 0
+        ])
+    headers = {
+        "Content-Disposition": f'attachment; filename="diesel-schedule-{date_str}.csv"',
+    }
+    return Response(content=buf.getvalue(), media_type="text/csv", headers=headers)
 
 
 class IntradayRequest(BaseModel):

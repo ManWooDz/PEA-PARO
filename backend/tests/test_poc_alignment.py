@@ -139,3 +139,17 @@ def test_schedule_endpoint_returns_96_steps():
     for k in ("diesel_a_mw", "diesel_c_mw", "diesel8_units_on",
               "diesel9_units_on", "battery_mw"):
         assert k in s0
+
+
+def test_schedule_csv_downloads():
+    c = _client()
+    r = c.get("/api/dispatch/schedule.csv")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    cd = r.headers["content-disposition"]
+    assert "attachment" in cd
+    assert "diesel-schedule-2025-12-29.csv" in cd
+    lines = r.text.strip().splitlines()
+    assert lines[0] == ("datetime,diesel_8_island_a_mw,diesel_9_island_c_mw,"
+                        "diesel_8_units,diesel_9_units,bess_mw")
+    assert len(lines) == 97   # header + 96 data rows
