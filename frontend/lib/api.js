@@ -72,6 +72,8 @@ export const fetchIntradayScenarios = (body = {}) =>
 // ── Day-ahead 15-min schedule (B1) ───────────────────────────────────
 export const fetchSchedule  = () => api.get('/api/dispatch/schedule').then(r => r.data)
 export const scheduleCsvUrl = () => `${API_BASE}/api/dispatch/schedule.csv`
+export const recostSchedule = (overrides) =>
+  api.post('/api/dispatch/schedule/recost', { overrides }).then(r => r.data)
 
 // ── Report (Tab-bar "รายงาน") ────────────────────────────────────────────────
 export const reportUrl = ({ scope = 'current', tab = 'realtime', format = 'html' } = {}) =>
