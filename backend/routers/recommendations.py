@@ -227,7 +227,7 @@ def dispatch_schedule_csv():
     headers = {
         "Content-Disposition": f'attachment; filename="diesel-schedule-{date_str}.csv"',
     }
-    return Response(content=buf.getvalue(), media_type="text/csv", headers=headers)
+    return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
 
 
 class IntradayRequest(BaseModel):
