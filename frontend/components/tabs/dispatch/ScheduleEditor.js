@@ -26,8 +26,10 @@ export function ScheduleEditor({ overrides, onAdd, onRemove, onConfirm, onReset,
   const hi = fdef?.max ?? 0;
   const startMin = START_TIMES.indexOf(start);
   const endMin = END_TIMES.indexOf(end);
+  // Times are zero-padded "HH:MM" (+ "24:00"), so lexicographic order === chronological.
   const validWindow = startMin >= 0 && endMin >= 0 && end > start;
-  const validValue = Number.isFinite(num) && num >= lo && num <= hi;
+  // Reject a blank/whitespace field — Number("") is 0, which would otherwise look valid.
+  const validValue = value.trim() !== "" && Number.isFinite(num) && num >= lo && num <= hi;
   const canAdd = validWindow && validValue;
 
   const add = () => {
