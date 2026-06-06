@@ -178,3 +178,34 @@ def test_schedule_endpoint_includes_cost():
     for k in ("grid_thb", "battery_thb", "diesel_thb", "diesel_litres", "total_thb"):
         assert k in cost
     assert cost["total_thb"] > 0
+
+
+def test_recost_endpoint_empty_matches_schedule_cost():
+    c = _client()
+    base = c.get("/api/dispatch/schedule").json()
+    r = c.post("/api/dispatch/schedule/recost", json={"overrides": []})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["steps"]) == 96
+    assert body["warnings"] == []
+    # identity: no overrides → same total cost as the recommended schedule
+    assert abs(body["cost"]["total_thb"] - base["cost"]["total_thb"]) < 1.0
+
+
+def test_recost_endpoint_override_changes_diesel():
+    c = _client()
+    r = c.post("/api/dispatch/schedule/recost",
+               json={"overrides": [{"start": "00:00", "end": "03:00",
+                                    "field": "diesel_c", "value_mw": 5.0}]})
+    assert r.status_code == 200
+    s0 = r.json()["steps"][0]
+    assert s0["diesel_c_mw"] == 5.0
+    assert s0["diesel9_units_on"] == 2
+
+
+def test_recost_endpoint_rejects_bad_override():
+    c = _client()
+    r = c.post("/api/dispatch/schedule/recost",
+               json={"overrides": [{"start": "06:00", "end": "06:00",
+                                    "field": "diesel_c", "value_mw": 1.0}]})
+    assert r.status_code == 422

@@ -25,7 +25,9 @@ from models.schemas import (
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
     ScenarioResult, ScenariosResponse,
     ScheduleStep, ScheduleResponse,
+    RecostRequest, RecostResponse, RecostWarning,
 )
+from models.schedule_edit import recost as recost_schedule
 from ml.capabilities import regenerate_available
 from ml.forecast_pipeline import generate_forecasts
 from scripts.generate_forecasts import load_input_history
@@ -132,11 +134,19 @@ def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list
     return a, b, c, ts, tomorrow.isoformat()
 
 
+_schedule_cache: dict = {}   # {date_str: (rows, ts)} — one entry, evicted on new day
+
+
 def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
     """Solve the min-cost 15-min schedule for tomorrow (no hourly aggregation).
     Returns (rows, timestamps, date_str). Falls back to the greedy baseline if
-    the MILP solver fails."""
+    the MILP solver fails.
+    Caches the result within a calendar day so multiple endpoints (schedule JSON,
+    schedule CSV, recost) all share the identical baseline rows."""
     a, b, c, ts, date_str = _tomorrow_15min_loads()
+    if date_str in _schedule_cache:
+        cached_rows, cached_ts = _schedule_cache[date_str]
+        return cached_rows, cached_ts, date_str
     dt = 1.0 / _STEPS_PER_HOUR
     grid_cap = get_grid_availability(ts)
     try:
@@ -144,6 +154,8 @@ def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
     except Exception as exc:
         _log.warning("schedule MILP failed (%s); falling back to baseline", exc)
         rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    _schedule_cache.clear()            # evict any previous date
+    _schedule_cache[date_str] = (rows, ts)
     return rows, ts, date_str
 
 
@@ -229,6 +241,24 @@ def dispatch_schedule_csv():
         "Content-Disposition": f'attachment; filename="diesel-schedule-{date_str}.csv"',
     }
     return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
+
+
+@router.post("/api/dispatch/schedule/recost", response_model=RecostResponse)
+def dispatch_schedule_recost(req: RecostRequest):
+    """Re-cost tomorrow's schedule after manual operator MW overrides (no MILP re-solve)."""
+    rows, ts, _ = _solve_tomorrow_schedule()
+    grid_cap = get_grid_availability(ts)
+    try:
+        cost, steps, warnings = recost_schedule(
+            rows, ts, grid_cap, [o.model_dump() for o in req.overrides]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return RecostResponse(
+        cost=CostBreakdown(**cost),
+        steps=[ScheduleStep(**s) for s in steps],
+        warnings=[RecostWarning(**w) for w in warnings],
+    )
 
 
 class IntradayRequest(BaseModel):
