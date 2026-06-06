@@ -61,11 +61,13 @@ def test_recost_override_raises_diesel_cost():
 
 def test_recost_flags_grid_over_cap():
     ts = _ts96()
-    rows = _base_rows(ts, load=10.0, d9=4.0)
-    grid_cap = [5.0] * 96                     # cap below the 6 MW grid balance
-    # force diesel C to 0 over a window → grid must cover the full 10 MW load > 5 cap
+    rows = _base_rows(ts, load=10.0, d9=4.0)   # baseline grid = 10 - 4 = 6 MW
+    grid_cap = [7.0] * 96                       # cap above the baseline (6) — pristine plan is within cap
+    # force diesel C to 0 over one window → grid must cover the full 10 MW load > 7 cap, there only
     cost, steps, warnings = recost(rows, ts, grid_cap,
                                    [{"start": "09:00", "end": "10:00", "field": "diesel_c", "value_mw": 0.0}])
     assert any(w["kind"] == "grid_over_cap" for w in warnings)
-    w = [w for w in warnings if w["kind"] == "grid_over_cap"][0]
-    assert w["start"] == "09:00"
+    over = [w for w in warnings if w["kind"] == "grid_over_cap"]
+    assert len(over) == 1                        # only the edited window exceeds cap
+    assert over[0]["start"] == "09:00"
+    assert over[0]["end"] == "10:00"             # 09:00–09:45 over cap, +15min = 10:00

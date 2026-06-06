@@ -78,16 +78,12 @@ def _setpoints(base_rows, ts, overrides):
     return sp
 
 
-def _grid_warnings(ts, grids, grid_cap, base_grids=None):
-    """Contiguous windows where the edited grid exceeds the per-step cap AND
-    was worsened by the overrides relative to the baseline (grids[i] > base_grids[i]).
-    If base_grids is None, all over-cap steps are flagged."""
+def _grid_warnings(ts, grids, grid_cap):
+    """Contiguous windows where the (edited) balanced grid exceeds the per-step cap."""
     runs, cur = [], None
     for i in range(len(ts)):
         cap = grid_cap[i] if grid_cap is not None and i < len(grid_cap) else None
-        # Flag if over cap AND (no baseline to compare, or edit increased the grid)
-        edit_worsened = base_grids is None or grids[i] > base_grids[i] + 1e-6
-        if cap is not None and grids[i] > cap + 1e-6 and edit_worsened:
+        if cap is not None and grids[i] > cap + 1e-6:
             if cur is None:
                 cur = {"s": i, "e": i, "maxg": grids[i], "cap": cap}
             cur["e"] = i
@@ -115,12 +111,6 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
     cost is a CostBreakdown-shaped dict; steps are 96 ScheduleStep-shaped dicts."""
     validate_overrides(overrides)
     sp = _setpoints(base_rows, ts, overrides)
-
-    # Compute baseline grid (before overrides) to detect edit-introduced violations
-    base_grids = [
-        max(0.0, r["load_mw"] - r["diesel_a_mw"] - r["diesel_c_mw"] - r["battery_mw"])
-        for r in base_rows
-    ]
 
     rows, steps, grids = [], [], []
     prev8 = prev9 = 0
@@ -152,5 +142,5 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
         })
 
     cost = compute_plan_cost(aggregate_to_hourly(rows))
-    warnings = _grid_warnings(ts, grids, grid_cap, base_grids=base_grids)
+    warnings = _grid_warnings(ts, grids, grid_cap)
     return cost, steps, warnings
