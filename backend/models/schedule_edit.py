@@ -40,7 +40,9 @@ def _range_for(field: str) -> tuple[float, float]:
         return 0.0, _D8_MAX
     if field == "diesel_c":
         return 0.0, _D9_MAX
-    return -_BAT_POWER_MW, _BAT_POWER_MW   # bess (signed)
+    if field == "bess":
+        return -_BAT_POWER_MW, _BAT_POWER_MW   # signed: + discharge / − charge
+    raise ValueError(f"field ไม่ถูกต้อง: {field}")
 
 
 def validate_overrides(overrides) -> None:
@@ -118,9 +120,16 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
     for i, t in enumerate(ts):
         d8, d9, bess = sp[i]
         load = base_rows[i]["load_mw"]
-        grid = max(0.0, load - d8 - d9 - bess)   # bess signed: charging (neg) raises grid
+        # Grid is the balancing residual. bess is signed (charging, negative, raises grid).
+        # Clipped at 0: if the operator overrides diesel/BESS to over-supply, the surplus is
+        # simply not drawn from the grid (their deliberate choice; cost counts only what is
+        # dispatched, and over-supply is not a cable-limit violation).
+        grid = max(0.0, load - d8 - d9 - bess)
         d8u = math.ceil(d8 / _D8_CAP) if d8 > _DIESEL_ON_MW else 0
         d9u = math.ceil(d9 / _D9_CAP) if d9 > _DIESEL_ON_MW else 0
+        # Start = unit-count rise vs the previous step. Like solve_baseline, a same-step
+        # unit swap (drop then re-add within the window) is not counted — a minor undercount
+        # vs the MILP's per-unit start variables; acceptable for the manual-override path.
         start8, start9 = max(0, d8u - prev8), max(0, d9u - prev9)
         prev8, prev9 = d8u, d9u
         grids.append(grid)
@@ -129,6 +138,8 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
             "load_mw": round(load, 3), "grid_mw": round(grid, 3),
             "battery_mw": round(bess, 3), "diesel_a_mw": round(d8, 3),
             "diesel_c_mw": round(d9, 3), "solar_mw": 0.0, "line6_mw": 0.0,
+            # soc_pct is a non-surfaced placeholder: the override path doesn't track SoC,
+            # compute_plan_cost ignores it, and RecostResponse.steps omit it entirely.
             "soc_pct": 0.0, "token_per_hour": round(step_token(dt_hours, t, grid, bess, d8, d9), 1),
             "status": "normal",
             "diesel8_units_on": d8u, "diesel9_units_on": d9u,

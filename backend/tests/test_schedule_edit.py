@@ -71,3 +71,28 @@ def test_recost_flags_grid_over_cap():
     assert len(over) == 1                        # only the edited window exceeds cap
     assert over[0]["start"] == "09:00"
     assert over[0]["end"] == "10:00"             # 09:00–09:45 over cap, +15min = 10:00
+
+
+def test_recost_last_override_wins_on_overlap():
+    ts = _ts96()
+    rows = _base_rows(ts, d9=0.0)
+    grid_cap = [100.0] * 96
+    # two overrides on the same field+window; the later one must win
+    _, steps, _ = recost(rows, ts, grid_cap, [
+        {"start": "00:00", "end": "06:00", "field": "diesel_c", "value_mw": 2.0},
+        {"start": "00:00", "end": "06:00", "field": "diesel_c", "value_mw": 5.0},
+    ])
+    assert steps[0]["diesel_c_mw"] == 5.0
+
+
+def test_recost_bess_charging_raises_grid():
+    ts = _ts96()
+    rows = _base_rows(ts, load=8.0, d9=0.0, bess=0.0)   # baseline grid = 8
+    grid_cap = [100.0] * 96
+    # charging the battery (negative bess) must INCREASE the grid draw: 8 - (-3) = 11
+    cost, steps, _ = recost(rows, ts, grid_cap,
+                            [{"start": "00:00", "end": "01:00", "field": "bess", "value_mw": -3.0}])
+    base_cost = recost(rows, ts, grid_cap, [])[0]
+    assert steps[0]["battery_mw"] == -3.0
+    # charging draws extra grid energy → higher grid cost than the no-override baseline
+    assert cost["grid_thb"] > base_cost["grid_thb"]
