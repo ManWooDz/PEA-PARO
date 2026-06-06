@@ -43,6 +43,10 @@ _STARTUP_TOKEN_9 = DIESEL_9_STARTUP_MWH * _MW_TO_KW * _C_D9
 # Ramp + min-down physical specs (slack at 15-min/hourly dt; documented for completeness).
 _RAMP_PCT_8, _RAMP_PCT_9 = DIESEL_8["ramp_pct_per_sec"], DIESEL_9["ramp_pct_per_sec"]
 _MIN_DOWN_MIN_8, _MIN_DOWN_MIN_9 = DIESEL_8["min_down_time_min"], DIESEL_9["min_down_time_min"]
+# CBC tuning: accept a 1% MIP gap + a time cap so the startup-cost unit commitment stays
+# fast on the 7-day (168-step) horizon (proving optimality is the slow part, not finding it).
+_SOLVE_GAP_REL = 0.01
+_SOLVE_TIME_LIMIT_S = 40
 
 
 def _grid_rate(ts: datetime) -> float:
@@ -189,9 +193,14 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         + pulp.lpSum(su9[t][k] * _STARTUP_TOKEN_9 for t in range(T) for k in range(n9))
     )
 
-    p.solve(pulp.PULP_CBC_CMD(msg=0))
-    if pulp.LpStatus[p.status] != "Optimal":
-        raise RuntimeError(f"MILP not optimal: {pulp.LpStatus[p.status]}")
+    # The startup-cost unit commitment can be slow to PROVE optimal on the 7-day horizon
+    # (168 hourly steps). Accept a 1% MIP gap and cap the time — CBC returns the best
+    # incumbent, which is well within demo tolerance and keeps solves at a few seconds.
+    p.solve(pulp.PULP_CBC_CMD(msg=0, gapRel=_SOLVE_GAP_REL, timeLimit=_SOLVE_TIME_LIMIT_S))
+    status = pulp.LpStatus[p.status]
+    # Use a proven optimum OR a feasible incumbent; fail only when no feasible plan exists.
+    if status == "Infeasible" or grid[0].value() is None:
+        raise RuntimeError(f"MILP not solved: {status}")
 
     day0 = timestamps[0].date()
     rows = []
