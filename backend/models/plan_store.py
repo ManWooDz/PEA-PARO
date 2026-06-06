@@ -11,8 +11,9 @@ _active: dict | None = None   # {"by_hhmm": {...}, "uploaded_at": str, "n_steps"
 
 
 def store_plan(steps: list[dict]) -> str:
-    """Store steps keyed by HH:MM (parsed from each step's 'datetime'), keeping
-    diesel_a_mw/diesel_c_mw/battery_mw per slot. Returns the uploaded_at ISO."""
+    """Store steps keyed by HH:MM (parsed from each step's ISO 'datetime'), keeping
+    diesel_a_mw/diesel_c_mw/battery_mw per slot. Returns the uploaded_at ISO.
+    A full day's 96 steps have unique HH:MM; on any duplicate slot the last wins."""
     global _active
     by_hhmm: dict[str, dict] = {}
     for s in steps:
