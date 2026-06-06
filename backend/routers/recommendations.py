@@ -42,6 +42,12 @@ _STEPS_PER_HOUR = 4   # 15-min steps in 1h
 _INTRADAY_STEPS = 6 * _STEPS_PER_HOUR   # next 6h window (24 × 15-min) for early-warning
 
 
+def _predicted_safe(pt) -> float:
+    """LSTM+Margin forecast value for a series point, 0.0 if missing."""
+    v = pt.get("predicted_safe")
+    return float(v) if v is not None else 0.0
+
+
 def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float], list[float], list[float], list[datetime]]:
     """Return (loads_a, loads_b, loads_c, timestamps) for the first n_steps.
     step='15min' uses raw 15-min points; step='hourly' averages 4×15-min → hourly.
@@ -50,14 +56,10 @@ def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float]
     sb = get_forecast_series(horizon, island="B")
     sc = get_forecast_series(horizon, island="C")
 
-    def _safe(pt):
-        v = pt.get("predicted_safe")
-        return float(v) if v is not None else 0.0
-
     if step == "15min":
-        a = [_safe(p) for p in sa[:n_steps]]
-        b = [_safe(p) for p in sb[:n_steps]]
-        c = [_safe(p) for p in sc[:n_steps]]
+        a = [_predicted_safe(p) for p in sa[:n_steps]]
+        b = [_predicted_safe(p) for p in sb[:n_steps]]
+        c = [_predicted_safe(p) for p in sc[:n_steps]]
         ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in range(min(n_steps, len(sa)))]
     else:  # hourly
         a, b, c, ts = [], [], [], []
@@ -66,9 +68,9 @@ def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float]
             wa, wb, wc = sa[w], sb[w], sc[w]
             if not wa or not wb or not wc:
                 break
-            a.append(sum(_safe(p) for p in wa) / len(wa))
-            b.append(sum(_safe(p) for p in wb) / len(wb))
-            c.append(sum(_safe(p) for p in wc) / len(wc))
+            a.append(sum(_predicted_safe(p) for p in wa) / len(wa))
+            b.append(sum(_predicted_safe(p) for p in wb) / len(wb))
+            c.append(sum(_predicted_safe(p) for p in wc) / len(wc))
             ts.append(datetime.fromisoformat(str(wa[0]["datetime"])))
     return a, b, c, ts
 
@@ -109,10 +111,6 @@ def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list
     sb = get_forecast_series("7day", island="B")
     sc = get_forecast_series("7day", island="C")
 
-    def _safe(pt):
-        v = pt.get("predicted_safe")
-        return float(v) if v is not None else 0.0
-
     idx = [i for i, p in enumerate(sa)
            if datetime.fromisoformat(str(p["datetime"])).date() == tomorrow]
     if len(idx) < _STEPS_PER_DAY:
@@ -121,9 +119,14 @@ def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list
             detail=f"พยากรณ์ไม่ครอบคลุมวันพรุ่งนี้ ({tomorrow}) ครบ 96 ช่วง 15 นาที.",
         )
     idx = idx[:_STEPS_PER_DAY]
-    a = [_safe(sa[i]) for i in idx]
-    b = [_safe(sb[i]) for i in idx]
-    c = [_safe(sc[i]) for i in idx]
+    if idx[-1] >= min(len(sb), len(sc)):
+        raise HTTPException(
+            status_code=503,
+            detail="พยากรณ์ของเกาะ B/C ไม่ครอบคลุมวันพรุ่งนี้ครบ.",
+        )
+    a = [_predicted_safe(sa[i]) for i in idx]
+    b = [_predicted_safe(sb[i]) for i in idx]
+    c = [_predicted_safe(sc[i]) for i in idx]
     ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in idx]
     return a, b, c, ts, tomorrow.isoformat()
 
