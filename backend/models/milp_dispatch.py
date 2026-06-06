@@ -111,6 +111,9 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
     su9  = [[pulp.LpVariable(f"su9_{t}_{k}", lowBound=0, upBound=1) for k in range(n9)] for t in range(T)]
 
     init_soc = init_soc_pct / 100.0 * _BAT_CAP_MWH
+    # max MW a diesel unit may change per step (slack at 15-min/hourly dt; documents the ramp spec)
+    _ramp8 = _RAMP_PCT_8 * _D8_CAP * (dt_hours * 3600.0)
+    _ramp9 = _RAMP_PCT_9 * _D9_CAP * (dt_hours * 3600.0)
 
     for t in range(T):
         ts = timestamps[t]
@@ -133,6 +136,7 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         for k in range(n9):
             p += d9[t][k] <= _D9_CAP * on9[t][k]
         # diesel start detection: su >= on[t] - on[t-1] (units assumed off before horizon)
+        # cold-horizon assumption: all units off before t=0, so a unit on at t=0 counts as a start
         for j in range(n8):
             prev = 0 if t == 0 else on8[t - 1][j]
             p += su8[t][j] >= on8[t][j] - prev
@@ -141,14 +145,12 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             p += su9[t][k] >= on9[t][k] - prev
         # ramp limit per step (slack at current dt; documents the physical ramp rate)
         if t >= 1:
-            ramp8 = _RAMP_PCT_8 * _D8_CAP * (dt_hours * 3600.0)
-            ramp9 = _RAMP_PCT_9 * _D9_CAP * (dt_hours * 3600.0)
             for j in range(n8):
-                p += d8[t][j] - d8[t - 1][j] <= ramp8
-                p += d8[t - 1][j] - d8[t][j] <= ramp8
+                p += d8[t][j] - d8[t - 1][j] <= _ramp8
+                p += d8[t - 1][j] - d8[t][j] <= _ramp8
             for k in range(n9):
-                p += d9[t][k] - d9[t - 1][k] <= ramp9
-                p += d9[t - 1][k] - d9[t][k] <= ramp9
+                p += d9[t][k] - d9[t - 1][k] <= _ramp9
+                p += d9[t - 1][k] - d9[t][k] <= _ramp9
 
     # battery daily discharge budget (per calendar date)
     for d in sorted({ts.date() for ts in timestamps}):
@@ -319,6 +321,8 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
         token = dt_hours * _MW_TO_KW * (
             grid_A * _grid_rate(ts) + bdis * _C_BAT + d8 * _C_D8 + d9 * _C_D9
         )
+        # starts from aggregate unit-count increase (greedy scalar baseline has no per-unit identity;
+        # a same-step unit swap is not counted — a minor undercount vs the MILP's per-unit su)
         u8_now, u9_now = _units_on(d8, _D8_CAP), _units_on(d9, _D9_CAP)
         starts8, starts9 = max(0, u8_now - prev_u8), max(0, u9_now - prev_u9)
         prev_u8, prev_u9 = u8_now, u9_now
