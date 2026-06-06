@@ -204,7 +204,8 @@ def dispatch_schedule():
         )
         for t, r in zip(ts, rows)
     ]
-    return ScheduleResponse(date=date_str, steps=steps)
+    cost = compute_plan_cost(aggregate_to_hourly(rows))
+    return ScheduleResponse(date=date_str, steps=steps, cost=CostBreakdown(**cost))
 
 
 @router.get("/api/dispatch/schedule.csv")

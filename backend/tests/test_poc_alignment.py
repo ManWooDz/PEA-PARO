@@ -168,3 +168,13 @@ def test_recost_schemas_construct():
     assert resp.warnings[0].kind == "grid_over_cap"
     sr = ScheduleResponse(date="2025-12-29", steps=[step], cost=cost)
     assert sr.cost.total_thb == 6
+
+
+def test_schedule_endpoint_includes_cost():
+    c = _client()
+    r = c.get("/api/dispatch/schedule")
+    assert r.status_code == 200
+    cost = r.json()["cost"]
+    for k in ("grid_thb", "battery_thb", "diesel_thb", "diesel_litres", "total_thb"):
+        assert k in cost
+    assert cost["total_thb"] > 0
