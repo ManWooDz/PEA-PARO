@@ -30,3 +30,38 @@ def test_clear_empties_plan():
     plan_store.store_plan(_steps())
     plan_store.clear()
     assert plan_store.get_plan() is None
+
+
+from datetime import datetime, timedelta
+from models.recommendation import detect_plan_sufficiency
+
+
+def _loads(values):
+    base = datetime(2025, 12, 28, 9, 0)
+    return [(base + timedelta(minutes=15 * i), v) for i, v in enumerate(values)]
+
+
+def test_sufficiency_flags_first_breach():
+    # plan supplies diesel 2 MW at every slot; grid avail 5 MW → capacity 7 MW.
+    loads = _loads([6.0, 6.5, 9.0, 6.0])     # step 2 (09:30) exceeds 7
+    grid_avail = [5.0, 5.0, 5.0, 5.0]
+    plan = {f"{t.strftime('%H:%M')}": {"diesel_a_mw": 0.0, "diesel_c_mw": 2.0, "battery_mw": 0.0}
+            for t, _ in loads}
+    alerts = detect_plan_sufficiency(loads, plan, grid_avail)
+    assert len(alerts) == 1
+    assert alerts[0]["device"] == "Day-Ahead Plan"
+    assert alerts[0]["severity"] == "warn"
+    assert "09:30" in alerts[0]["reason"]
+
+
+def test_sufficiency_silent_when_capacity_ample():
+    loads = _loads([6.0, 6.0, 6.0])
+    grid_avail = [5.0, 5.0, 5.0]
+    plan = {f"{t.strftime('%H:%M')}": {"diesel_a_mw": 0.0, "diesel_c_mw": 5.0, "battery_mw": 0.0}
+            for t, _ in loads}
+    assert detect_plan_sufficiency(loads, plan, grid_avail) == []
+
+
+def test_sufficiency_empty_plan_returns_empty():
+    loads = _loads([99.0, 99.0])
+    assert detect_plan_sufficiency(loads, {}, [1.0, 1.0]) == []

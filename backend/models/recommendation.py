@@ -193,3 +193,34 @@ def detect_intraday_alerts(
             )
 
     return alerts
+
+
+PLAN_SUFFICIENCY_EPS = 1e-6
+
+
+def detect_plan_sufficiency(system_loads, plan_by_hhmm, grid_avail) -> list[dict]:
+    """Warn when the next-6h SYSTEM load forecast exceeds the uploaded plan's
+    planned supply capacity at the matching time-of-day.
+
+    system_loads: list of (datetime, load_mw). grid_avail: list aligned to it.
+    plan_by_hhmm: {hhmm: {diesel_a_mw, diesel_c_mw, battery_mw}} (signed battery).
+    Emits ONE warn alert for the earliest breach; [] if none / no plan."""
+    if not plan_by_hhmm:
+        return []
+    for i, (ts, load) in enumerate(system_loads):
+        plan = plan_by_hhmm.get(ts.strftime("%H:%M"))
+        if plan is None:
+            continue
+        ga = grid_avail[i] if i < len(grid_avail) else 0.0
+        capacity = ga + plan["diesel_a_mw"] + plan["diesel_c_mw"] + max(0.0, plan["battery_mw"])
+        if load > capacity + PLAN_SUFFICIENCY_EPS:
+            t = ts.strftime("%H:%M")
+            deficit = load - capacity
+            return [{
+                "act_time": t, "effect_time": t, "severity": "warn",
+                "device": "Day-Ahead Plan", "action": "แผนที่อัปโหลดไม่พอ — เพิ่มดีเซล",
+                "reason": f"forecast โหลดระบบ {load:.1f} MW เกินกำลังที่แผนวางไว้ {capacity:.1f} MW ตอน {t}",
+                "impact": f"ขาด {deficit:.1f} MW · ทบทวน/เพิ่มดีเซลในแผน",
+                "control_type": "radio", "day": 0,
+            }]
+    return []
