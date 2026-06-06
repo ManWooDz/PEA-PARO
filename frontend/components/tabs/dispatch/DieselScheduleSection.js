@@ -1,9 +1,13 @@
 "use client";
+import { useState } from "react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { useSchedule } from "@/hooks/useSchedule";
-import { scheduleCsvUrl } from "@/lib/api";
+import { recostSchedule } from "@/lib/api";
+import { downloadScheduleCsv } from "@/lib/scheduleCsv";
+import { ScheduleEditor } from "@/components/tabs/dispatch/ScheduleEditor";
+import { EditedPlanCard } from "@/components/tabs/dispatch/EditedPlanCard";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 
@@ -101,7 +105,31 @@ function OnPeriodRow({ src, steps }) {
 
 export function DieselScheduleSection() {
   const { schedule, loading } = useSchedule();
-  const steps = schedule?.steps ?? [];
+
+  const [overrides, setOverrides] = useState([]);
+  const [edited, setEdited] = useState(null);     // { steps, cost, warnings }
+  const [recosting, setRecosting] = useState(false);
+  const [editError, setEditError] = useState(null);
+
+  const effectiveSteps = edited?.steps ?? schedule?.steps ?? [];
+
+  const addOverride = (o) => setOverrides((prev) => [...prev, o]);
+  const removeOverride = (i) => setOverrides((prev) => prev.filter((_, k) => k !== i));
+  const resetEdits = () => { setOverrides([]); setEdited(null); setEditError(null); };
+  const confirmEdits = async () => {
+    setRecosting(true);
+    setEditError(null);
+    try {
+      const d = await recostSchedule(overrides);
+      setEdited(d);
+    } catch (e) {
+      setEditError(e?.response?.data?.detail || "คิดต้นทุนใหม่ไม่สำเร็จ");
+    } finally {
+      setRecosting(false);
+    }
+  };
+
+  const steps = effectiveSteps;
 
   const data = steps.map((s) => ({
     t: hhmm(s.datetime),
@@ -121,16 +149,16 @@ export function DieselScheduleSection() {
             แผนแนะนำ (ลดต้นทุน) สำหรับตั้งโปรแกรมเครื่องดีเซล — 00:00–23:45 ทุก 15 นาที
           </div>
         </div>
-        <a
-          href={loading ? undefined : scheduleCsvUrl()}
-          aria-disabled={loading}
+        <button
+          onClick={() => downloadScheduleCsv(effectiveSteps, schedule?.date)}
+          disabled={loading || effectiveSteps.length === 0}
           className={`px-3 py-2 rounded-lg text-sm border hairline thai transition ${
-            loading ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+            loading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
           }`}
           style={{ background: "var(--surface-2)" }}
         >
-          ⬇ ดาวน์โหลด CSV
-        </a>
+          ⬇ ดาวน์โหลด CSV{edited ? " (แก้ไขแล้ว)" : ""}
+        </button>
       </div>
 
       {loading ? (
@@ -179,6 +207,24 @@ export function DieselScheduleSection() {
               ))}
             </tbody>
           </table>
+
+          <ScheduleEditor
+            overrides={overrides}
+            onAdd={addOverride}
+            onRemove={removeOverride}
+            onConfirm={confirmEdits}
+            onReset={resetEdits}
+            recosting={recosting}
+            edited={edited}
+          />
+          {editError && (
+            <div className="text-[11px] text-red-500 thai mt-2">⚠️ {editError}</div>
+          )}
+          <EditedPlanCard
+            recommended={schedule?.cost}
+            edited={edited?.cost}
+            warnings={edited?.warnings}
+          />
         </>
       )}
     </section>
