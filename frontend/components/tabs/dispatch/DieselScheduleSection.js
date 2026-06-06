@@ -152,6 +152,10 @@ export function DieselScheduleSection() {
             </LineChart>
           </ResponsiveContainer>
 
+          <div className="text-[11px] text-muted thai mt-1">
+            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่
+          </div>
+
           <div className="text-xs uppercase eyebrow text-muted mt-5 mb-2 thai">
             ช่วงเวลาเดินเครื่อง · สิ่งที่ต้องตั้งโปรแกรม
           </div>
