@@ -259,3 +259,36 @@ def test_active_reports_not_uploaded_when_cleared():
     act = c.get("/api/dispatch/schedule/active").json()
     assert act["uploaded"] is False
     assert act["n_steps"] == 0
+
+
+_SENTINEL_SUFF = {
+    "act_time": "10:00", "effect_time": "10:00", "severity": "warn",
+    "device": "Day-Ahead Plan", "action": "x", "reason": "r", "impact": "i",
+    "control_type": "radio", "day": 0,
+}
+
+
+def test_intraday_appends_sufficiency_when_plan_active(monkeypatch):
+    from models import plan_store
+    import routers.recommendations as rr
+    plan_store.clear()
+    c = _client()
+    steps = c.get("/api/dispatch/schedule").json()["steps"]
+    c.post("/api/dispatch/schedule/apply", json={"steps": steps})
+    monkeypatch.setattr(rr, "detect_plan_sufficiency", lambda *a, **k: [_SENTINEL_SUFF])
+    r = c.post("/api/intraday/alerts", json={})
+    assert r.status_code == 200
+    assert "Day-Ahead Plan" in [x["device"] for x in r.json()["recommendations"]]
+    plan_store.clear()
+
+
+def test_intraday_skips_sufficiency_without_plan(monkeypatch):
+    from models import plan_store
+    import routers.recommendations as rr
+    plan_store.clear()
+    c = _client()
+    monkeypatch.setattr(rr, "detect_plan_sufficiency", lambda *a, **k: [_SENTINEL_SUFF])
+    r = c.post("/api/intraday/alerts", json={})
+    assert r.status_code == 200
+    # no active plan → the sufficiency branch is skipped, sentinel never appears
+    assert "Day-Ahead Plan" not in [x["device"] for x in r.json()["recommendations"]]

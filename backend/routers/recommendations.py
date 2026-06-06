@@ -19,7 +19,7 @@ from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
 from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
 from models.scenario import evaluate_scenarios
-from models.recommendation import build_recommendations, detect_intraday_alerts
+from models.recommendation import build_recommendations, detect_intraday_alerts, detect_plan_sufficiency
 from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
@@ -304,6 +304,14 @@ def intraday_alerts(req: IntradayRequest):
         actual_now_mw=req.actual_now_mw,
         plan_now_mw=req.plan_now_mw,
     )
+    # If the operator uploaded a plan (B3), add a sufficiency check: next-6h system
+    # load vs the plan's planned capacity at the matching time-of-day.
+    plan = get_plan()
+    if plan is not None:
+        a, b, c, ts = _island_loads("6h", _INTRADAY_STEPS, step="15min")
+        grid_avail = get_grid_availability(ts)
+        system_loads = [(ts[i], a[i] + b[i] + c[i]) for i in range(len(ts))]
+        alert_items = alert_items + detect_plan_sufficiency(system_loads, plan["by_hhmm"], grid_avail)
     return RecommendationsResponse(
         recommendations=[Recommendation(**a) for a in alert_items],
     )
