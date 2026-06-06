@@ -110,18 +110,24 @@ export function DieselScheduleSection() {
   const [edited, setEdited] = useState(null);     // { steps, cost, warnings }
   const [recosting, setRecosting] = useState(false);
   const [editError, setEditError] = useState(null);
+  // dirty = overrides changed since the last confirm/reset, so the chart/cost shown
+  // (the recommended plan, or a previously-confirmed edit) is out of date.
+  const [dirty, setDirty] = useState(false);
 
+  // What the chart, on-period table, and CSV reflect: the confirmed edit if any,
+  // else the recommended plan.
   const effectiveSteps = edited?.steps ?? schedule?.steps ?? [];
 
-  const addOverride = (o) => setOverrides((prev) => [...prev, o]);
-  const removeOverride = (i) => setOverrides((prev) => prev.filter((_, k) => k !== i));
-  const resetEdits = () => { setOverrides([]); setEdited(null); setEditError(null); };
+  const addOverride = (o) => { setOverrides((prev) => [...prev, o]); setDirty(true); };
+  const removeOverride = (i) => { setOverrides((prev) => prev.filter((_, k) => k !== i)); setDirty(true); };
+  const resetEdits = () => { setOverrides([]); setEdited(null); setEditError(null); setDirty(false); };
   const confirmEdits = async () => {
     setRecosting(true);
     setEditError(null);
     try {
       const d = await recostSchedule(overrides);
       setEdited(d);
+      setDirty(false);
     } catch (e) {
       setEditError(e?.response?.data?.detail || "คิดต้นทุนใหม่ไม่สำเร็จ");
     } finally {
@@ -129,9 +135,7 @@ export function DieselScheduleSection() {
     }
   };
 
-  const steps = effectiveSteps;
-
-  const data = steps.map((s) => ({
+  const data = effectiveSteps.map((s) => ({
     t: hhmm(s.datetime),
     "Diesel #8 (A)": s.diesel_a_mw,
     "Diesel #9 (C)": s.diesel_c_mw,
@@ -203,7 +207,7 @@ export function DieselScheduleSection() {
             </thead>
             <tbody>
               {SOURCES.map((src) => (
-                <OnPeriodRow key={src.key} src={src} steps={steps} />
+                <OnPeriodRow key={src.key} src={src} steps={effectiveSteps} />
               ))}
             </tbody>
           </table>
@@ -219,6 +223,12 @@ export function DieselScheduleSection() {
           />
           {editError && (
             <div className="text-[11px] text-red-500 thai mt-2">⚠️ {editError}</div>
+          )}
+          {dirty && !recosting && (
+            <div className="text-[11px] thai mt-2 rounded px-2 py-1"
+                 style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
+              การแก้ไขยังไม่ถูกนำไปคำนวณ — กด “ยืนยันการแก้ไข” เพื่ออัปเดตกราฟ/ต้นทุน/CSV
+            </div>
           )}
           <EditedPlanCard
             recommended={schedule?.cost}
