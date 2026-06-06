@@ -74,6 +74,8 @@ export const fetchSchedule  = () => api.get('/api/dispatch/schedule').then(r => 
 export const scheduleCsvUrl = () => `${API_BASE}/api/dispatch/schedule.csv`
 export const recostSchedule = (overrides) =>
   api.post('/api/dispatch/schedule/recost', { overrides }).then(r => r.data)
+export const applySchedule   = (steps) => api.post('/api/dispatch/schedule/apply', { steps }).then(r => r.data)
+export const fetchActivePlan = ()       => api.get('/api/dispatch/schedule/active').then(r => r.data)
 
 // ── Report (Tab-bar "รายงาน") ────────────────────────────────────────────────
 export const reportUrl = ({ scope = 'current', tab = 'realtime', format = 'html' } = {}) =>
