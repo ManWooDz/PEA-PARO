@@ -54,6 +54,18 @@ def _grid_rate(ts: datetime) -> float:
     return COST["grid_peak"] if is_peak else COST["grid_offpeak"]
 
 
+def step_token(dt_hours: float, ts: datetime, grid_mw: float,
+               battery_mw: float, d8_mw: float, d9_mw: float) -> float:
+    """Token cost of one dispatch step (numeric). Shared by the MILP row builder
+    and the manual-override recost path so the two cannot drift."""
+    return dt_hours * _MW_TO_KW * (
+        grid_mw * _grid_rate(ts)
+        + max(0.0, battery_mw) * _C_BAT
+        + d8_mw * _C_D8
+        + d9_mw * _C_D9
+    )
+
+
 def _is_discharge(ts: datetime) -> bool:
     return 9 <= ts.hour <= 21          # 09:00-21:59
 
@@ -212,9 +224,7 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
         sd9 = sum(v.value() or 0.0 for v in d9[t])
         f_bc = fbc[t].value() or 0.0
         socp = (soc[t].value() or 0.0) / _BAT_CAP_MWH * 100.0
-        token = dt_hours * _MW_TO_KW * (
-            g * _grid_rate(ts) + max(0.0, b) * _C_BAT + sd8 * _C_D8 + sd9 * _C_D9
-        )
+        token = step_token(dt_hours, ts, g, b, sd8, sd9)
         rows.append({
             "hour": ts.hour,
             "day": (ts.date() - day0).days,

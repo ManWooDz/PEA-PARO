@@ -213,3 +213,14 @@ def test_aggregate_sums_starts():
     hourly = aggregate_to_hourly(rows15)
     assert hourly[0]["diesel8_starts"] == 1
     assert hourly[0]["diesel9_starts"] + hourly[1]["diesel9_starts"] == 2
+
+
+def test_step_token_matches_formula():
+    from datetime import datetime
+    from models.milp_dispatch import step_token, _grid_rate, _C_BAT, _C_D8, _C_D9, _MW_TO_KW
+    ts = datetime(2025, 12, 29, 10, 0)   # weekday peak hour
+    g, b, d8, d9 = 2.0, 1.5, 3.0, 4.0
+    expected = 0.25 * _MW_TO_KW * (g * _grid_rate(ts) + max(0.0, b) * _C_BAT + d8 * _C_D8 + d9 * _C_D9)
+    assert step_token(0.25, ts, g, b, d8, d9) == expected
+    # charging (negative battery) contributes no battery cost
+    assert step_token(0.25, ts, g, -1.0, d8, d9) == 0.25 * _MW_TO_KW * (g * _grid_rate(ts) + d8 * _C_D8 + d9 * _C_D9)
