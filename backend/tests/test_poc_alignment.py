@@ -153,3 +153,18 @@ def test_schedule_csv_downloads():
     assert lines[0] == ("datetime,diesel_8_island_a_mw,diesel_9_island_c_mw,"
                         "diesel_8_units,diesel_9_units,bess_mw")
     assert len(lines) == 97   # header + 96 data rows
+
+
+def test_recost_schemas_construct():
+    from models.schemas import Override, RecostRequest, RecostResponse, RecostWarning, ScheduleResponse, CostBreakdown, ScheduleStep
+    ov = Override(start="00:00", end="06:00", field="diesel_c", value_mw=5.0)
+    req = RecostRequest(overrides=[ov])
+    assert req.overrides[0].field == "diesel_c"
+    cost = CostBreakdown(grid_thb=1, battery_thb=2, diesel_thb=3, total_thb=6)
+    step = ScheduleStep(datetime="2025-12-29T00:00:00", diesel_a_mw=0.0, diesel_c_mw=5.0,
+                        diesel8_units_on=0, diesel9_units_on=2, battery_mw=0.0)
+    warn = RecostWarning(start="09:00", end="10:00", kind="grid_over_cap", detail="grid 7.2 MW > cap 6.0 MW")
+    resp = RecostResponse(cost=cost, steps=[step], warnings=[warn])
+    assert resp.warnings[0].kind == "grid_over_cap"
+    sr = ScheduleResponse(date="2025-12-29", steps=[step], cost=cost)
+    assert sr.cost.total_thb == 6

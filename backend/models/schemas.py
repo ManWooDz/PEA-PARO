@@ -147,7 +147,32 @@ class ScheduleStep(BaseModel):
 
 class ScheduleResponse(BaseModel):
     date:  str                # "YYYY-MM-DD" of tomorrow
-    steps: list[ScheduleStep] # 96 x 15-min steps (00:00 -> 23:45)
+    steps: list[ScheduleStep] # 96 × 15-min steps (00:00 → 23:45)
+    cost:  CostBreakdown      # recommended-plan cost (฿ + diesel litres)
+
+
+class Override(BaseModel):
+    start:    str                                   # "HH:MM" on the 15-min grid, inclusive
+    end:      str                                   # "HH:MM" (or "24:00"), exclusive
+    field:    Literal["diesel_a", "diesel_c", "bess"]
+    value_mw: float                                 # override setpoint (MW; bess signed)
+
+
+class RecostRequest(BaseModel):
+    overrides: list[Override] = []
+
+
+class RecostWarning(BaseModel):
+    start:  str
+    end:    str
+    kind:   str    # e.g. "grid_over_cap"
+    detail: str
+
+
+class RecostResponse(BaseModel):
+    cost:     CostBreakdown
+    steps:    list[ScheduleStep]   # 96 edited steps
+    warnings: list[RecostWarning]
 
 
 class CustomPlanRequest(BaseModel):
