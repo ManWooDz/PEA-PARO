@@ -146,9 +146,9 @@ class ScheduleStep(BaseModel):
 
 
 class ScheduleResponse(BaseModel):
-    date:  str                # "YYYY-MM-DD" of tomorrow
-    steps: list[ScheduleStep] # 96 × 15-min steps (00:00 → 23:45)
-    cost:  CostBreakdown      # recommended-plan cost (฿ + diesel litres)
+    date:  str                       # "YYYY-MM-DD" of tomorrow
+    steps: list[ScheduleStep]        # 96 × 15-min steps (00:00 → 23:45)
+    cost:  CostBreakdown | None = None  # recommended-plan cost (฿ + diesel litres); populated by the endpoint
 
 
 class Override(BaseModel):
