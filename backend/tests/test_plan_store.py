@@ -65,3 +65,14 @@ def test_sufficiency_silent_when_capacity_ample():
 def test_sufficiency_empty_plan_returns_empty():
     loads = _loads([99.0, 99.0])
     assert detect_plan_sufficiency(loads, {}, [1.0, 1.0]) == []
+
+
+def test_sufficiency_skips_unplanned_slots():
+    # All slots are over-cap, but only 09:00 has a plan entry → the alert (if any)
+    # can only come from a planned slot; the unplanned 09:15/09:30 are skipped.
+    loads = _loads([9.0, 9.0, 9.0])
+    grid_avail = [5.0, 5.0, 5.0]
+    plan = {"09:00": {"diesel_a_mw": 0.0, "diesel_c_mw": 2.0, "battery_mw": 0.0}}
+    alerts = detect_plan_sufficiency(loads, plan, grid_avail)
+    assert len(alerts) == 1
+    assert "09:00" in alerts[0]["reason"]   # the only planned slot, which breaches (9 > 7)
