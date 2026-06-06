@@ -136,12 +136,17 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
             grid = max(0.0, load - d8 - d9 - bess)
         d8u = math.ceil(d8 / _D8_CAP) if d8 > _DIESEL_ON_MW else 0
         d9u = math.ceil(d9 / _D9_CAP) if d9 > _DIESEL_ON_MW else 0
-        # Start tracking: for untouched steps reuse the MILP-computed per-unit start
-        # variables (stored in base_rows) so the cost is identical to the GET endpoint.
-        # For operator-overridden steps fall back to the unit-count rise heuristic.
+        # Start tracking. Reuse the MILP-stored per-unit start counts ONLY for steps
+        # whose previous step is also untouched — then prev8/prev9 matches the MILP
+        # baseline and the stored value is exact (keeps the identity recost byte-exact).
+        # If the previous step was overridden, its unit count may differ from the MILP
+        # baseline, so the stored start (relative to the MILP's prior units) is wrong —
+        # recompute from the realized unit-count rise instead. Touched steps always
+        # recompute.
+        prev_untouched = (i == 0) or (not touched[i - 1])
         stored_s8 = base_rows[i].get("diesel8_starts")
         stored_s9 = base_rows[i].get("diesel9_starts")
-        if not touched[i] and stored_s8 is not None and stored_s9 is not None:
+        if not touched[i] and prev_untouched and stored_s8 is not None and stored_s9 is not None:
             start8, start9 = int(stored_s8), int(stored_s9)
         else:
             start8, start9 = max(0, d8u - prev8), max(0, d9u - prev9)

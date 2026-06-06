@@ -96,3 +96,25 @@ def test_recost_bess_charging_raises_grid():
     assert steps[0]["battery_mw"] == -3.0
     # charging draws extra grid energy → higher grid cost than the no-override baseline
     assert cost["grid_thb"] > base_cost["grid_thb"]
+
+
+def test_recost_recomputes_start_after_touched_step():
+    # Diesel #9 runs 1 unit all day; the MILP stored its single start at step 0.
+    # Overriding step 0 OFF moves the start to the (untouched) step 1 — the stored
+    # start[1]=0 must NOT be reused, or the restart would be silently dropped.
+    from data.seed import DIESEL_L_PER_KWH, DIESEL_9_STARTUP_LITRES
+    ts = _ts96()
+    rows = []
+    for i in range(96):
+        rows.append({
+            "load_mw": 10.0, "diesel_a_mw": 0.0, "diesel_c_mw": 2.5, "battery_mw": 0.0,
+            "grid_mw": 7.5, "token_per_hour": 100.0,
+            "diesel8_starts": 0, "diesel9_starts": (1 if i == 0 else 0),
+        })
+    grid_cap = [100.0] * 96
+    cost, _, _ = recost(rows, ts, grid_cap,
+                        [{"start": "00:00", "end": "00:15", "field": "diesel_c", "value_mw": 0.0}])
+    # hour 0 avg diesel_c = (0 + 2.5 + 2.5 + 2.5)/4 = 1.875; hours 1-23 = 2.5 each →
+    # operating MWh = 1.875 + 2.5*23 = 59.375; litres = 59.375*1000*L_per_kWh + ONE start.
+    expected = round(59.375 * 1000 * DIESEL_L_PER_KWH + DIESEL_9_STARTUP_LITRES, 1)
+    assert abs(cost["diesel_c_litres"] - expected) < 0.5   # would be short by 1 start if buggy
