@@ -175,6 +175,21 @@ class RecostResponse(BaseModel):
     warnings: list[RecostWarning]
 
 
+class ApplyScheduleRequest(BaseModel):
+    steps: list[ScheduleStep]
+
+
+class ApplyScheduleResponse(BaseModel):
+    uploaded_at: str
+    n_steps: int
+
+
+class ActivePlanResponse(BaseModel):
+    uploaded:    bool
+    uploaded_at: str | None = None
+    n_steps:     int = 0
+
+
 class CustomPlanRequest(BaseModel):
     shares: dict[str, float] = Field(
         default={"grid": 60, "battery": 25, "diesel_c": 10, "diesel_a": 5}

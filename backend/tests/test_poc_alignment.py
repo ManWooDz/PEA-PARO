@@ -214,3 +214,17 @@ def test_recost_endpoint_rejects_bad_override():
                json={"overrides": [{"start": "06:00", "end": "06:00",
                                     "field": "diesel_c", "value_mw": 1.0}]})
     assert r.status_code == 422
+
+
+def test_apply_active_schemas_construct():
+    from models.schemas import ApplyScheduleRequest, ApplyScheduleResponse, ActivePlanResponse, ScheduleStep
+    step = ScheduleStep(datetime="2025-12-29T00:00:00", diesel_a_mw=0.0, diesel_c_mw=4.0,
+                        diesel8_units_on=0, diesel9_units_on=2, battery_mw=0.0)
+    req = ApplyScheduleRequest(steps=[step])
+    assert len(req.steps) == 1
+    ap = ApplyScheduleResponse(uploaded_at="2025-12-28T09:15:00", n_steps=96)
+    assert ap.n_steps == 96
+    act = ActivePlanResponse(uploaded=True, uploaded_at="2025-12-28T09:15:00", n_steps=96)
+    assert act.uploaded is True
+    empty = ActivePlanResponse(uploaded=False)
+    assert empty.uploaded_at is None and empty.n_steps == 0
