@@ -113,3 +113,15 @@ def test_compute_plan_cost_folds_startup_litres():
     # diesel C energy = 1 MWh → 270 L, + 1 start × 3.12
     assert cost["diesel_c_litres"] == round(1 * 1000 * DIESEL_L_PER_KWH + DIESEL_9_STARTUP_LITRES, 1)
     assert cost["diesel_litres"] == round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1)
+
+
+def test_schedule_schemas_construct():
+    from models.schemas import ScheduleStep, ScheduleResponse
+    step = ScheduleStep(
+        datetime="2025-12-29T00:00:00",
+        diesel_a_mw=0.0, diesel_c_mw=4.0,
+        diesel8_units_on=0, diesel9_units_on=2, battery_mw=1.2,
+    )
+    resp = ScheduleResponse(date="2025-12-29", steps=[step])
+    assert resp.date == "2025-12-29"
+    assert resp.steps[0].diesel9_units_on == 2

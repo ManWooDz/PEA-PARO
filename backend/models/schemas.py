@@ -136,6 +136,20 @@ class DispatchPlan(BaseModel):
     cost: CostBreakdown
 
 
+class ScheduleStep(BaseModel):
+    datetime:          str    # ISO-8601 e.g. "2025-12-29T00:15:00"
+    diesel_a_mw:       float  # Diesel #8 (Island A) output MW
+    diesel_c_mw:       float  # Diesel #9 (Island C) output MW
+    diesel8_units_on:  int    # Diesel #8 units committed this step
+    diesel9_units_on:  int    # Diesel #9 units committed this step
+    battery_mw:        float  # +discharge / -charge MW
+
+
+class ScheduleResponse(BaseModel):
+    date:  str                # "YYYY-MM-DD" of tomorrow
+    steps: list[ScheduleStep] # 96 x 15-min steps (00:00 -> 23:45)
+
+
 class CustomPlanRequest(BaseModel):
     shares: dict[str, float] = Field(
         default={"grid": 60, "battery": 25, "diesel_c": 10, "diesel_a": 5}
