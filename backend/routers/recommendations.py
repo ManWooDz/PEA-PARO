@@ -143,10 +143,13 @@ def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
     the MILP solver fails.
     Caches the result within a calendar day so multiple endpoints (schedule JSON,
     schedule CSV, recost) all share the identical baseline rows."""
-    a, b, c, ts, date_str = _tomorrow_15min_loads()
+    # Check the cache by date BEFORE fetching forecasts so a hit skips both the
+    # forecast read and the MILP solve.
+    date_str = (sim_now() + timedelta(days=1)).date().isoformat()
     if date_str in _schedule_cache:
         cached_rows, cached_ts = _schedule_cache[date_str]
         return cached_rows, cached_ts, date_str
+    a, b, c, ts, date_str = _tomorrow_15min_loads()
     dt = 1.0 / _STEPS_PER_HOUR
     grid_cap = get_grid_availability(ts)
     try:

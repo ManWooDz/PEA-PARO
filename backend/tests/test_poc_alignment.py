@@ -188,19 +188,24 @@ def test_recost_endpoint_empty_matches_schedule_cost():
     body = r.json()
     assert len(body["steps"]) == 96
     assert body["warnings"] == []
-    # identity: no overrides → same total cost as the recommended schedule
-    assert abs(body["cost"]["total_thb"] - base["cost"]["total_thb"]) < 1.0
+    # identity: no overrides → byte-exact total cost (untouched steps reuse stored token)
+    assert abs(body["cost"]["total_thb"] - base["cost"]["total_thb"]) < 0.1
 
 
 def test_recost_endpoint_override_changes_diesel():
     c = _client()
+    base = c.get("/api/dispatch/schedule").json()
     r = c.post("/api/dispatch/schedule/recost",
                json={"overrides": [{"start": "00:00", "end": "03:00",
                                     "field": "diesel_c", "value_mw": 5.0}]})
     assert r.status_code == 200
-    s0 = r.json()["steps"][0]
+    body = r.json()
+    s0 = body["steps"][0]
     assert s0["diesel_c_mw"] == 5.0
     assert s0["diesel9_units_on"] == 2
+    # forcing Diesel #9 to its 5 MW max over 00:00–03:00 (off-peak, baseline mostly grid)
+    # must raise the diesel fuel volume vs the recommended plan.
+    assert body["cost"]["diesel_c_litres"] > base["cost"]["diesel_c_litres"]
 
 
 def test_recost_endpoint_rejects_bad_override():

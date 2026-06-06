@@ -131,7 +131,7 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
         # surplus is simply not drawn from the grid.
         stored_grid = base_rows[i].get("grid_mw")
         if not touched[i] and stored_grid is not None:
-            grid = stored_grid
+            grid = max(0.0, stored_grid)   # clip fp jitter, symmetric with the recompute path
         else:
             grid = max(0.0, load - d8 - d9 - bess)
         d8u = math.ceil(d8 / _D8_CAP) if d8 > _DIESEL_ON_MW else 0
@@ -151,6 +151,11 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
         else:
             start8, start9 = max(0, d8u - prev8), max(0, d9u - prev9)
         prev8, prev9 = d8u, d9u
+        # For untouched steps reuse the MILP-stored token to keep costs byte-identical
+        # with the GET /schedule endpoint; touched steps recompute via step_token.
+        stored_tok = base_rows[i].get("token_per_hour")
+        token = (stored_tok if (not touched[i] and stored_tok is not None)
+                 else round(step_token(dt_hours, t, grid, bess, d8, d9), 1))
         grids.append(grid)
         rows.append({
             "hour": t.hour, "day": (t.date() - day0).days,
@@ -160,11 +165,7 @@ def recost(base_rows, ts, grid_cap, overrides, dt_hours: float = 0.25):
             # soc_pct is a non-surfaced placeholder: the override path doesn't track SoC,
             # compute_plan_cost ignores it, and RecostResponse.steps omit it entirely.
             "soc_pct": 0.0,
-            # For untouched steps reuse the MILP-stored token to keep costs
-            # byte-identical with the GET /schedule endpoint.
-            "token_per_hour": (base_rows[i]["token_per_hour"] if not touched[i]
-                               and base_rows[i].get("token_per_hour") is not None
-                               else round(step_token(dt_hours, t, grid, bess, d8, d9), 1)),
+            "token_per_hour": token,
             "status": "normal",
             "diesel8_units_on": d8u, "diesel9_units_on": d9u,
             "diesel8_starts": start8, "diesel9_starts": start9,

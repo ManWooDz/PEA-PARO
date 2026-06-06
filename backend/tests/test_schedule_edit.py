@@ -98,6 +98,25 @@ def test_recost_bess_charging_raises_grid():
     assert cost["grid_thb"] > base_cost["grid_thb"]
 
 
+def test_recost_reuses_stored_values_for_untouched_steps():
+    # Untouched steps must reuse the MILP-stored grid_mw + token_per_hour verbatim.
+    # Seed deliberately-impossible stored values (that recompute would never produce)
+    # and confirm they flow through with empty overrides.
+    ts = _ts96()
+    rows = []
+    for i in range(96):
+        rows.append({
+            "load_mw": 10.0, "diesel_a_mw": 0.0, "diesel_c_mw": 2.5, "battery_mw": 0.0,
+            "grid_mw": 99.0,          # not the 7.5 residual recompute would give
+            "token_per_hour": 42.0,   # not step_token(...)
+            "diesel8_starts": 0, "diesel9_starts": 0,
+        })
+    grid_cap = [50.0] * 96
+    cost, steps, warnings = recost(rows, ts, grid_cap, [])          # empty → all untouched
+    assert cost["total_thb"] == 96 * 42.0                           # stored token reused (not recomputed)
+    assert any(w["kind"] == "grid_over_cap" for w in warnings)      # stored grid 99 > cap 50 (recompute → 7.5, no warn)
+
+
 def test_recost_recomputes_start_after_touched_step():
     # Diesel #9 runs 1 unit all day; the MILP stored its single start at step 0.
     # Overriding step 0 OFF moves the start to the (untouched) step 1 — the stored
