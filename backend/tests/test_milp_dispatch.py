@@ -177,3 +177,39 @@ def test_milp_cost_not_worse_than_baseline():
     milp = plan_cost_token(solve_milp(la, lb, lc, ts, dt_hours=1.0))
     base = plan_cost_token(solve_baseline(la, lb, lc, ts, dt_hours=1.0))
     assert milp <= base + 1.0   # MILP optimal <= greedy (tiny tolerance)
+
+
+def test_milp_emits_diesel_starts_and_avoids_needless_cycling():
+    # Steady load needing some Diesel #9 each step → units stay ON (each starts at most once),
+    # no cycling. With 2 D9 units, total starts ≤ 2 (each unit starts once at t=0, never shuts off).
+    n = 6
+    rows = solve_milp([40.0]*n, [10.0]*n, [11.0]*n, _ts(n), dt_hours=1.0)
+    assert all("diesel9_starts" in r and "diesel8_starts" in r for r in rows)
+    total_d9_starts = sum(r["diesel9_starts"] for r in rows)
+    # at most one start per unit (n9=2 units); no needless cycling off+on
+    assert 0 <= total_d9_starts <= 2
+    # and no step after t=0 should have starts (units stay ON the whole horizon)
+    assert all(rows[t]["diesel9_starts"] == 0 for t in range(1, n))
+
+
+def test_solve_baseline_emits_starts():
+    n = 3
+    rows = solve_baseline([40.0]*n, [10.0]*n, [11.0]*n, _ts(n), dt_hours=1.0)
+    assert all("diesel8_starts" in r and "diesel9_starts" in r for r in rows)
+    assert rows[0]["diesel9_starts"] >= 0
+
+
+def test_aggregate_sums_starts():
+    from datetime import datetime, timedelta
+    base = datetime(2025, 12, 28, 9, 0)
+    ts = [base + timedelta(minutes=15 * i) for i in range(8)]
+    rows15 = [{
+        "hour": t.hour, "day": 0, "load_mw": 50.0, "grid_mw": 50.0, "battery_mw": 0.0,
+        "diesel_a_mw": 0.0, "diesel_c_mw": 0.0, "solar_mw": 0.0, "soc_pct": 60.0,
+        "token_per_hour": 10.0, "status": "normal", "diesel8_units_on": 0,
+        "diesel9_units_on": 0, "line6_mw": 3.0,
+        "diesel8_starts": 1 if i == 0 else 0, "diesel9_starts": 1 if i in (0, 5) else 0,
+    } for i, t in enumerate(ts)]
+    hourly = aggregate_to_hourly(rows15)
+    assert hourly[0]["diesel8_starts"] == 1
+    assert hourly[0]["diesel9_starts"] + hourly[1]["diesel9_starts"] == 2

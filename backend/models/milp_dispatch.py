@@ -10,7 +10,7 @@ solve_milp returns one DispatchRow-compatible dict per time step.
 from datetime import datetime
 import pulp
 
-from data.seed import COST, LINES, BATTERY_7, DIESEL_8, DIESEL_9
+from data.seed import COST, LINES, BATTERY_7, DIESEL_8, DIESEL_9, DIESEL_8_STARTUP_MWH, DIESEL_9_STARTUP_MWH
 
 # ── Aggregated cable limits (MW) ──────────────────────────────────────────────
 _GRID_CAP = LINES[1]["limit_mw"] + LINES[2]["limit_mw"] + LINES[3]["limit_mw"]  # 72
@@ -36,6 +36,13 @@ _MAX_UP_HOURS_D9 = DIESEL_9["max_up_time_hr"]   # 12
 
 _MW_TO_KW = 1000.0          # objective is in Token (cost/kWh × kWh)
 _DIESEL_ON_MW = 0.05        # output above this = a unit is producing
+
+# Startup cost (Token) per diesel unit start = warm-up energy × cost/kWh.
+_STARTUP_TOKEN_8 = DIESEL_8_STARTUP_MWH * _MW_TO_KW * _C_D8
+_STARTUP_TOKEN_9 = DIESEL_9_STARTUP_MWH * _MW_TO_KW * _C_D9
+# Ramp + min-down physical specs (slack at 15-min/hourly dt; documented for completeness).
+_RAMP_PCT_8, _RAMP_PCT_9 = DIESEL_8["ramp_pct_per_sec"], DIESEL_9["ramp_pct_per_sec"]
+_MIN_DOWN_MIN_8, _MIN_DOWN_MIN_9 = DIESEL_8["min_down_time_min"], DIESEL_9["min_down_time_min"]
 
 
 def _grid_rate(ts: datetime) -> float:
@@ -100,6 +107,8 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
     d9   = [[pulp.LpVariable(f"d9_{t}_{k}", lowBound=0, upBound=_D9_CAP) for k in range(n9)] for t in range(T)]
     on8  = [[pulp.LpVariable(f"on8_{t}_{j}", cat="Binary") for j in range(n8)] for t in range(T)]
     on9  = [[pulp.LpVariable(f"on9_{t}_{k}", cat="Binary") for k in range(n9)] for t in range(T)]
+    su8  = [[pulp.LpVariable(f"su8_{t}_{j}", lowBound=0, upBound=1) for j in range(n8)] for t in range(T)]
+    su9  = [[pulp.LpVariable(f"su9_{t}_{k}", lowBound=0, upBound=1) for k in range(n9)] for t in range(T)]
 
     init_soc = init_soc_pct / 100.0 * _BAT_CAP_MWH
 
@@ -123,6 +132,23 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             p += d8[t][j] <= _D8_CAP * on8[t][j]
         for k in range(n9):
             p += d9[t][k] <= _D9_CAP * on9[t][k]
+        # diesel start detection: su >= on[t] - on[t-1] (units assumed off before horizon)
+        for j in range(n8):
+            prev = 0 if t == 0 else on8[t - 1][j]
+            p += su8[t][j] >= on8[t][j] - prev
+        for k in range(n9):
+            prev = 0 if t == 0 else on9[t - 1][k]
+            p += su9[t][k] >= on9[t][k] - prev
+        # ramp limit per step (slack at current dt; documents the physical ramp rate)
+        if t >= 1:
+            ramp8 = _RAMP_PCT_8 * _D8_CAP * (dt_hours * 3600.0)
+            ramp9 = _RAMP_PCT_9 * _D9_CAP * (dt_hours * 3600.0)
+            for j in range(n8):
+                p += d8[t][j] - d8[t - 1][j] <= ramp8
+                p += d8[t - 1][j] - d8[t][j] <= ramp8
+            for k in range(n9):
+                p += d9[t][k] - d9[t - 1][k] <= ramp9
+                p += d9[t - 1][k] - d9[t][k] <= ramp9
 
     # battery daily discharge budget (per calendar date)
     for d in sorted({ts.date() for ts in timestamps}):
@@ -136,15 +162,29 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             for s in range(0, T - W):
                 p += pulp.lpSum(onv[t][u] for t in range(s, s + W + 1)) <= W
 
-    # objective - total Token cost
-    p += pulp.lpSum(
-        dt_hours * _MW_TO_KW * (
-            grid[t] * _grid_rate(timestamps[t])
-            + bdis[t] * _C_BAT
-            + pulp.lpSum(d8[t]) * _C_D8
-            + pulp.lpSum(d9[t]) * _C_D9
+    # diesel min-down-time: after a shutdown, stay off for md_steps. Only emitted when
+    # md_steps >= 2 (at 15-min/hourly dt it is 1 → vacuous, so no rows are added here).
+    for onv, nn, md_min in ((on8, n8, _MIN_DOWN_MIN_8), (on9, n9, _MIN_DOWN_MIN_9)):
+        md_steps = max(1, int(-(-md_min // (dt_hours * 60))))   # ceil(min / step-minutes)
+        if md_steps >= 2:
+            for u in range(nn):
+                for t in range(1, T):
+                    for tau in range(t + 1, min(t + md_steps, T)):
+                        p += onv[tau][u] <= 1 - (onv[t - 1][u] - onv[t][u])
+
+    # objective - total Token cost (energy + startup penalty)
+    p += (
+        pulp.lpSum(
+            dt_hours * _MW_TO_KW * (
+                grid[t] * _grid_rate(timestamps[t])
+                + bdis[t] * _C_BAT
+                + pulp.lpSum(d8[t]) * _C_D8
+                + pulp.lpSum(d9[t]) * _C_D9
+            )
+            for t in range(T)
         )
-        for t in range(T)
+        + pulp.lpSum(su8[t][j] * _STARTUP_TOKEN_8 for t in range(T) for j in range(n8))
+        + pulp.lpSum(su9[t][k] * _STARTUP_TOKEN_9 for t in range(T) for k in range(n9))
     )
 
     p.solve(pulp.PULP_CBC_CMD(msg=0))
@@ -179,6 +219,8 @@ def solve_milp(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_pct=
             "diesel8_units_on": sum(1 for v in d8[t] if (v.value() or 0.0) > _DIESEL_ON_MW),
             "diesel9_units_on": sum(1 for v in d9[t] if (v.value() or 0.0) > _DIESEL_ON_MW),
             "line6_mw": round(f_bc, 3),
+            "diesel8_starts": int(round(sum(v.value() or 0.0 for v in su8[t]))),
+            "diesel9_starts": int(round(sum(v.value() or 0.0 for v in su9[t]))),
         })
     return rows
 
@@ -219,6 +261,8 @@ def aggregate_to_hourly(rows):
         row["soc_pct"] = g[-1]["soc_pct"]
         row["diesel8_units_on"] = max(x["diesel8_units_on"] for x in g)
         row["diesel9_units_on"] = max(x["diesel9_units_on"] for x in g)
+        row["diesel8_starts"] = sum(x.get("diesel8_starts", 0) for x in g)
+        row["diesel9_starts"] = sum(x.get("diesel9_starts", 0) for x in g)
         row["status"] = max((x["status"] for x in g), key=lambda s: _SEV.get(s, 0))
         out.append(row)
     return out
@@ -236,6 +280,7 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
     soc_mwh = init_soc_pct / 100.0 * _BAT_CAP_MWH
     discharged = {}   # per-date MWh discharged
     day0 = timestamps[0].date()
+    prev_u8 = prev_u9 = 0
     rows = []
     for t in range(len(loads_a)):
         ts = timestamps[t]
@@ -274,6 +319,9 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
         token = dt_hours * _MW_TO_KW * (
             grid_A * _grid_rate(ts) + bdis * _C_BAT + d8 * _C_D8 + d9 * _C_D9
         )
+        u8_now, u9_now = _units_on(d8, _D8_CAP), _units_on(d9, _D9_CAP)
+        starts8, starts9 = max(0, u8_now - prev_u8), max(0, u9_now - prev_u9)
+        prev_u8, prev_u9 = u8_now, u9_now
         rows.append({
             "hour": ts.hour, "day": (ts.date() - day0).days,
             "load_mw": round(la + lb + lc, 3), "grid_mw": round(grid_A, 3),
@@ -284,5 +332,7 @@ def solve_baseline(loads_a, loads_b, loads_c, timestamps, *, dt_hours, init_soc_
             "diesel8_units_on": _units_on(d8, _D8_CAP),
             "diesel9_units_on": _units_on(d9, _D9_CAP),
             "line6_mw": round(f_bc, 3),
+            "diesel8_starts": starts8,
+            "diesel9_starts": starts9,
         })
     return rows
