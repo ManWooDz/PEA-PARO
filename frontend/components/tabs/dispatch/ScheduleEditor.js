@@ -5,7 +5,7 @@ import { useState } from "react";
 const pad = (n) => String(n).padStart(2, "0");
 const TIMES = Array.from({ length: 97 }, (_, i) => `${pad(Math.floor(i / 4))}:${pad((i % 4) * 15)}`);
 const START_TIMES = TIMES.slice(0, 96);                       // 00:00 .. 23:45
-const END_TIMES = TIMES.slice(1).concat("24:00");             // 00:15 .. 24:00
+const END_TIMES = TIMES.slice(1);                             // 00:15 .. 24:00 (TIMES[96] is already "24:00")
 
 const FIELDS = [
   { value: "diesel_a", label: "Diesel #8 (เกาะ A)", max: 15 },
