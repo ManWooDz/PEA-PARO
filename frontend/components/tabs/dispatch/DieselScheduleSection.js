@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { useSchedule } from "@/hooks/useSchedule";
-import { recostSchedule } from "@/lib/api";
+import { recostSchedule, applySchedule } from "@/lib/api";
 import { downloadScheduleCsv } from "@/lib/scheduleCsv";
 import { ScheduleEditor } from "@/components/tabs/dispatch/ScheduleEditor";
 import { EditedPlanCard } from "@/components/tabs/dispatch/EditedPlanCard";
@@ -103,7 +103,7 @@ function OnPeriodRow({ src, steps }) {
   );
 }
 
-export function DieselScheduleSection() {
+export function DieselScheduleSection({ activePlan, onUploaded }) {
   const { schedule, loading } = useSchedule();
 
   const [overrides, setOverrides] = useState([]);
@@ -113,10 +113,25 @@ export function DieselScheduleSection() {
   // dirty = overrides changed since the last confirm/reset, so the chart/cost shown
   // (the recommended plan, or a previously-confirmed edit) is out of date.
   const [dirty, setDirty] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   // What the chart, on-period table, and CSV reflect: the confirmed edit if any,
   // else the recommended plan.
   const effectiveSteps = edited?.steps ?? schedule?.steps ?? [];
+
+  const uploadPlan = async () => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await applySchedule(effectiveSteps);
+      onUploaded?.();
+    } catch (e) {
+      setUploadError(e?.response?.data?.detail || "อัปโหลดไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const addOverride = (o) => { setOverrides((prev) => [...prev, o]); setDirty(true); };
   const removeOverride = (i) => { setOverrides((prev) => prev.filter((_, k) => k !== i)); setDirty(true); };
@@ -152,17 +167,37 @@ export function DieselScheduleSection() {
           <div className="text-xs text-muted thai mt-0.5">
             แผนแนะนำ (ลดต้นทุน) สำหรับตั้งโปรแกรมเครื่องดีเซล — 00:00–23:45 ทุก 15 นาที
           </div>
+          <div className="text-[11px] thai mt-1" style={{ color: activePlan?.uploaded ? "#10b981" : "var(--muted)" }}>
+            {activePlan?.uploaded
+              ? `✓ อัปโหลดเป็นแผนอ้างอิง Early-Warning แล้ว (${String(activePlan.uploaded_at).slice(11, 16)})`
+              : "ยังไม่ได้อัปโหลดเป็นแผนอ้างอิง Early-Warning"}
+          </div>
+          {uploadError && (
+            <div className="text-[11px] text-red-500 thai mt-1">⚠️ {uploadError}</div>
+          )}
         </div>
-        <button
-          onClick={() => downloadScheduleCsv(effectiveSteps, schedule?.date)}
-          disabled={loading || effectiveSteps.length === 0}
-          className={`px-3 py-2 rounded-lg text-sm border hairline thai transition ${
-            loading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
-          }`}
-          style={{ background: "var(--surface-2)" }}
-        >
-          ⬇ ดาวน์โหลด CSV{edited ? " (แก้ไขแล้ว)" : ""}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadScheduleCsv(effectiveSteps, schedule?.date)}
+            disabled={loading || effectiveSteps.length === 0}
+            className={`px-3 py-2 rounded-lg text-sm border hairline thai transition ${
+              loading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+            }`}
+            style={{ background: "var(--surface-2)" }}
+          >
+            ⬇ ดาวน์โหลด CSV{edited ? " (แก้ไขแล้ว)" : ""}
+          </button>
+          <button
+            onClick={uploadPlan}
+            disabled={loading || uploading || effectiveSteps.length === 0}
+            className={`px-3 py-2 rounded-lg text-sm thai transition ${
+              loading || uploading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+            }`}
+            style={{ background: "var(--primary)", color: "#fff" }}
+          >
+            {uploading ? "กำลังอัปโหลด…" : "⬆ อัปโหลดเป็นแผนอ้างอิง EW"}
+          </button>
+        </div>
       </div>
 
       {loading ? (
