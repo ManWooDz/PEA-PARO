@@ -90,7 +90,7 @@ function OnPeriodRow({ src, steps }) {
                   )}
                   {warmup != null && (
                     <span className="text-muted text-[11px] thai block">
-                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{lead} นาที ก่อนถึง {r.start}
+                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{Math.round(lead * 60)} วินาที ก่อนถึง {r.start}
                     </span>
                   )}
                 </div>
