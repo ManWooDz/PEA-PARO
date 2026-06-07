@@ -26,6 +26,7 @@ import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRe
 import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
 import { useDayAheadPlans, useIntradayAlerts, useIntradayScenarios } from "@/hooks/useRecommendations";
+import { useActivePlan } from "@/hooks/useActivePlan";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -416,6 +417,7 @@ export function Tab2Dispatch({
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+  const activePlanState = useActivePlan();
   const scenarioData = useIntradayScenarios({ soc_pct: 60 });
 
   const baselinePlan = da.plans?.baseline;
@@ -826,7 +828,7 @@ export function Tab2Dispatch({
       </section>
 
           {/* ── 15-min day-ahead diesel schedule (B1) — replaces the Action Timeline ── */}
-          <DieselScheduleSection />
+          <DieselScheduleSection activePlan={activePlanState.active} onUploaded={activePlanState.refresh} />
         </>
       )}
 
@@ -863,6 +865,14 @@ export function Tab2Dispatch({
             <ForecastChart points={fc.points.slice(0, 24)} height={300} />
           </section>
 
+          <div className="text-[11px] thai mb-2 rounded px-2 py-1"
+               style={activePlanState.active?.uploaded
+                 ? { background: "rgba(16,185,129,0.10)", color: "#10b981", border: "1px solid #10b98140" }
+                 : { background: "var(--surface-2)", color: "var(--muted)", border: "1px solid var(--border-soft)" }}>
+            {activePlanState.active?.uploaded
+              ? `Early-Warning อ้างอิงแผนที่อัปโหลด (${String(activePlanState.active.uploaded_at).slice(11, 16)})`
+              : "ยังไม่อัปโหลดแผน — Early-Warning ใช้คำแนะนำมาตรฐาน"}
+          </div>
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}
