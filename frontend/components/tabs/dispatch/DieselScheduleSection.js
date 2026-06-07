@@ -11,6 +11,18 @@ import { EditedPlanCard } from "@/components/tabs/dispatch/EditedPlanCard";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 
+// Format a lead time given in (fractional) minutes as "M นาที S วินาที" — keeping
+// whole minutes but spelling the leftover fraction out in seconds (1.7 → "1 นาที 42 วินาที",
+// 0.5 → "30 วินาที"), which reads faster than "0.5 นาที".
+function fmtLead(leadMin) {
+  const total = Math.round(leadMin * 60);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m === 0) return `${s} วินาที`;
+  if (s === 0) return `${m} นาที`;
+  return `${m} นาที ${s} วินาที`;
+}
+
 // Warm-up lead times (minutes) derived from seed ramp rates: Diesel #8 ~1.7 min,
 // Diesel #9 ~0.5 min. Kept in sync with the warm-up note in Tab2Dispatch.
 const LEAD_MIN = { diesel_a_mw: 1.7, diesel_c_mw: 0.5 };
@@ -90,7 +102,7 @@ function OnPeriodRow({ src, steps }) {
                   )}
                   {warmup != null && (
                     <span className="text-muted text-[11px] thai block">
-                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{Math.round(lead * 60)} วินาที ก่อนถึง {r.start}
+                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{fmtLead(lead)} ก่อนถึง {r.start}
                     </span>
                   )}
                 </div>

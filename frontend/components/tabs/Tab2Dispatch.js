@@ -607,7 +607,7 @@ export function Tab2Dispatch({
 
       {/* ── diesel warm-up note (ramp-derived; for scheduling start times) ── */}
       <div className="text-[11px] text-muted thai">
-        ⏱ เวลาวอร์มเครื่องดีเซล: Diesel #8 ~102 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
+        ⏱ เวลาวอร์มเครื่องดีเซล: Diesel #8 ~1 นาที 42 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
       </div>
 
       {/* ── Custom Dispatch ── */}
