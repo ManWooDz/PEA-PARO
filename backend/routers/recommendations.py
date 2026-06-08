@@ -136,6 +136,39 @@ def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list
     return a, b, c, ts, tomorrow.isoformat()
 
 
+def _today_15min_loads() -> tuple[list[float], list[float], list[float], list[datetime], str]:
+    """15-min loads for the REMAINING part of today (from the current 15-min step
+    on the sim clock through 23:45). Slices the 7-day forecast to today's date at
+    or after the current time. Returns (loads_a, loads_b, loads_c, timestamps, date_str)."""
+    now = sim_now()
+    today = now.date()
+    floor = now.replace(minute=(now.minute // 15) * 15, second=0, microsecond=0)
+    sa = get_forecast_series("7day", island="A")
+    sb = get_forecast_series("7day", island="B")
+    sc = get_forecast_series("7day", island="C")
+
+    idx = []
+    for i, p in enumerate(sa):
+        d = datetime.fromisoformat(str(p["datetime"]))
+        if d.date() == today and d >= floor:
+            idx.append(i)
+    if not idx:
+        raise HTTPException(
+            status_code=503,
+            detail="พยากรณ์ไม่ครอบคลุมช่วงเวลาที่เหลือของวันนี้.",
+        )
+    if idx[-1] >= min(len(sb), len(sc)):
+        raise HTTPException(
+            status_code=503,
+            detail="พยากรณ์ของเกาะ B/C ไม่ครอบคลุมวันนี้ครบ.",
+        )
+    a = [_predicted_safe(sa[i]) for i in idx]
+    b = [_predicted_safe(sb[i]) for i in idx]
+    c = [_predicted_safe(sc[i]) for i in idx]
+    ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in idx]
+    return a, b, c, ts, today.isoformat()
+
+
 _schedule_cache: dict = {}   # {date_str: (rows, ts)} — one entry, evicted on new day
 
 
@@ -161,6 +194,28 @@ def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
         rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
     _schedule_cache.clear()            # evict any previous date
     _schedule_cache[date_str] = (rows, ts)
+    return rows, ts, date_str
+
+
+_today_schedule_cache: dict = {}   # {sim-minute key: (rows, ts, date_str)}
+
+
+def _solve_today_schedule() -> tuple[list[dict], list[datetime], str]:
+    """Solve the min-cost 15-min schedule for the REMAINING part of today.
+    Cached by the current sim minute. Falls back to the greedy baseline on failure."""
+    key = sim_now().strftime("%Y-%m-%dT%H:%M")
+    if key in _today_schedule_cache:
+        return _today_schedule_cache[key]
+    a, b, c, ts, date_str = _today_15min_loads()
+    dt = 1.0 / _STEPS_PER_HOUR
+    grid_cap = get_grid_availability(ts)
+    try:
+        rows = solve_milp(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    except Exception as exc:
+        _log.warning("today schedule MILP failed (%s); falling back to baseline", exc)
+        rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    _today_schedule_cache.clear()
+    _today_schedule_cache[key] = (rows, ts, date_str)
     return rows, ts, date_str
 
 
@@ -223,6 +278,28 @@ def dispatch_schedule():
     ]
     cost = compute_plan_cost(aggregate_to_hourly(rows))
     return ScheduleResponse(date=date_str, steps=steps, cost=CostBreakdown(**cost))
+
+
+@router.get("/api/dispatch/schedule/today", response_model=ScheduleResponse)
+def dispatch_schedule_today():
+    """Recommended 15-min operator schedule for the REMAINING part of today
+    (current time → 23:45, min-cost). The intra-day counterpart to the day-ahead
+    tomorrow schedule — what to do for the rest of today under the current plan."""
+    rows, ts, date_str = _solve_today_schedule()
+    steps = [
+        ScheduleStep(
+            datetime=t.isoformat(),
+            diesel_a_mw=r["diesel_a_mw"],
+            diesel_c_mw=r["diesel_c_mw"],
+            diesel8_units_on=r["diesel8_units_on"],
+            diesel9_units_on=r["diesel9_units_on"],
+            battery_mw=r["battery_mw"],
+        )
+        for t, r in zip(ts, rows)
+    ]
+    cost = compute_plan_cost(aggregate_to_hourly(rows))
+    from_time = ts[0].strftime("%H:%M") if ts else None
+    return ScheduleResponse(date=date_str, from_time=from_time, steps=steps, cost=CostBreakdown(**cost))
 
 
 @router.get("/api/dispatch/schedule.csv")
@@ -314,6 +391,18 @@ def intraday_alerts(req: IntradayRequest):
         alert_items = alert_items + detect_plan_sufficiency(system_loads, plan["by_hhmm"], grid_avail)
     return RecommendationsResponse(
         recommendations=[Recommendation(**a) for a in alert_items],
+    )
+
+
+@router.get("/api/intraday/plan-actions", response_model=RecommendationsResponse)
+def intraday_plan_actions():
+    """Operator actions for the REMAINING part of today, derived from the SAME
+    recommended plan as GET /api/dispatch/schedule/today — so the intra-day advice
+    is consistent with the today schedule. Hourly diesel/battery/grid transitions."""
+    rows, ts, _ = _solve_today_schedule()
+    recs = build_recommendations(aggregate_to_hourly(rows))
+    return RecommendationsResponse(
+        recommendations=[Recommendation(**r) for r in recs],
     )
 
 

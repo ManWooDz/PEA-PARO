@@ -21,11 +21,11 @@ import { useApplyPlan } from "@/hooks/useApplyPlan";
 import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { DieselScheduleSection } from "@/components/tabs/dispatch/DieselScheduleSection";
+import { IntradayScheduleSection } from "@/components/tabs/dispatch/IntradayScheduleSection";
 import { FuelReservePanel } from "@/components/tabs/dispatch/FuelReservePanel";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
-import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
-import { useDayAheadPlans, useIntradayAlerts, useIntradayScenarios } from "@/hooks/useRecommendations";
+import { useDayAheadPlans, useIntradayAlerts, useTodayPlanActions } from "@/hooks/useRecommendations";
 import { useActivePlan } from "@/hooks/useActivePlan";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
@@ -417,8 +417,8 @@ export function Tab2Dispatch({
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+  const planActions = useTodayPlanActions();
   const activePlanState = useActivePlan();
-  const scenarioData = useIntradayScenarios({ soc_pct: 60 });
 
   const baselinePlan = da.plans?.baseline;
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
@@ -873,14 +873,18 @@ export function Tab2Dispatch({
               ? `Early-Warning อ้างอิงแผนที่อัปโหลด (${String(activePlanState.active.uploaded_at).slice(11, 16)})`
               : "ยังไม่อัปโหลดแผน — Early-Warning ใช้คำแนะนำมาตรฐาน"}
           </div>
+          <IntradayScheduleSection />
           <EmergencyRecommendations
+            title="🛠 คำแนะนำการเดินเครื่องวันนี้ · ตามแผนแนะนำ"
+            recommendations={planActions.recommendations}
+            loading={planActions.loading}
+            emptyLabel="🟢 ไม่มีการเปลี่ยนแปลงการเดินเครื่องในช่วงที่เหลือ — เดินตามแผนปกติ"
+          />
+          <EmergencyRecommendations
+            title="⚠ การเตือนล่วงหน้า · ความเสี่ยง (ถ้าจริงแย่กว่าพยากรณ์)"
             recommendations={intraday.recommendations}
             loading={intraday.loading}
-          />
-
-          <ScenarioCards
-            scenarios={scenarioData.scenarios}
-            loading={scenarioData.loading}
+            emptyLabel="🟢 ไม่มีความเสี่ยงเด่น — เป็นไปตามแผน"
           />
         </>
       )}

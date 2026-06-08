@@ -66,11 +66,17 @@ export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = fals
 export const fetchIntradayAlerts = (body = {}) =>
   api.post('/api/intraday/alerts', body).then(r => r.data)
 
+// Intra-day actions derived from today's recommended plan (matches the today schedule)
+export const fetchIntradayPlanActions = () =>
+  api.get('/api/intraday/plan-actions').then(r => r.data)
+
 export const fetchIntradayScenarios = (body = {}) =>
   api.post('/api/intraday/scenarios', body, { timeout: 30000 }).then(r => r.data)
 
 // ── Day-ahead 15-min schedule (B1) ───────────────────────────────────
 export const fetchSchedule  = () => api.get('/api/dispatch/schedule').then(r => r.data)
+// Intra-day: today's remaining 15-min schedule (recommended, min-cost)
+export const fetchTodaySchedule = () => api.get('/api/dispatch/schedule/today').then(r => r.data)
 export const scheduleCsvUrl = () => `${API_BASE}/api/dispatch/schedule.csv`
 export const recostSchedule = (overrides) =>
   api.post('/api/dispatch/schedule/recost', { overrides }).then(r => r.data)

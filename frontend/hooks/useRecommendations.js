@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { fetchDayAhead, fetchIntradayAlerts, fetchIntradayScenarios } from '@/lib/api'
+import { fetchDayAhead, fetchIntradayAlerts, fetchIntradayScenarios, fetchIntradayPlanActions } from '@/lib/api'
 
 export function useDayAhead({ strategy = 'min-cost', days = 1, hasSolar = false }) {
   const [data, setData] = useState(null)
@@ -60,6 +60,25 @@ export function useIntradayAlerts(body) {
 
   useEffect(() => { refresh() }, [refresh])
   return { recommendations, loading, refresh }
+}
+
+// Intra-day actions derived from today's recommended plan (consistent with the
+// today schedule). Read-only, fetched once on mount.
+export function useTodayPlanActions() {
+  const [recommendations, setRecs] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    fetchIntradayPlanActions()
+      .then(d => { if (alive) setRecs(d.recommendations || []) })
+      .catch(() => { if (alive) setRecs([]) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [])
+
+  return { recommendations, loading }
 }
 
 export function useIntradayScenarios(body) {
