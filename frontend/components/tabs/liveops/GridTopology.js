@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { fetchForecastSeries } from "@/lib/api";
 
 // ── Live 3-island cascading-grid topology (from docs/data "EMS for Startup" Mermaid) ──
 // Main Grid → Island A (SubA1/SubA2 + Battery#7 / Diesel#8) → Island B (SubB1/SubB2)
@@ -81,13 +83,27 @@ export function GridTopology({ rt }) {
 
   const anchor = (key) => ({ x: NODES[key].cx, y: NODES[key].cy });
 
+  // Per-island forecast load profile (LSTM+Margin), fetched lazily when an island
+  // box is clicked. Cables/sources stay live-measured; only islands have a forecast.
+  const [islandFc, setIslandFc] = useState({ island: null, points: [], loading: false });
+  useEffect(() => {
+    if (sel?.type !== "island") return;
+    const island = sel.id;
+    let alive = true;
+    setIslandFc({ island, points: [], loading: true });
+    fetchForecastSeries({ horizon: "6h", island })
+      .then((d) => { if (alive) setIslandFc({ island, points: (d.points || []).slice(0, 24), loading: false }); })
+      .catch(() => { if (alive) setIslandFc({ island, points: [], loading: false }); });
+    return () => { alive = false; };
+  }, [sel]);
+
   return (
     <div className="panel rounded-xl p-4">
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <div>
           <div className="text-[10.5px] uppercase eyebrow text-muted">Grid Topology · Live</div>
           <div className="text-xs text-muted mt-0.5 thai">
-            โครงสร้างโครงข่ายแบบลดหลั่น 3 เกาะ · คลิกที่สายเคเบิลหรือแหล่งจ่ายเพื่อดูข้อมูล
+            โครงสร้างโครงข่ายแบบลดหลั่น 3 เกาะ · คลิกสายเคเบิล/แหล่งจ่ายเพื่อดูค่าเรียลไทม์ · คลิกกล่องเกาะเพื่อดูพยากรณ์โหลด
           </div>
         </div>
         <Legend />
@@ -108,15 +124,19 @@ export function GridTopology({ rt }) {
             </marker>
           </defs>
 
-          {/* island grouping boxes (labels are drawn LAST, on top of nodes) */}
-          {GROUPS.map((g) => (
-            <rect key={g.id}
-              x={g.x} y={g.y} width={g.w} height={g.h} rx={14}
-              fill={`color-mix(in srgb, ${g.tint} 7%, transparent)`}
-              stroke={`color-mix(in srgb, ${g.tint} 45%, transparent)`}
-              strokeWidth={1.5} strokeDasharray="2 4"
-            />
-          ))}
+          {/* island grouping boxes (clickable → forecast; labels drawn LAST) */}
+          {GROUPS.map((g) => {
+            const selected = sel?.type === "island" && sel.id === g.id;
+            return (
+              <rect key={g.id} className="cursor-pointer"
+                onClick={() => setSel({ type: "island", id: g.id })}
+                x={g.x} y={g.y} width={g.w} height={g.h} rx={14}
+                fill={`color-mix(in srgb, ${g.tint} ${selected ? 14 : 7}%, transparent)`}
+                stroke={selected ? g.tint : `color-mix(in srgb, ${g.tint} 45%, transparent)`}
+                strokeWidth={selected ? 2.5 : 1.5} strokeDasharray="2 4"
+              />
+            );
+          })}
 
           {/* local (asset → substation) dashed links */}
           {LOCALS.map((l, i) => {
@@ -169,7 +189,9 @@ export function GridTopology({ rt }) {
           {/* island labels — drawn last so they sit above node rects */}
           {GROUPS.map((g) => (
             <text key={`lbl-${g.id}`} x={g.x + 12} y={g.y + 18}
-              fontSize="12" fontWeight="700" fill={g.tint} className="thai">
+              className="thai cursor-pointer"
+              onClick={() => setSel({ type: "island", id: g.id })}
+              fontSize="12" fontWeight="700" fill={g.tint}>
               {g.label}
             </text>
           ))}
@@ -192,7 +214,7 @@ export function GridTopology({ rt }) {
         </svg>
       </div>
 
-      <DetailPanel sel={sel} lineById={lineById} srcById={srcById} kpi={kpi} />
+      <DetailPanel sel={sel} lineById={lineById} srcById={srcById} kpi={kpi} islandFc={islandFc} />
     </div>
   );
 }
@@ -295,11 +317,58 @@ const NODE_SPEC = {
   subC1: { title: "Substation C1", island: "Island C", note: "ปลายทาง · รับ Cable 6 (33 kV) + Diesel #9 ในพื้นที่" },
 };
 
-function DetailPanel({ sel, lineById, srcById, kpi }) {
+function DetailPanel({ sel, lineById, srcById, kpi, islandFc }) {
   if (!sel) {
     return (
       <div className="mt-3 text-xs text-muted thai border-t hairline pt-3">
-        เลือกสายเคเบิลหรือแหล่งจ่าย เพื่อดูค่ากำลังไฟ / สถานะแบบเรียลไทม์
+        เลือกสายเคเบิล/แหล่งจ่าย เพื่อดูค่าเรียลไทม์ · หรือคลิกกล่องเกาะเพื่อดูพยากรณ์โหลด
+      </div>
+    );
+  }
+
+  if (sel.type === "island") {
+    const tint = GROUPS.find((g) => g.id === sel.id)?.tint ?? "var(--primary)";
+    const ready = islandFc?.island === sel.id;
+    const data = (ready ? islandFc.points : []).map((p) => ({
+      t: String(p.datetime).slice(11, 16),
+      load: p.predicted_safe ?? p.predicted,
+    }));
+    const peak = data.reduce((m, d) => Math.max(m, d.load ?? 0), 0);
+    return (
+      <div className="mt-3 border-t hairline pt-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: tint }} />
+          <span className="font-semibold text-sm">Island {sel.id} · พยากรณ์โหลด 6 ชม. ข้างหน้า</span>
+          <span className="text-[11px] text-muted">· LSTM+Margin</span>
+        </div>
+        {islandFc?.loading || !ready ? (
+          <div className="h-[150px] flex items-center justify-center text-muted text-xs thai">กำลังโหลดพยากรณ์…</div>
+        ) : data.length === 0 ? (
+          <div className="h-[150px] flex items-center justify-center text-muted text-xs thai">ไม่มีข้อมูลพยากรณ์</div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={150}>
+              <AreaChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
+                <defs>
+                  <linearGradient id="gtIslandGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={tint} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={tint} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="t" tick={{ fontSize: 9, fill: "var(--muted)" }} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 9, fill: "var(--muted)" }} tickLine={false} axisLine={false} unit=" MW" width={42} />
+                <Tooltip formatter={(v) => [`${Number(v).toFixed(2)} MW`, "พยากรณ์"]} contentStyle={{ fontSize: 11 }} labelStyle={{ fontSize: 11 }} />
+                {sel.id === "C" && <ReferenceLine y={8} stroke="#ef4444" strokeDasharray="4 2" />}
+                <Area type="monotone" dataKey="load" name="พยากรณ์" stroke={tint} strokeWidth={2}
+                  fill="url(#gtIslandGrad)" dot={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="text-[11px] text-muted thai mt-1">
+              พยากรณ์ LSTM+Margin เกาะ {sel.id} · พีค ~<span className="mono">{peak.toFixed(2)}</span> MW
+              {sel.id === "C" ? " · เส้นแดง = พิกัด Line 6 (8 MW)" : ""}
+            </div>
+          </>
+        )}
       </div>
     );
   }
