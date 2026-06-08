@@ -11,8 +11,6 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Legend,
-  ReferenceLine,
-  ReferenceArea,
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
@@ -64,7 +62,7 @@ const SOURCE_DEFS = [
     key: "diesel_a_mw",
     label: "Diesel #8",
     sub: "Island A",
-    color: "#f97316",
+    color: "#8b5cf6",
     radio: true,
   },
   {
@@ -323,7 +321,7 @@ function ChartTip({ active, payload, label }) {
   return (
     <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
       <div className="mono text-muted mb-1">
-        {String(label).padStart(2, "0")}:00
+        {typeof label === "number" ? `${String(label).padStart(2, "0")}:00` : label}
       </div>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2">
@@ -385,13 +383,14 @@ export function Tab2Dispatch({
   };
 
   // ── Chart data ──
+  const isMultiDay = rows.length > 24;
   const chartData = rows.map((r) => ({
-    h: r.hour,
+    h: isMultiDay ? `D${(r.day ?? 0) + 1} ${String(r.hour).padStart(2, "0")}` : r.hour,
     Grid: +(r.grid_mw?.toFixed(2) ?? 0),
     Solar: +(r.solar_mw?.toFixed(2) ?? 0),
-    Battery: +(r.battery_mw?.toFixed(2) ?? 0),
-    "Diesel A": +(r.diesel_a_mw?.toFixed(2) ?? 0),
-    "Diesel C": +(r.diesel_c_mw?.toFixed(2) ?? 0),
+    Battery: +Math.max(0, r.battery_mw ?? 0).toFixed(2),  // only discharge (positive) in stacked bar
+    "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
+    "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
     SoC: +(r.soc_pct?.toFixed(1) ?? 0),
   }));
 
@@ -573,29 +572,14 @@ export function Tab2Dispatch({
                   strokeDasharray="3 3"
                   stroke="var(--border-soft)"
                 />
-                <ReferenceArea
-                  x1={0}
-                  x2={9}
-                  fill="#3b82f6"
-                  fillOpacity={0.06}
-                />
-                <ReferenceArea
-                  x1={22}
-                  x2={23.5}
-                  fill="#3b82f6"
-                  fillOpacity={0.06}
-                />
-                <ReferenceArea
-                  x1={9}
-                  x2={22}
-                  fill="#f59e0b"
-                  fillOpacity={0.06}
-                />
                 <XAxis
                   dataKey="h"
-                  tickFormatter={(h) => `${h}h`}
-                  tick={{ fontSize: 10, fill: "var(--muted)" }}
+                  tickFormatter={isMultiDay
+                    ? (v) => (typeof v === "string" ? v.replace(" ", "\n") : `${v}h`)
+                    : (h) => `${h}h`}
+                  tick={{ fontSize: isMultiDay ? 9 : 10, fill: "var(--muted)" }}
                   tickLine={false}
+                  interval={isMultiDay ? 23 : 0}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
@@ -607,21 +591,10 @@ export function Tab2Dispatch({
                 <Legend
                   wrapperStyle={{ fontSize: 11, color: "var(--muted)" }}
                 />
-                <ReferenceLine
-                  y={8}
-                  stroke="#ef4444"
-                  strokeDasharray="4 2"
-                  label={{
-                    value: "Line 6 Cap",
-                    position: "right",
-                    fontSize: 9,
-                    fill: "#ef4444",
-                  }}
-                />
                 <Bar dataKey="Grid" stackId="a" fill="var(--primary)" />
                 <Bar dataKey="Solar" stackId="a" fill="#f59e0b" />
                 <Bar dataKey="Battery" stackId="a" fill="#10b981" />
-                <Bar dataKey="Diesel A" stackId="a" fill="#f97316" />
+                <Bar dataKey="Diesel A" stackId="a" fill="#8b5cf6" />
                 <Bar
                   dataKey="Diesel C"
                   stackId="a"

@@ -191,8 +191,8 @@ def get_events():
 
 
 @router.get("/load-history", response_model=LoadHistoryResponse)
-def get_load_history():
-    pts = get_recent_24h_15min()
+def get_load_history(island: str = "C"):
+    pts = get_recent_24h_15min(island.upper())
     return LoadHistoryResponse(points=[
         LoadPoint(ts=p["ts"], hour=p["hour"], load_mw=p["load_mw"])
         for p in pts
