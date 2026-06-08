@@ -245,7 +245,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
 
   if (!rt) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted text-sm gap-2">
+      <div className="flex items-center justify-center min-h-[70vh] text-muted text-sm gap-2">
         <Dot color="var(--primary)" pulse />
         <span>กำลังโหลดข้อมูล…</span>
       </div>
