@@ -292,3 +292,40 @@ def test_intraday_skips_sufficiency_without_plan(monkeypatch):
     assert r.status_code == 200
     # no active plan → the sufficiency branch is skipped, sentinel never appears
     assert "Day-Ahead Plan" not in [x["device"] for x in r.json()["recommendations"]]
+
+
+def test_today_schedule_endpoint_returns_today_remaining():
+    """Intra-day: GET /api/dispatch/schedule/today returns today's remaining 15-min
+    steps (from the sim-clock 15-min floor through 23:45) with a populated cost."""
+    from fastapi.testclient import TestClient
+    import main
+    from data.clock import now as sim_now
+
+    c = TestClient(main.app)
+    r = c.get("/api/dispatch/schedule/today")
+    assert r.status_code == 200, r.text
+    b = r.json()
+    today = sim_now().date().isoformat()
+    assert b["date"] == today
+    assert b["from_time"] is not None
+    assert len(b["steps"]) >= 1
+    assert all(s["datetime"][:10] == today for s in b["steps"])
+    # first step at/after the sim clock (09:15) floored to 15-min; last within today
+    assert b["steps"][0]["datetime"][11:16] >= "09:00"
+    assert b["steps"][-1]["datetime"][11:16] <= "23:45"
+    assert b["cost"] is not None
+
+
+
+def test_intraday_plan_actions_returns_recommendations():
+    """Intra-day plan-actions come from the same today plan and are well-formed."""
+    from fastapi.testclient import TestClient
+    import main
+
+    c = TestClient(main.app)
+    r = c.get("/api/intraday/plan-actions")
+    assert r.status_code == 200, r.text
+    recs = r.json()["recommendations"]
+    assert isinstance(recs, list)
+    for rec in recs:
+        assert {"act_time", "effect_time", "device", "action", "severity", "control_type"} <= set(rec)

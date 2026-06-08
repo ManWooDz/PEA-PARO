@@ -15,6 +15,7 @@ import {
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
+import { GridTopology } from "@/components/tabs/liveops/GridTopology";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -180,25 +181,10 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // Track the currently hovered x — used by a Customized SVG layer to draw
   // dots ONLY for series whose value is non-null at that x. Replaces
   // recharts' activeDot, which snaps to the last valid point when null.
-  const [hoverT, setHoverT] = useState(null);
+  const [hoverIdx, setHoverIdx] = useState(null);
 
-  // Real LSTM 6-hour forecast (next 6h at 15-min) → hourly means for the chart
-  // tail, so the home page forecast line matches the dispatch/forecast tabs.
+  // Real LSTM 6-hour forecast (next 6h at 15-min) — used directly (no hourly mean).
   const fc6 = useForecastSeries("6h");
-  const fcHourly = useMemo(() => {
-    const buckets = {};
-    (fc6.points || []).slice(0, 24).forEach((p) => {
-      const h = parseInt(String(p.datetime).slice(11, 13), 10);
-      const v = p.predicted_safe ?? p.predicted;
-      if (v == null || Number.isNaN(h)) return;
-      (buckets[h] ||= []).push(v);
-    });
-    const out = {};
-    for (const [h, arr] of Object.entries(buckets)) {
-      out[+h] = arr.reduce((s, x) => s + x, 0) / arr.length;
-    }
-    return out;
-  }, [fc6.points]);
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent
@@ -208,40 +194,28 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   const loadData = useMemo(() => {
     const hist =
       history?.points?.map((p) => ({
-        t:
-          p.hour != null
-            ? `${String(p.hour).padStart(2, "0")}:00`
-            : (p.ts?.slice(11, 16) ?? ""),
-        hour: p.hour ?? parseInt(p.ts?.slice(11, 13) ?? "0"),
+        t: p.ts?.slice(11, 16) ?? "",   // "HH:MM" (15-min)
         actual: +(p.load_mw?.toFixed(2) ?? 0),
       })) ?? [];
     if (!hist.length) return hist;
 
-    // Anchor: last actual point also carries a forecast value (= its own
-    // actual) so the two series share one point and the Forecast line
-    // visually starts where Actual ends — no gap.
-    const lastEntry = hist[hist.length - 1];
+    // Anchor: last actual point also carries a forecast value (= its own actual)
+    // so the dashed Forecast line starts exactly where Actual ends — no gap.
     const merged = hist.map((d, i) =>
       i === hist.length - 1 ? { ...d, forecast: d.actual } : d,
     );
-    // 6-hour tail from the real LSTM forecast (hourly means). Falls back to the
-    // same-hour actual if the forecast feed is unavailable.
-    for (let i = 1; i <= 6; i++) {
-      const futureHour = (lastEntry.hour + i) % 24;
-      const fcVal = fcHourly[futureHour];
-      const base =
-        fcVal != null
-          ? fcVal
-          : (hist.find((d) => d.hour === futureHour)?.actual ?? lastEntry.actual);
+    // Next-6h forecast at 15-min, straight from the LSTM 6h series (no hourly mean).
+    (fc6.points || []).slice(0, 24).forEach((p) => {
+      const v = p.predicted_safe ?? p.predicted;
+      if (v == null) return;
       merged.push({
-        t: `${String(futureHour).padStart(2, "0")}:00`,
-        hour: futureHour,
+        t: String(p.datetime).slice(11, 16),
         actual: null,
-        forecast: +Number(base).toFixed(2),
+        forecast: +Number(v).toFixed(2),
       });
-    }
+    });
     return merged;
-  }, [history, fcHourly]);
+  }, [history, fc6.points]);
 
   if (!rt) {
     return (
@@ -358,6 +332,14 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
         </div>
       </section>
 
+      {/* ── Grid topology diagram ── */}
+      <section>
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          โครงสร้างโครงข่ายไฟฟ้า 3 เกาะ
+        </div>
+        <GridTopology rt={rt} />
+      </section>
+
       {/* ── Load profile + Energy mix charts ── */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Load profile */}
@@ -393,8 +375,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
               <AreaChart
                 data={loadData}
                 margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
-                onMouseMove={(e) => setHoverT(e?.activeLabel ?? null)}
-                onMouseLeave={() => setHoverT(null)}
+                onMouseMove={(e) => setHoverIdx(e?.activeTooltipIndex ?? null)}
+                onMouseLeave={() => setHoverIdx(null)}
               >
                 <defs>
                   <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
@@ -430,7 +412,8 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   dataKey="t"
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
                   tickLine={false}
-                  interval="preserveStartEnd"
+                  interval={0}
+                  tickFormatter={(v) => (typeof v === "string" && v.endsWith(":00") ? v : "")}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
@@ -454,7 +437,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   connectNulls={false}
                   activeDot={false}
                   dot={(props) => {
-                    const isHover = props.payload?.t === hoverT;
+                    const isHover = props.index === hoverIdx;
                     const hasValue = props.payload?.actual != null;
                     if (!isHover || !hasValue)
                       return <circle key={`a-${props.index}`} r={0} />;
@@ -479,7 +462,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   isAnimationActive={false}
                   activeDot={false}
                   dot={(props) => {
-                    const isHover = props.payload?.t === hoverT;
+                    const isHover = props.index === hoverIdx;
                     const hasValue = props.payload?.forecast != null;
                     if (!isHover || !hasValue)
                       return <circle key={`f-${props.index}`} r={0} />;

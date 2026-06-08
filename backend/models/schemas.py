@@ -146,9 +146,10 @@ class ScheduleStep(BaseModel):
 
 
 class ScheduleResponse(BaseModel):
-    date:  str                       # "YYYY-MM-DD" of tomorrow
-    steps: list[ScheduleStep]        # 96 × 15-min steps (00:00 → 23:45)
+    date:  str                       # "YYYY-MM-DD"
+    steps: list[ScheduleStep]        # 15-min steps (96 for a full day; fewer for today-remaining)
     cost:  CostBreakdown | None = None  # recommended-plan cost (฿ + diesel litres); populated by the endpoint
+    from_time: str | None = None     # "HH:MM" of the first step — set for the intra-day "today" schedule, None for the full-day tomorrow schedule
 
 
 class Override(BaseModel):
