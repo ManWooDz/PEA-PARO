@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -16,6 +16,7 @@ import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
 import { GridTopology } from "@/components/tabs/liveops/GridTopology";
+import { fetchLoadHistory } from "@/lib/api";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -183,8 +184,21 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // recharts' activeDot, which snaps to the last valid point when null.
   const [hoverIdx, setHoverIdx] = useState(null);
 
+  // ── Island selector for load-profile chart ──
+  const [loadIsland, setLoadIsland] = useState("C");
+  const [localHistory, setLocalHistory] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (loadIsland === "C") { setLocalHistory(null); return; }  // use parent's history prop
+    fetchLoadHistory(loadIsland)
+      .then((d) => { if (alive) setLocalHistory(d); })
+      .catch(() => { if (alive) setLocalHistory(null); });
+    return () => { alive = false; };
+  }, [loadIsland]);
+  const effectiveHistory = loadIsland === "C" ? history : localHistory;
+
   // Real LSTM 6-hour forecast (next 6h at 15-min) — used directly (no hourly mean).
-  const fc6 = useForecastSeries("6h");
+  const fc6 = useForecastSeries("6h", loadIsland);
 
   // ── Load history chart data: Actual (past 24h) + Forecast (next 6h) ──
   // Memoised so the Forecast line is stable across re-renders (the parent
@@ -193,7 +207,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   // NOTE: must be declared BEFORE any early-return so hook order stays stable.
   const loadData = useMemo(() => {
     const hist =
-      history?.points?.map((p) => ({
+      effectiveHistory?.points?.map((p) => ({
         t: p.ts?.slice(11, 16) ?? "",   // "HH:MM" (15-min)
         actual: +(p.load_mw?.toFixed(2) ?? 0),
       })) ?? [];
@@ -201,21 +215,24 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
 
     // Anchor: last actual point also carries a forecast value (= its own actual)
     // so the dashed Forecast line starts exactly where Actual ends — no gap.
+    const lastTs = hist[hist.length - 1].t;
     const merged = hist.map((d, i) =>
       i === hist.length - 1 ? { ...d, forecast: d.actual } : d,
     );
-    // Next-6h forecast at 15-min, straight from the LSTM 6h series (no hourly mean).
-    (fc6.points || []).slice(0, 24).forEach((p) => {
+    // Next-6h forecast at 15-min. Skip any points whose HH:MM ≤ the last actual
+    // (they overlap the history, not extend it). Take up to 24 forward points.
+    let added = 0;
+    for (const p of (fc6.points || [])) {
+      if (added >= 24) break;
+      const t = String(p.datetime).slice(11, 16);
+      if (t <= lastTs) continue;   // overlapping history range
       const v = p.predicted_safe ?? p.predicted;
-      if (v == null) return;
-      merged.push({
-        t: String(p.datetime).slice(11, 16),
-        actual: null,
-        forecast: +Number(v).toFixed(2),
-      });
-    });
+      if (v == null) continue;
+      merged.push({ t, actual: null, forecast: +Number(v).toFixed(2) });
+      added++;
+    }
     return merged;
-  }, [history, fc6.points]);
+  }, [effectiveHistory, fc6.points]);
 
   if (!rt) {
     return (
@@ -256,8 +273,9 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     energyMix?.points?.map((p) => ({
       t: p.ts?.slice(11, 16) ?? "",
       Grid: +(p.grid_mw?.toFixed(2) ?? 0),
-      Battery: +(p.battery_mw?.toFixed(2) ?? 0),
-      "Diesel C": +(p.diesel_c_mw?.toFixed(2) ?? 0),
+      "BESS #7": +(p.battery_mw?.toFixed(2) ?? 0),
+      "Diesel #8 (A)": +(p.diesel_a_mw?.toFixed(2) ?? 0),
+      "Diesel #9 (C)": +(p.diesel_c_mw?.toFixed(2) ?? 0),
     })) ?? [];
 
   // ── Source status data ──
@@ -347,27 +365,25 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
           <div className="flex items-baseline justify-between mb-3">
             <div>
               <div className="text-xs uppercase eyebrow text-muted thai">
-                โปรไฟล์โหลด
+                โปรไฟล์โหลด · เกาะ {loadIsland}
               </div>
               <div className="text-xs text-muted mt-0.5 thai">
                 24 ชม. ที่ผ่านมา + คาดการณ์ 6 ชม. ข้างหน้า
               </div>
             </div>
-            <div className="flex items-center gap-3 text-[10px]">
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "var(--primary)" }}
-                />
-                Actual
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "var(--secondary)" }}
-                />
-                Forecast
-              </span>
+            <div className="flex items-center gap-2">
+              {["A", "B", "C"].map((isl) => (
+                <button
+                  key={isl}
+                  onClick={() => setLoadIsland(isl)}
+                  className="px-2 py-0.5 rounded text-[11px] mono border cursor-pointer transition"
+                  style={loadIsland === isl
+                    ? { borderColor: "var(--primary)", background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }
+                    : { borderColor: "var(--border-soft)", background: "var(--surface-2)", color: "var(--muted)" }}
+                >
+                  {isl}
+                </button>
+              ))}
             </div>
           </div>
           {loadData.length > 0 ? (
@@ -412,14 +428,14 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   dataKey="t"
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
                   tickLine={false}
-                  interval={0}
-                  tickFormatter={(v) => (typeof v === "string" && v.endsWith(":00") ? v : "")}
+                  interval={11}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
                   tickLine={false}
                   axisLine={false}
                   unit=" MW"
+                  domain={["auto", (max) => Math.ceil(max * 1.15 * 10) / 10]}
                 />
                 <Tooltip content={<LoadTip />} />
                 {/* `dot` function renders once per data point — recharts gives
@@ -489,33 +505,28 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
           <div className="flex items-baseline justify-between mb-3">
             <div>
               <div className="text-[10.5px] uppercase eyebrow text-muted">
-                Energy Mix · Per Hour
+                Energy Mix · All Sources
               </div>
               <div className="text-xs text-muted mt-0.5 thai">
-                12 ชม. ล่าสุด · การเดินเครื่องจริงในอดีต (ไม่ใช่แผน optimize)
+                12 ชม. ล่าสุด · Grid + BESS + Diesel #8 + Diesel #9
               </div>
             </div>
             <div className="flex items-center gap-2 text-[10px] flex-wrap justify-end">
               <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "var(--primary)" }}
-                />
+                <span className="w-2 h-2 rounded-full" style={{ background: "var(--primary)" }} />
                 Grid (Line 6)
               </span>
               <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "#10b981" }}
-                />
-                BESS
+                <span className="w-2 h-2 rounded-full" style={{ background: "#10b981" }} />
+                BESS #7
               </span>
               <span className="flex items-center gap-1">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: "#ef4444" }}
-                />
-                Diesel C
+                <span className="w-2 h-2 rounded-full" style={{ background: "#f59e0b" }} />
+                Diesel #8 (A)
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
+                Diesel #9 (C)
               </span>
             </div>
           </div>
@@ -543,9 +554,11 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                 />
                 <Tooltip content={<LoadTip />} />
                 <Bar dataKey="Grid" name="Grid (Line 6)" stackId="a" fill="var(--primary)" />
-                <Bar dataKey="Battery" name="BESS" stackId="a" fill="#10b981" />
+                <Bar dataKey="BESS #7" name="BESS #7" stackId="a" fill="#10b981" />
+                <Bar dataKey="Diesel #8 (A)" name="Diesel #8 (A)" stackId="a" fill="#f59e0b" />
                 <Bar
-                  dataKey="Diesel C"
+                  dataKey="Diesel #9 (C)"
+                  name="Diesel #9 (C)"
                   stackId="a"
                   fill="#ef4444"
                   radius={[2, 2, 0, 0]}

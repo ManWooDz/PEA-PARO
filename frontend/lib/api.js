@@ -16,14 +16,13 @@ const api = axios.create({
 
 // ── Realtime ────────────────────────────────────────────────────────────────
 export const fetchRealtime      = () => api.get('/api/realtime').then(r => r.data)
-export const fetchLoadHistory   = () => api.get('/api/realtime/load-history').then(r => r.data)
+export const fetchLoadHistory   = (island = 'C') => api.get('/api/realtime/load-history', { params: { island } }).then(r => r.data)
 export const fetchEnergyMix     = () => api.get('/api/realtime/energy-mix').then(r => r.data)
 export const fetchEvents        = () => api.get('/api/realtime/events').then(r => r.data)
 
 // ── Dispatch ────────────────────────────────────────────────────────────────
 export const fetchDispatch       = (strategy, hasSolar = false) =>
   api.get(`/api/dispatch/${strategy}`, { params: { has_solar: hasSolar } }).then(r => r.data)
-export const fetchCustomDispatch = (body)     => api.post('/api/dispatch/custom', body).then(r => r.data)
 export const applyDispatchPlan = (payload) => api.post('/api/dispatch/apply', payload).then(r => r.data)
 
 // ── Forecast ────────────────────────────────────────────────────────────────
