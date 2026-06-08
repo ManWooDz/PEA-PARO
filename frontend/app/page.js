@@ -67,7 +67,7 @@ export default function Home() {
 
   /* ── render ── */
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <TopBar
         theme={theme}
         setTheme={setTheme}
@@ -92,7 +92,7 @@ export default function Home() {
         alertCount={activeAlerts.length}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {active === 'liveops' && (
           <Tab1LiveOps
             rt={rt} history={history} energyMix={energyMix} delta={delta}
@@ -138,6 +138,6 @@ export default function Home() {
         showToast={showToast}
         active={active}
       />
-    </>
+    </div>
   )
 }
