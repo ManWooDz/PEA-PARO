@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { fetchForecastSeries } from '@/lib/api'
 
-export function useForecastSeries(horizon = '7day') {
+export function useForecastSeries(horizon = '7day', island = 'C') {
   const [points, setPoints] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -10,12 +10,12 @@ export function useForecastSeries(horizon = '7day') {
   useEffect(() => {
     let alive = true
     setLoading(true)
-    fetchForecastSeries(horizon)
+    fetchForecastSeries({ horizon, island })
       .then(d => { if (alive) setPoints(d.points || []) })
       .catch(e => { if (alive) setError(e.message) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [horizon])
+  }, [horizon, island])
 
   return { points, loading, error }
 }

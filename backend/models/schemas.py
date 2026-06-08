@@ -125,6 +125,8 @@ class CostBreakdown(BaseModel):
     battery_thb: float             # ฿ (was battery_tokens)
     diesel_thb: float              # ฿ combined A+C (was diesel_a_tokens + diesel_c_tokens)
     diesel_litres: float = 0.0     # diesel fuel volume (litres) — assumption-based
+    diesel_a_litres: float = 0.0   # Diesel #8 (Island A) fuel volume (litres)
+    diesel_c_litres: float = 0.0   # Diesel #9 (Island C) fuel volume (litres)
     total_thb: float               # ฿ (was total_tokens)
 
 
@@ -132,6 +134,60 @@ class DispatchPlan(BaseModel):
     strategy: str
     rows: list[DispatchRow]
     cost: CostBreakdown
+
+
+class ScheduleStep(BaseModel):
+    datetime:          str    # ISO-8601 e.g. "2025-12-29T00:15:00"
+    diesel_a_mw:       float  # Diesel #8 (Island A) output MW
+    diesel_c_mw:       float  # Diesel #9 (Island C) output MW
+    diesel8_units_on:  int    # Diesel #8 units committed this step
+    diesel9_units_on:  int    # Diesel #9 units committed this step
+    battery_mw:        float  # +discharge / -charge MW
+
+
+class ScheduleResponse(BaseModel):
+    date:  str                       # "YYYY-MM-DD" of tomorrow
+    steps: list[ScheduleStep]        # 96 × 15-min steps (00:00 → 23:45)
+    cost:  CostBreakdown | None = None  # recommended-plan cost (฿ + diesel litres); populated by the endpoint
+
+
+class Override(BaseModel):
+    start:    str                                   # "HH:MM" on the 15-min grid, inclusive
+    end:      str                                   # "HH:MM" (or "24:00"), exclusive
+    field:    Literal["diesel_a", "diesel_c", "bess"]
+    value_mw: float                                 # override setpoint (MW; bess signed)
+
+
+class RecostRequest(BaseModel):
+    overrides: list[Override] = []
+
+
+class RecostWarning(BaseModel):
+    start:  str
+    end:    str
+    kind:   str    # e.g. "grid_over_cap"
+    detail: str
+
+
+class RecostResponse(BaseModel):
+    cost:     CostBreakdown
+    steps:    list[ScheduleStep]   # 96 edited steps
+    warnings: list[RecostWarning]
+
+
+class ApplyScheduleRequest(BaseModel):
+    steps: list[ScheduleStep]
+
+
+class ApplyScheduleResponse(BaseModel):
+    uploaded_at: str
+    n_steps: int
+
+
+class ActivePlanResponse(BaseModel):
+    uploaded:    bool
+    uploaded_at: str | None = None
+    n_steps:     int = 0
 
 
 class CustomPlanRequest(BaseModel):
@@ -283,3 +339,17 @@ class ScenarioResult(BaseModel):
 
 class ScenariosResponse(BaseModel):
     scenarios: list[ScenarioResult]
+
+
+class CapabilitiesResponse(BaseModel):
+    regenerate_available: bool
+    island: str = "C"
+
+
+class RegenerateResponse(BaseModel):
+    island: str
+    mape_6h_pct: float
+    mape_7day_pct: float
+    within_target: bool
+    n_rows_in: int
+    message: str

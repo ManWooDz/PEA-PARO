@@ -31,9 +31,9 @@ import requests
 logger = logging.getLogger(__name__)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-_BACKEND_DIR  = Path(__file__).parent.parent           # backend/
+_BACKEND_DIR  = Path(__file__).resolve().parent.parent  # backend/
 _ML_SRC       = _BACKEND_DIR.parent / "ml" / "prophet_lstm"
-ARTIFACTS_DIR = Path(__file__).parent / "artifacts"
+ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts"
 WEATHER_CACHE = ARTIFACTS_DIR / "weather_cache.csv"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ _predictor: "_Predictor | None" = None
 def _get_predictor() -> "_Predictor":
     global _predictor
     if _predictor is None:
-        _predictor = _Predictor(ARTIFACTS_DIR)
+        _predictor = _Predictor(ARTIFACTS_DIR / "C")
     return _predictor
 
 

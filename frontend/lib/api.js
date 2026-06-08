@@ -40,11 +40,29 @@ export const fetchForecastDispatch = (body = {}) =>
   }, { timeout: 90000 }).then(r => r.data)
 
 // ── Actionable Recommendations ───────────────────────────────────────────────
-export const fetchForecastSeries = (horizon = '7day') =>
-  api.get('/api/forecast/series', { params: { horizon } }).then(r => r.data)
+export const fetchForecastSeries = (arg = '7day') => {
+  const { horizon = '7day', island = 'C' } =
+    typeof arg === 'string' ? { horizon: arg } : (arg || {})
+  return api.get('/api/forecast/series', { params: { horizon, island } }).then(r => r.data)
+}
 
 export const fetchForecastAccuracy = ({ island = 'C', horizon = '6h' } = {}) =>
   api.get('/api/forecast/accuracy', { params: { island, horizon } }).then(r => r.data)
+
+export const fetchForecastCapabilities = () =>
+  api.get('/api/forecast/capabilities').then(r => r.data)
+
+// Multipart upload; regeneration can take ~30-60s → long timeout.
+// Pass Content-Type multipart/form-data so Axios overrides the instance JSON
+// default and attaches the correct boundary for the FormData body.
+export const regenerateForecast = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/api/forecast/regenerate', form, {
+    timeout: 120000,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
 
 export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false } = {}) =>
   api.get('/api/dispatch/day-ahead', {
@@ -56,6 +74,14 @@ export const fetchIntradayAlerts = (body = {}) =>
 
 export const fetchIntradayScenarios = (body = {}) =>
   api.post('/api/intraday/scenarios', body, { timeout: 30000 }).then(r => r.data)
+
+// ── Day-ahead 15-min schedule (B1) ───────────────────────────────────
+export const fetchSchedule  = () => api.get('/api/dispatch/schedule').then(r => r.data)
+export const scheduleCsvUrl = () => `${API_BASE}/api/dispatch/schedule.csv`
+export const recostSchedule = (overrides) =>
+  api.post('/api/dispatch/schedule/recost', { overrides }).then(r => r.data)
+export const applySchedule   = (steps) => api.post('/api/dispatch/schedule/apply', { steps }).then(r => r.data)
+export const fetchActivePlan = ()       => api.get('/api/dispatch/schedule/active').then(r => r.data)
 
 // ── Report (Tab-bar "รายงาน") ────────────────────────────────────────────────
 export const reportUrl = ({ scope = 'current', tab = 'realtime', format = 'html' } = {}) =>

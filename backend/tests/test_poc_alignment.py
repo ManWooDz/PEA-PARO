@@ -19,7 +19,7 @@ def test_compute_accuracy_island_c_meets_target():
     acc = compute_accuracy("6h", "C")
     assert acc["island"] == "C" and acc["horizon"] == "6h"
     assert acc["n_points"] > 0
-    assert 0.0 < acc["mape_pct"] < 10.0      # 6h rolling backtest ≈ 7.1%
+    assert 0.0 < acc["mape_pct"] < 7.0       # 6h LSTM+Margin rolling backtest ≈ 5.0%
     assert acc["within_target"] is True
 
 
@@ -53,5 +53,242 @@ def test_accuracy_endpoint_returns_within_target():
     assert r.status_code == 200
     body = r.json()
     assert body["within_target"] is True
-    assert 0.0 < body["mape_pct"] < 10.0
+    assert 0.0 < body["mape_pct"] < 7.0      # LSTM+Margin ≈ 5.0%
     assert body["n_points"] > 0
+
+
+def test_forecast_series_per_island():
+    c = _client()
+    # Island A load is far larger than Island C → distinct series.
+    a = c.get("/api/forecast/series", params={"horizon": "6h", "island": "A"})
+    cc = c.get("/api/forecast/series", params={"horizon": "6h", "island": "C"})
+    assert a.status_code == 200 and cc.status_code == 200
+    a_first = a.json()["points"][0]["predicted"]
+    c_first = cc.json()["points"][0]["predicted"]
+    assert a_first > 15.0          # Island A >> Island C
+    assert c_first < 8.0
+    # default (no island) stays Island C (backward compat)
+    d = c.get("/api/forecast/series", params={"horizon": "6h"})
+    assert d.json()["points"][0]["predicted"] == c_first
+    # bad island → 422
+    assert c.get("/api/forecast/series", params={"horizon": "6h", "island": "Z"}).status_code == 422
+
+
+def test_compute_plan_cost_per_island_litres():
+    # diesel A = 2+0 = 2 MWh; diesel C = 1+3 = 4 MWh.
+    rows = [
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 1,
+         "hour": 0, "token_per_hour": 0},
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 0, "diesel_c_mw": 3,
+         "hour": 1, "token_per_hour": 0},
+    ]
+    cost = compute_plan_cost(rows)
+    assert cost["diesel_a_litres"] == round(2 * 1000 * DIESEL_L_PER_KWH, 1)   # 540.0
+    assert cost["diesel_c_litres"] == round(4 * 1000 * DIESEL_L_PER_KWH, 1)   # 1080.0
+    # per-island parts sum to the existing total
+    assert round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1) == cost["diesel_litres"]
+
+
+from data.seed import DIESEL_8_STARTUP_LITRES, DIESEL_9_STARTUP_LITRES
+
+
+def test_diesel_startup_constants_from_ramp():
+    # #8: t_ramp=1/0.01=100s; energy=0.5*(100/3600)*5=0.0694 MWh; *1000*0.27 ≈ 18.75 L
+    assert abs(DIESEL_8_STARTUP_LITRES - 18.75) < 0.2
+    # #9: t_ramp=1/0.03=33.3s; energy=0.5*(33.3/3600)*2.5=0.01157 MWh; *1000*0.27 ≈ 3.12 L
+    assert abs(DIESEL_9_STARTUP_LITRES - 3.12) < 0.2
+
+
+def test_compute_plan_cost_folds_startup_litres():
+    # One Diesel-#9 start + steady Diesel-#8: startup litres added to the C island total.
+    rows = [
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 0,
+         "hour": 0, "token_per_hour": 0, "diesel8_starts": 1, "diesel9_starts": 0},
+        {"grid_mw": 1, "battery_mw": 0, "diesel_a_mw": 2, "diesel_c_mw": 1,
+         "hour": 1, "token_per_hour": 0, "diesel8_starts": 0, "diesel9_starts": 1},
+    ]
+    cost = compute_plan_cost(rows)
+    # diesel A energy = 4 MWh → 1080 L, + 1 start × 18.75
+    assert cost["diesel_a_litres"] == round(4 * 1000 * DIESEL_L_PER_KWH + DIESEL_8_STARTUP_LITRES, 1)
+    # diesel C energy = 1 MWh → 270 L, + 1 start × 3.12
+    assert cost["diesel_c_litres"] == round(1 * 1000 * DIESEL_L_PER_KWH + DIESEL_9_STARTUP_LITRES, 1)
+    assert cost["diesel_litres"] == round(cost["diesel_a_litres"] + cost["diesel_c_litres"], 1)
+
+
+def test_schedule_schemas_construct():
+    from models.schemas import ScheduleStep, ScheduleResponse
+    step = ScheduleStep(
+        datetime="2025-12-29T00:00:00",
+        diesel_a_mw=0.0, diesel_c_mw=4.0,
+        diesel8_units_on=0, diesel9_units_on=2, battery_mw=1.2,
+    )
+    resp = ScheduleResponse(date="2025-12-29", steps=[step])
+    assert resp.date == "2025-12-29"
+    assert resp.steps[0].diesel9_units_on == 2
+
+
+def test_schedule_endpoint_returns_96_steps():
+    c = _client()
+    r = c.get("/api/dispatch/schedule")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["date"] == "2025-12-29"          # tomorrow of frozen clock 2025-12-28
+    assert len(body["steps"]) == 96
+    s0 = body["steps"][0]
+    assert s0["datetime"].endswith("T00:00:00")  # first step is midnight
+    for k in ("diesel_a_mw", "diesel_c_mw", "diesel8_units_on",
+              "diesel9_units_on", "battery_mw"):
+        assert k in s0
+
+
+def test_schedule_csv_downloads():
+    c = _client()
+    r = c.get("/api/dispatch/schedule.csv")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    cd = r.headers["content-disposition"]
+    assert "attachment" in cd
+    assert "diesel-schedule-2025-12-29.csv" in cd
+    lines = r.text.strip().splitlines()
+    assert lines[0] == ("datetime,diesel_8_island_a_mw,diesel_9_island_c_mw,"
+                        "diesel_8_units,diesel_9_units,bess_mw")
+    assert len(lines) == 97   # header + 96 data rows
+
+
+def test_recost_schemas_construct():
+    from models.schemas import Override, RecostRequest, RecostResponse, RecostWarning, ScheduleResponse, CostBreakdown, ScheduleStep
+    ov = Override(start="00:00", end="06:00", field="diesel_c", value_mw=5.0)
+    req = RecostRequest(overrides=[ov])
+    assert req.overrides[0].field == "diesel_c"
+    cost = CostBreakdown(grid_thb=1, battery_thb=2, diesel_thb=3, total_thb=6)
+    step = ScheduleStep(datetime="2025-12-29T00:00:00", diesel_a_mw=0.0, diesel_c_mw=5.0,
+                        diesel8_units_on=0, diesel9_units_on=2, battery_mw=0.0)
+    warn = RecostWarning(start="09:00", end="10:00", kind="grid_over_cap", detail="grid 7.2 MW > cap 6.0 MW")
+    resp = RecostResponse(cost=cost, steps=[step], warnings=[warn])
+    assert resp.warnings[0].kind == "grid_over_cap"
+    sr = ScheduleResponse(date="2025-12-29", steps=[step], cost=cost)
+    assert sr.cost.total_thb == 6
+
+
+def test_schedule_endpoint_includes_cost():
+    c = _client()
+    r = c.get("/api/dispatch/schedule")
+    assert r.status_code == 200
+    cost = r.json()["cost"]
+    for k in ("grid_thb", "battery_thb", "diesel_thb", "diesel_litres", "total_thb"):
+        assert k in cost
+    assert cost["total_thb"] > 0
+
+
+def test_recost_endpoint_empty_matches_schedule_cost():
+    c = _client()
+    base = c.get("/api/dispatch/schedule").json()
+    r = c.post("/api/dispatch/schedule/recost", json={"overrides": []})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["steps"]) == 96
+    assert body["warnings"] == []
+    # identity: no overrides → byte-exact total cost (untouched steps reuse stored token)
+    assert abs(body["cost"]["total_thb"] - base["cost"]["total_thb"]) < 0.1
+
+
+def test_recost_endpoint_override_changes_diesel():
+    c = _client()
+    base = c.get("/api/dispatch/schedule").json()
+    r = c.post("/api/dispatch/schedule/recost",
+               json={"overrides": [{"start": "00:00", "end": "03:00",
+                                    "field": "diesel_c", "value_mw": 5.0}]})
+    assert r.status_code == 200
+    body = r.json()
+    s0 = body["steps"][0]
+    assert s0["diesel_c_mw"] == 5.0
+    assert s0["diesel9_units_on"] == 2
+    # forcing Diesel #9 to its 5 MW max over 00:00–03:00 (off-peak, baseline mostly grid)
+    # must raise the diesel fuel volume vs the recommended plan.
+    assert body["cost"]["diesel_c_litres"] > base["cost"]["diesel_c_litres"]
+
+
+def test_recost_endpoint_rejects_bad_override():
+    c = _client()
+    r = c.post("/api/dispatch/schedule/recost",
+               json={"overrides": [{"start": "06:00", "end": "06:00",
+                                    "field": "diesel_c", "value_mw": 1.0}]})
+    assert r.status_code == 422
+
+
+def test_apply_active_schemas_construct():
+    from models.schemas import ApplyScheduleRequest, ApplyScheduleResponse, ActivePlanResponse, ScheduleStep
+    step = ScheduleStep(datetime="2025-12-29T00:00:00", diesel_a_mw=0.0, diesel_c_mw=4.0,
+                        diesel8_units_on=0, diesel9_units_on=2, battery_mw=0.0)
+    req = ApplyScheduleRequest(steps=[step])
+    assert len(req.steps) == 1
+    ap = ApplyScheduleResponse(uploaded_at="2025-12-28T09:15:00", n_steps=96)
+    assert ap.n_steps == 96
+    act = ActivePlanResponse(uploaded=True, uploaded_at="2025-12-28T09:15:00", n_steps=96)
+    assert act.uploaded is True
+    empty = ActivePlanResponse(uploaded=False)
+    assert empty.uploaded_at is None and empty.n_steps == 0
+
+
+def test_apply_then_active_reports_uploaded():
+    from models import plan_store
+    plan_store.clear()
+    c = _client()
+    steps = c.get("/api/dispatch/schedule").json()["steps"]
+    r = c.post("/api/dispatch/schedule/apply", json={"steps": steps})
+    assert r.status_code == 200
+    assert r.json()["n_steps"] == 96
+    act = c.get("/api/dispatch/schedule/active").json()
+    assert act["uploaded"] is True
+    assert act["n_steps"] == 96
+    plan_store.clear()
+
+
+def test_apply_rejects_empty_steps():
+    from models import plan_store
+    plan_store.clear()
+    c = _client()
+    r = c.post("/api/dispatch/schedule/apply", json={"steps": []})
+    assert r.status_code == 422
+
+
+def test_active_reports_not_uploaded_when_cleared():
+    from models import plan_store
+    plan_store.clear()
+    c = _client()
+    act = c.get("/api/dispatch/schedule/active").json()
+    assert act["uploaded"] is False
+    assert act["n_steps"] == 0
+
+
+_SENTINEL_SUFF = {
+    "act_time": "10:00", "effect_time": "10:00", "severity": "warn",
+    "device": "Day-Ahead Plan", "action": "x", "reason": "r", "impact": "i",
+    "control_type": "radio", "day": 0,
+}
+
+
+def test_intraday_appends_sufficiency_when_plan_active(monkeypatch):
+    from models import plan_store
+    import routers.recommendations as rr
+    plan_store.clear()
+    c = _client()
+    steps = c.get("/api/dispatch/schedule").json()["steps"]
+    c.post("/api/dispatch/schedule/apply", json={"steps": steps})
+    monkeypatch.setattr(rr, "detect_plan_sufficiency", lambda *a, **k: [_SENTINEL_SUFF])
+    r = c.post("/api/intraday/alerts", json={})
+    assert r.status_code == 200
+    assert "Day-Ahead Plan" in [x["device"] for x in r.json()["recommendations"]]
+    plan_store.clear()
+
+
+def test_intraday_skips_sufficiency_without_plan(monkeypatch):
+    from models import plan_store
+    import routers.recommendations as rr
+    plan_store.clear()
+    c = _client()
+    monkeypatch.setattr(rr, "detect_plan_sufficiency", lambda *a, **k: [_SENTINEL_SUFF])
+    r = c.post("/api/intraday/alerts", json={})
+    assert r.status_code == 200
+    # no active plan → the sufficiency branch is skipped, sentinel never appears
+    assert "Day-Ahead Plan" not in [x["device"] for x in r.json()["recommendations"]]

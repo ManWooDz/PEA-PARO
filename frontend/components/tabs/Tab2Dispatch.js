@@ -20,11 +20,13 @@ import { ApplyPlanDialog } from "@/components/operational/ApplyPlanDialog";
 import { useApplyPlan } from "@/hooks/useApplyPlan";
 import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
-import { ActionTimeline } from "@/components/tabs/dispatch/ActionTimeline";
+import { DieselScheduleSection } from "@/components/tabs/dispatch/DieselScheduleSection";
+import { FuelReservePanel } from "@/components/tabs/dispatch/FuelReservePanel";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
 import { ScenarioCards } from "@/components/tabs/dispatch/ScenarioCards";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
 import { useDayAheadPlans, useIntradayAlerts, useIntradayScenarios } from "@/hooks/useRecommendations";
+import { useActivePlan } from "@/hooks/useActivePlan";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -415,6 +417,7 @@ export function Tab2Dispatch({
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => (id === "custom" ? plans?.custom : da.plans?.[id]);
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
+  const activePlanState = useActivePlan();
   const scenarioData = useIntradayScenarios({ soc_pct: 60 });
 
   const baselinePlan = da.plans?.baseline;
@@ -593,6 +596,19 @@ export function Tab2Dispatch({
           />
         ))}
       </section>
+
+      {/* ── 7-day diesel fuel reserve (procurement planning) ── */}
+      {horizonDays === 7 && (
+        <FuelReservePanel
+          baseline={da.plans?.baseline?.cost}
+          minCost={da.plans?.["min-cost"]?.cost}
+        />
+      )}
+
+      {/* ── diesel warm-up note (ramp-derived; for scheduling start times) ── */}
+      <div className="text-[11px] text-muted thai">
+        ⏱ เวลาวอร์มเครื่องดีเซล: Diesel #8 ~1 นาที 42 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
+      </div>
 
       {/* ── Custom Dispatch ── */}
       <section className="panel rounded-xl p-5">
@@ -811,13 +827,8 @@ export function Tab2Dispatch({
         </div>
       </section>
 
-          {/* ── Action Timeline (day-ahead) — replaces the old hourly table ── */}
-          <section>
-            <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
-              ★ ไทม์ไลน์คำสั่ง · สิ่งที่ต้องทำ
-            </div>
-            <ActionTimeline recommendations={da.plans?.[activeId === "custom" ? "min-cost" : activeId]?.recommendations ?? []} />
-          </section>
+          {/* ── 15-min day-ahead diesel schedule (B1) — replaces the Action Timeline ── */}
+          <DieselScheduleSection activePlan={activePlanState.active} onUploaded={activePlanState.refresh} />
         </>
       )}
 
@@ -854,6 +865,14 @@ export function Tab2Dispatch({
             <ForecastChart points={fc.points.slice(0, 24)} height={300} />
           </section>
 
+          <div className="text-[11px] thai mb-2 rounded px-2 py-1"
+               style={activePlanState.active?.uploaded
+                 ? { background: "rgba(16,185,129,0.10)", color: "#10b981", border: "1px solid #10b98140" }
+                 : { background: "var(--surface-2)", color: "var(--muted)", border: "1px solid var(--border-soft)" }}>
+            {activePlanState.active?.uploaded
+              ? `Early-Warning อ้างอิงแผนที่อัปโหลด (${String(activePlanState.active.uploaded_at).slice(11, 16)})`
+              : "ยังไม่อัปโหลดแผน — Early-Warning ใช้คำแนะนำมาตรฐาน"}
+          </div>
           <EmergencyRecommendations
             recommendations={intraday.recommendations}
             loading={intraday.loading}

@@ -73,6 +73,20 @@ DIESEL_9 = {
     "cost_token_kwh": COST["diesel_c"],
 }
 
+
+def _diesel_startup_mwh(d: dict) -> float:
+    """Warm-up energy deficit per unit start = the ramp triangle below target (MWh).
+    t_ramp = 1 / ramp_pct_per_sec seconds to reach full; deficit = 0.5·t_ramp·capacity."""
+    t_ramp_s = 1.0 / d["ramp_pct_per_sec"]
+    return 0.5 * (t_ramp_s / 3600.0) * d["capacity_per_unit_mw"]
+
+
+DIESEL_8_STARTUP_MWH = _diesel_startup_mwh(DIESEL_8)
+DIESEL_9_STARTUP_MWH = _diesel_startup_mwh(DIESEL_9)
+DIESEL_8_STARTUP_LITRES = round(DIESEL_8_STARTUP_MWH * 1000 * DIESEL_L_PER_KWH, 2)
+DIESEL_9_STARTUP_LITRES = round(DIESEL_9_STARTUP_MWH * 1000 * DIESEL_L_PER_KWH, 2)
+
+
 # ── Initial alerts ────────────────────────────────────────────────────────────
 INITIAL_ALERTS = [
     {

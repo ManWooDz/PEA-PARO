@@ -6,22 +6,30 @@ GET  /api/dispatch/day-ahead                 — multi-day plan + recommendation
 POST /api/intraday/alerts                    — early-warning alerts (T1/T2/T3)
 """
 import logging
-from datetime import datetime
-from fastapi import APIRouter, HTTPException
+import tempfile, os, csv, io
+from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from data.forecast_store import get_forecast_series, compute_accuracy
 from data.loader import get_grid_availability
+from data.clock import now as sim_now
 from data.seed import PRACTICAL_GRID_KW
 from models.dispatch_optimizer import compute_plan_cost
 from models.milp_dispatch import solve_milp, solve_baseline, aggregate_to_hourly
 from models.scenario import evaluate_scenarios
-from models.recommendation import build_recommendations, detect_intraday_alerts
+from models.recommendation import build_recommendations, detect_intraday_alerts, detect_plan_sufficiency
 from models.schemas import (
     ForecastSeriesResponse, ForecastSeriesPoint,
     Recommendation, RecommendationsResponse, DispatchRow, CostBreakdown,
     ScenarioResult, ScenariosResponse,
+    ScheduleStep, ScheduleResponse,
+    RecostRequest, RecostResponse, RecostWarning,
+    ApplyScheduleRequest, ApplyScheduleResponse, ActivePlanResponse,
 )
+from models.schedule_edit import recost as recost_schedule
+from models.plan_store import store_plan, get_plan
 
 _log = logging.getLogger(__name__)
 
@@ -35,6 +43,12 @@ _STEPS_PER_HOUR = 4   # 15-min steps in 1h
 _INTRADAY_STEPS = 6 * _STEPS_PER_HOUR   # next 6h window (24 × 15-min) for early-warning
 
 
+def _predicted_safe(pt) -> float:
+    """LSTM+Margin forecast value for a series point, 0.0 if missing."""
+    v = pt.get("predicted_safe")
+    return float(v) if v is not None else 0.0
+
+
 def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float], list[float], list[float], list[datetime]]:
     """Return (loads_a, loads_b, loads_c, timestamps) for the first n_steps.
     step='15min' uses raw 15-min points; step='hourly' averages 4×15-min → hourly.
@@ -43,14 +57,10 @@ def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float]
     sb = get_forecast_series(horizon, island="B")
     sc = get_forecast_series(horizon, island="C")
 
-    def _safe(pt):
-        v = pt.get("predicted_safe")
-        return float(v) if v is not None else 0.0
-
     if step == "15min":
-        a = [_safe(p) for p in sa[:n_steps]]
-        b = [_safe(p) for p in sb[:n_steps]]
-        c = [_safe(p) for p in sc[:n_steps]]
+        a = [_predicted_safe(p) for p in sa[:n_steps]]
+        b = [_predicted_safe(p) for p in sb[:n_steps]]
+        c = [_predicted_safe(p) for p in sc[:n_steps]]
         ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in range(min(n_steps, len(sa)))]
     else:  # hourly
         a, b, c, ts = [], [], [], []
@@ -59,9 +69,9 @@ def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float]
             wa, wb, wc = sa[w], sb[w], sc[w]
             if not wa or not wb or not wc:
                 break
-            a.append(sum(_safe(p) for p in wa) / len(wa))
-            b.append(sum(_safe(p) for p in wb) / len(wb))
-            c.append(sum(_safe(p) for p in wc) / len(wc))
+            a.append(sum(_predicted_safe(p) for p in wa) / len(wa))
+            b.append(sum(_predicted_safe(p) for p in wb) / len(wb))
+            c.append(sum(_predicted_safe(p) for p in wc) / len(wc))
             ts.append(datetime.fromisoformat(str(wa[0]["datetime"])))
     return a, b, c, ts
 
@@ -93,10 +103,67 @@ def _system_dispatch(strategy: str, days: int) -> list[dict]:
             return solve_baseline(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
 
 
-@router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
-def forecast_series(horizon: str = "7day"):
+def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list[datetime], str]:
+    """15-min loads for tomorrow (the next calendar day after the sim clock).
+    Slices the 7-day forecast to tomorrow's date -> 96 points per island.
+    Returns (loads_a, loads_b, loads_c, timestamps, date_str)."""
+    tomorrow = (sim_now() + timedelta(days=1)).date()
+    sa = get_forecast_series("7day", island="A")
+    sb = get_forecast_series("7day", island="B")
+    sc = get_forecast_series("7day", island="C")
+
+    idx = [i for i, p in enumerate(sa)
+           if datetime.fromisoformat(str(p["datetime"])).date() == tomorrow]
+    if len(idx) < _STEPS_PER_DAY:
+        raise HTTPException(
+            status_code=503,
+            detail=f"พยากรณ์ไม่ครอบคลุมวันพรุ่งนี้ ({tomorrow}) ครบ 96 ช่วง 15 นาที.",
+        )
+    idx = idx[:_STEPS_PER_DAY]
+    if idx[-1] >= min(len(sb), len(sc)):
+        raise HTTPException(
+            status_code=503,
+            detail="พยากรณ์ของเกาะ B/C ไม่ครอบคลุมวันพรุ่งนี้ครบ.",
+        )
+    a = [_predicted_safe(sa[i]) for i in idx]
+    b = [_predicted_safe(sb[i]) for i in idx]
+    c = [_predicted_safe(sc[i]) for i in idx]
+    ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in idx]
+    return a, b, c, ts, tomorrow.isoformat()
+
+
+_schedule_cache: dict = {}   # {date_str: (rows, ts)} — one entry, evicted on new day
+
+
+def _solve_tomorrow_schedule() -> tuple[list[dict], list[datetime], str]:
+    """Solve the min-cost 15-min schedule for tomorrow (no hourly aggregation).
+    Returns (rows, timestamps, date_str). Falls back to the greedy baseline if
+    the MILP solver fails.
+    Caches the result within a calendar day so multiple endpoints (schedule JSON,
+    schedule CSV, recost) all share the identical baseline rows."""
+    # Check the cache by date BEFORE fetching forecasts so a hit skips both the
+    # forecast read and the MILP solve.
+    date_str = (sim_now() + timedelta(days=1)).date().isoformat()
+    if date_str in _schedule_cache:
+        cached_rows, cached_ts = _schedule_cache[date_str]
+        return cached_rows, cached_ts, date_str
+    a, b, c, ts, date_str = _tomorrow_15min_loads()
+    dt = 1.0 / _STEPS_PER_HOUR
+    grid_cap = get_grid_availability(ts)
     try:
-        pts = get_forecast_series(horizon)
+        rows = solve_milp(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    except Exception as exc:
+        _log.warning("schedule MILP failed (%s); falling back to baseline", exc)
+        rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    _schedule_cache.clear()            # evict any previous date
+    _schedule_cache[date_str] = (rows, ts)
+    return rows, ts, date_str
+
+
+@router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
+def forecast_series(horizon: str = "7day", island: str = "C"):
+    try:
+        pts = get_forecast_series(horizon, island=island)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except FileNotFoundError as e:
@@ -135,6 +202,86 @@ def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False
     )
 
 
+@router.get("/api/dispatch/schedule", response_model=ScheduleResponse)
+def dispatch_schedule():
+    """Recommended 15-min operator schedule for tomorrow (96 steps, min-cost)."""
+    rows, ts, date_str = _solve_tomorrow_schedule()
+    steps = [
+        ScheduleStep(
+            datetime=t.isoformat(),
+            diesel_a_mw=r["diesel_a_mw"],
+            diesel_c_mw=r["diesel_c_mw"],
+            diesel8_units_on=r["diesel8_units_on"],
+            diesel9_units_on=r["diesel9_units_on"],
+            battery_mw=r["battery_mw"],
+        )
+        for t, r in zip(ts, rows)
+    ]
+    cost = compute_plan_cost(aggregate_to_hourly(rows))
+    return ScheduleResponse(date=date_str, steps=steps, cost=CostBreakdown(**cost))
+
+
+@router.get("/api/dispatch/schedule.csv")
+def dispatch_schedule_csv():
+    """Tomorrow's 15-min schedule as a downloadable CSV for diesel controllers."""
+    rows, ts, date_str = _solve_tomorrow_schedule()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["datetime", "diesel_8_island_a_mw", "diesel_9_island_c_mw",
+                "diesel_8_units", "diesel_9_units", "bess_mw"])
+    for t, r in zip(ts, rows):
+        w.writerow([
+            t.isoformat(),
+            round(r["diesel_a_mw"], 3),
+            round(r["diesel_c_mw"], 3),
+            r["diesel8_units_on"],
+            r["diesel9_units_on"],
+            round(max(0.0, r["battery_mw"]), 3),   # discharge supplied; charging shown as 0
+        ])
+    headers = {
+        "Content-Disposition": f'attachment; filename="diesel-schedule-{date_str}.csv"',
+    }
+    return Response(content=buf.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
+
+
+@router.post("/api/dispatch/schedule/recost", response_model=RecostResponse)
+def dispatch_schedule_recost(req: RecostRequest):
+    """Re-cost tomorrow's schedule after manual operator MW overrides (no MILP re-solve)."""
+    rows, ts, _ = _solve_tomorrow_schedule()
+    grid_cap = get_grid_availability(ts)
+    try:
+        cost, steps, warnings = recost_schedule(
+            rows, ts, grid_cap, [o.model_dump() for o in req.overrides]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return RecostResponse(
+        cost=CostBreakdown(**cost),
+        steps=[ScheduleStep(**s) for s in steps],
+        warnings=[RecostWarning(**w) for w in warnings],
+    )
+
+
+@router.post("/api/dispatch/schedule/apply", response_model=ApplyScheduleResponse)
+def apply_schedule(req: ApplyScheduleRequest):
+    """Persist the operator's current plan as the active Early-Warning reference."""
+    if not req.steps:
+        raise HTTPException(status_code=422, detail="ไม่มีข้อมูลตารางสำหรับอัปโหลด.")
+    store_plan([s.model_dump() for s in req.steps])
+    # Report the stored count (unique HH:MM slots) so apply and /active always agree.
+    plan = get_plan()
+    return ApplyScheduleResponse(uploaded_at=plan["uploaded_at"], n_steps=plan["n_steps"])
+
+
+@router.get("/api/dispatch/schedule/active", response_model=ActivePlanResponse)
+def active_schedule():
+    """Report the active uploaded plan (for the UI's reference status)."""
+    plan = get_plan()
+    if plan is None:
+        return ActivePlanResponse(uploaded=False, uploaded_at=None, n_steps=0)
+    return ActivePlanResponse(uploaded=True, uploaded_at=plan["uploaded_at"], n_steps=plan["n_steps"])
+
+
 class IntradayRequest(BaseModel):
     soc_pct: float = 60.0
     grid_available_mw: float = PRACTICAL_GRID_KW / 1000.0
@@ -153,6 +300,14 @@ def intraday_alerts(req: IntradayRequest):
         actual_now_mw=req.actual_now_mw,
         plan_now_mw=req.plan_now_mw,
     )
+    # If the operator uploaded a plan (B3), add a sufficiency check: next-6h system
+    # load vs the plan's planned capacity at the matching time-of-day.
+    plan = get_plan()
+    if plan is not None:
+        a, b, c, ts = _island_loads("6h", _INTRADAY_STEPS, step="15min")
+        grid_avail = get_grid_availability(ts)
+        system_loads = [(ts[i], a[i] + b[i] + c[i]) for i in range(len(ts))]
+        alert_items = alert_items + detect_plan_sufficiency(system_loads, plan["by_hhmm"], grid_avail)
     return RecommendationsResponse(
         recommendations=[Recommendation(**a) for a in alert_items],
     )
@@ -190,3 +345,9 @@ def forecast_accuracy(island: str = "C", horizon: str = "6h"):
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return AccuracyResponse(**data)
+
+
+# NOTE: /api/forecast/capabilities and /api/forecast/regenerate are intentionally
+# omitted on this serverless (Vercel) deployment — forecast regeneration needs
+# TensorFlow + the LSTM model, which are excluded from the slim image. The app
+# serves the pre-generated forecast CSVs instead.

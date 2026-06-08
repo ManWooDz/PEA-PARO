@@ -1,0 +1,17 @@
+# Runtime deps for the EC2 image that SERVES the forecast-regeneration endpoint.
+# = requirements-deploy.txt (slim runtime) PLUS the ML libs the regeneration path
+# needs at run time. TensorFlow loads/runs the LSTM; holidays builds the is_holiday
+# feature used by ml/prophet_lstm/src/preprocess.py.
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+scipy==1.13.0
+python-multipart==0.0.9
+httpx==0.27.0
+requests>=2.31.0
+pulp==2.8.0
+tensorflow>=2.15.0        # LSTM load + inference (Keras 3.x)
+holidays>=0.46            # is_holiday feature in preprocess.py
