@@ -13,11 +13,13 @@ from data.clock import now as sim_now
 
 # ── Path resolution ───────────────────────────────────────────────────────────
 _BACKEND_DIR = Path(__file__).parent.parent          # backend/
-_DOCS_DATA   = _BACKEND_DIR.parent / "docs" / "data" # project_root/docs/data/
+_LOCAL_DATA  = Path(__file__).parent                 # backend/data/  (EC2 deploy)
+_DOCS_DATA   = _BACKEND_DIR.parent / "docs" / "data" # project_root/docs/data/ (local dev)
 
-# Prefer the single combined file (Jan 2025 – Feb 2026, all 9 sources + loads).
-# Fall back to the two split files if it's absent.
-CSV_ALL = _DOCS_DATA / "Historical_Load_All.csv"
+# Check backend/data/ first (EC2 downloads here from S3), fall back to docs/data/ (local dev).
+CSV_ALL = _LOCAL_DATA / "Historical_Load_All.csv"
+if not CSV_ALL.exists():
+    CSV_ALL = _DOCS_DATA / "Historical_Load_All.csv"
 CSV1    = _DOCS_DATA / "Historical_Load_Jan-Jun25.csv"
 CSV2    = _DOCS_DATA / "Historical_Load_July25-Feb26.csv"
 
