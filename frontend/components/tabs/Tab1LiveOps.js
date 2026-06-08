@@ -15,6 +15,7 @@ import {
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
+import { GridTopology } from "@/components/tabs/liveops/GridTopology";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
@@ -356,6 +357,14 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
             risk={risk_score}
           />
         </div>
+      </section>
+
+      {/* ── Grid topology diagram ── */}
+      <section>
+        <div className="text-xs uppercase eyebrow text-muted mb-3 thai">
+          โครงสร้างโครงข่ายไฟฟ้า 3 เกาะ
+        </div>
+        <GridTopology rt={rt} />
       </section>
 
       {/* ── Load profile + Energy mix charts ── */}
