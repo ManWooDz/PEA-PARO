@@ -257,6 +257,33 @@ def get_recent_24h_hourly() -> list[dict]:
     return records
 
 
+def get_recent_24h_15min() -> list[dict]:
+    """
+    Return the last 24 hours of real historical data at 15-min resolution,
+    ending at the simulation clock. Used by the /load-history endpoint (the
+    home-page load-profile chart) so it matches the 15-min granularity of the
+    forecast/dispatch charts.
+    """
+    df = load_historical()
+    if df.empty:
+        return []
+
+    t = pd.Timestamp(sim_now())
+    window = df[df["timestamp"] <= t].tail(96)   # 24h × 4 (15-min steps)
+    if window.empty:
+        window = df.tail(96)
+
+    records = []
+    for _, row in window.iterrows():
+        ts = row["timestamp"]
+        records.append({
+            "ts":      ts.strftime("%Y-%m-%dT%H:%M:%S"),
+            "hour":    int(ts.hour),
+            "load_mw": round(float(row.get("load_c_mw", 0)), 2),
+        })
+    return records
+
+
 def get_recent_12h_mix() -> list[dict]:
     """
     Return the 12 hours of real energy-mix data ending at the simulation clock

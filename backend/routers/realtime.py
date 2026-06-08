@@ -16,7 +16,7 @@ from models.schemas import (
     EventsResponse, EventEntry,
 )
 from data.seed import LINES
-from data.loader import get_current_state, get_recent_24h_hourly, get_recent_12h_mix, get_blended_cost, get_solar_mw_now
+from data.loader import get_current_state, get_recent_24h_hourly, get_recent_24h_15min, get_recent_12h_mix, get_blended_cost, get_solar_mw_now
 from data.clock import now as sim_now, is_frozen
 from models.diesel import DIESEL_8, DIESEL_9
 
@@ -192,7 +192,7 @@ def get_events():
 
 @router.get("/load-history", response_model=LoadHistoryResponse)
 def get_load_history():
-    pts = get_recent_24h_hourly()
+    pts = get_recent_24h_15min()
     return LoadHistoryResponse(points=[
         LoadPoint(ts=p["ts"], hour=p["hour"], load_mw=p["load_mw"])
         for p in pts
