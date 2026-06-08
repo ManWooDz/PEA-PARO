@@ -1,14 +1,13 @@
 """
 Dispatch router.
 GET  /api/dispatch/{strategy}       — pre-built strategies (static profile)
-POST /api/dispatch/custom           — custom plan with sliders
 POST /api/forecast-dispatch         — LSTM forecast → merit-order dispatch plan
 """
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from models.schemas import (
-    DispatchPlan, DispatchRow, CostBreakdown, CustomPlanRequest,
+    DispatchPlan, DispatchRow, CostBreakdown,
     ForecastDispatchRequest, ForecastDispatchResponse, ForecastPoint96,
     ApplyPlanRequest, ApplyPlanResponse,
 )
@@ -57,21 +56,6 @@ def get_dispatch(strategy: str, has_solar: bool = False):
     cost_raw = compute_plan_cost(rows_raw)
     return DispatchPlan(
         strategy=strategy,
-        rows=[DispatchRow(**r) for r in rows_raw],
-        cost=CostBreakdown(**cost_raw),
-    )
-
-
-@router.post("/api/dispatch/custom", response_model=DispatchPlan)
-def post_custom_dispatch(body: CustomPlanRequest):
-    rows_raw = build_dispatch_plan(
-        strategy="baseline",
-        custom_cfg={"shares": body.shares, "windows": body.windows},
-        has_solar=body.has_solar,
-    )
-    cost_raw = compute_plan_cost(rows_raw)
-    return DispatchPlan(
-        strategy="custom",
         rows=[DispatchRow(**r) for r in rows_raw],
         cost=CostBreakdown(**cost_raw),
     )

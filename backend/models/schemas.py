@@ -191,15 +191,6 @@ class ActivePlanResponse(BaseModel):
     n_steps:     int = 0
 
 
-class CustomPlanRequest(BaseModel):
-    shares: dict[str, float] = Field(
-        default={"grid": 60, "battery": 25, "diesel_c": 10, "diesel_a": 5}
-    )
-    windows: dict[str, list[int]] = Field(
-        default={"grid": [0, 24], "battery": [9, 22], "diesel_c": [18, 22], "diesel_a": [19, 22]}
-    )
-    has_solar: bool = False
-
 
 # ── Tab 3 forecast ───────────────────────────────────────────────────────────
 class ForecastPoint(BaseModel):
@@ -284,9 +275,8 @@ class ForecastDispatchResponse(BaseModel):
 
 
 class ApplyPlanRequest(BaseModel):
-    strategy: str                          # 'baseline' | 'min-cost' | 'reliability' | 'eco' | 'custom'
+    strategy: str                          # 'baseline' | 'min-cost' | 'reliability' | 'eco'
     horizon_hours: int = 24
-    custom_cfg: dict | None = None
 
 
 class ApplyPlanResponse(BaseModel):

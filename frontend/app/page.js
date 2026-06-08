@@ -52,8 +52,8 @@ export default function Home() {
   const { data: rt, history, energyMix, error: rtErr, delta, lastReceived } = useRealtime()
 
   const {
-    plans, activeId, loading: dispLoading,
-    customCfg, setCustomCfg, applyPlan,
+    activeId, loading: dispLoading,
+    applyPlan,
     hasSolar, setHasSolar,
   } = useDispatch()
 
@@ -104,8 +104,7 @@ export default function Home() {
         {active === 'dispatch' && (
           <Tab2Dispatch
             rt={rt}
-            plans={plans} activeId={activeId} applyPlan={applyPlan}
-            customCfg={customCfg} setCustomCfg={setCustomCfg}
+            activeId={activeId} applyPlan={applyPlan}
             hasSolar={hasSolar} setHasSolar={setHasSolar}
             loading={dispLoading}
             activePlanId={activePlanId} setActivePlanId={setActivePlan}
