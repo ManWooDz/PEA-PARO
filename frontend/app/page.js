@@ -104,10 +104,8 @@ export default function Home() {
         {active === 'dispatch' && (
           <Tab2Dispatch
             rt={rt}
-            activeId={activeId} applyPlan={applyPlan}
             hasSolar={hasSolar} setHasSolar={setHasSolar}
             loading={dispLoading}
-            activePlanId={activePlanId} setActivePlanId={setActivePlan}
             focusedHour={focusedHour}
             onHourClick={(h) => jumpTo('forecast', { hour: h })}
           />

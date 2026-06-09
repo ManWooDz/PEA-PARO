@@ -27,7 +27,11 @@ _BAT_DAILY_MWH = BATTERY_7["daily_discharge_avg_mwh"]      # 25
 _D8_UNITS, _D8_CAP = DIESEL_8["units"], DIESEL_8["capacity_per_unit_mw"]  # 3 x 5
 _D9_UNITS, _D9_CAP = DIESEL_9["units"], DIESEL_9["capacity_per_unit_mw"]  # 2 x 2.5
 
-_C_BAT = COST["battery"]    # 12
+_C_BAT = 0.1                  # Battery marginal discharge cost ≈ 0 (cycling wear only).
+                              # Much cheaper than diesel (12–15 ฿/kWh), so the solver prefers
+                              # battery for peak-shaving. The grid energy to charge it is paid
+                              # for in the grid cost term. Non-zero so the solver doesn't
+                              # wastefully cycle the battery when grid alone suffices.
 _C_D8  = COST["diesel_a"]   # 15
 _C_D9  = COST["diesel_c"]   # 12
 

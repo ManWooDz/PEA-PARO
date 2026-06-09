@@ -321,7 +321,7 @@ function ChartTip({ active, payload, label }) {
   return (
     <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
       <div className="mono text-muted mb-1">
-        {typeof label === "number" ? `${String(label).padStart(2, "0")}:00` : label}
+        {label}
       </div>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2">
@@ -337,13 +337,9 @@ function ChartTip({ active, payload, label }) {
 // ── Main component ────────────────────────────────────────────────────
 export function Tab2Dispatch({
   rt,
-  activeId,
-  applyPlan,
   hasSolar,
   setHasSolar,
   loading,
-  activePlanId,
-  setActivePlanId,
   focusedHour,
   onHourClick,
 }) {
@@ -356,7 +352,6 @@ export function Tab2Dispatch({
   const fcC = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "C");
   // MILP day-ahead plans (baseline + min-cost). Custom keeps its slider plan (plans.custom).
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
-  const planFor = (id) => da.plans?.[id];
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
   const planActions = useTodayPlanActions();
   const activePlanState = useActivePlan();
@@ -365,16 +360,20 @@ export function Tab2Dispatch({
   const baselineCost = baselinePlan?.cost?.total_thb ?? 0;
   const baselineLitres = baselinePlan?.cost?.diesel_litres ?? 0;
 
-  const activePlan = planFor(activeId) ?? da.plans?.baseline;
+  const activePlan = da.plans?.["min-cost"] ?? da.plans?.baseline;
   const rows = activePlan?.rows ?? [];
 
   // ── Chart data (dispatch bars + system load forecast line) ──
   const isMultiDay = rows.length > 24;
 
+  // For both 24h and 7d, the dispatch rows start at tomorrow 00:00.
+  // The forecast starts at today 09:15. Offset = steps from 09:15 to 00:00 = 59 steps.
+  const fcOffset = 59;
+
   const chartData = rows.map((r, i) => {
     // System-load forecast (A+B+C): each dispatch row = 1 hour → average 4 forecast points
     const ptsA = fcA.points || [], ptsB = fcB.points || [], ptsC = fcC.points || [];
-    const s = i * 4, e = s + 4;
+    const s = fcOffset + i * 4, e = s + 4;
     let sysLoad = null;
     if (ptsA.length > s && ptsB.length > s && ptsC.length > s) {
       let sum = 0, n = 0;
@@ -386,8 +385,20 @@ export function Tab2Dispatch({
     }
     const day = r.day ?? 0;
     const batCharge = Math.max(0, -(r.battery_mw ?? 0));  // charging is negative battery_mw
+    // Labels
+    let hLabel;
+    if (isMultiDay) {
+      const serverNow = rt?.server_datetime ? new Date(rt.server_datetime) : new Date();
+      const base = new Date(serverNow);
+      base.setDate(base.getDate() + 1 + day);
+      const dd = String(base.getDate()).padStart(2, "0");
+      const mm = String(base.getMonth() + 1).padStart(2, "0");
+      hLabel = `${dd}/${mm} ${String(r.hour).padStart(2, "0")}:00`;
+    } else {
+      hLabel = `${String(r.hour).padStart(2, "0")}:00`;
+    }
     return {
-      h: isMultiDay ? `D${day + 1} ${String(r.hour).padStart(2, "0")}` : r.hour,
+      h: hLabel,
       Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),  // grid minus what goes to charging
       "ชาร์จ BESS": +(batCharge > 0.01 ? batCharge : 0).toFixed(2),
       Solar: +(r.solar_mw?.toFixed(2) ?? 0),
@@ -512,24 +523,9 @@ export function Tab2Dispatch({
       </section>
 
       {/* ── strategy cards (แผนปัจจุบัน / ลดต้นทุน) ── */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {STRATEGIES.map((s) => (
-          <StrategyCard
-            key={s.id}
-            strat={s}
-            plan={planFor(s.id)}
-            baselineCost={baselineCost}
-            baselineLitres={baselineLitres}
-            isActive={activeId === s.id}
-            onSelect={() => applyPlan(s.id)}
-          />
-        ))}
-      </section>
-
       {/* ── 7-day diesel fuel reserve (procurement planning) ── */}
       {horizonDays === 7 && (
         <FuelReservePanel
-          baseline={da.plans?.baseline?.cost}
           minCost={da.plans?.["min-cost"]?.cost}
         />
       )}
@@ -565,11 +561,11 @@ export function Tab2Dispatch({
                 <XAxis
                   dataKey="h"
                   tickFormatter={isMultiDay
-                    ? (v) => (typeof v === "string" ? v.replace(" ", "\n") : `${v}h`)
-                    : (h) => `${h}h`}
+                    ? (v) => (typeof v === "string" && v.includes(":00") ? v.slice(0, 5) : v)
+                    : (v) => v}
                   tick={{ fontSize: isMultiDay ? 9 : 10, fill: "var(--muted)" }}
                   tickLine={false}
-                  interval={isMultiDay ? 23 : 0}
+                  interval={isMultiDay ? 23 : 2}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "var(--muted)" }}

@@ -82,29 +82,51 @@ def _island_loads(horizon: str, n_steps: int, *, step: str) -> tuple[list[float]
 
 def _system_dispatch(strategy: str, days: int) -> list[dict]:
     """Build the 3-island system plan. min-cost→MILP, baseline→network-greedy.
-    24h (days==1) solves at 15-min then aggregates to hourly; multi-day solves hourly.
-    Falls back to the greedy baseline if the MILP solver fails."""
+    days=1 min-cost reuses the 15-min tomorrow schedule (same as /api/dispatch/schedule)
+    then aggregates to hourly — so the chart and the schedule always match.
+    Multi-day solves hourly directly. Falls back to the greedy baseline on failure."""
     solver = solve_milp if strategy == "min-cost" else solve_baseline
-    if days == 1:
-        a, b, c, ts = _island_loads("7day", _STEPS_PER_DAY, step="15min")   # 96 × 15-min
+    if days == 1 and strategy == "min-cost":
+        # Reuse the cached tomorrow schedule (15-min MILP) → aggregate to hourly
+        rows, ts, _ = _solve_tomorrow_schedule()
+        return aggregate_to_hourly(rows)[:24]
+    elif days == 1:
+        # Baseline also uses tomorrow's loads for a fair comparison
+        a, b, c, ts, _ = _tomorrow_15min_loads()
         dt = 1.0 / _STEPS_PER_HOUR
-        grid_cap = get_grid_availability(ts)   # real main-grid supply per 15-min step
+        grid_cap = get_grid_availability(ts)
         try:
             rows = solver(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
         except Exception as exc:
             _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
             rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
-        # The 7-day series starts at 09:15, so aggregate_to_hourly produces 25
-        # (day, hour) groups (first/last are partial). Slice to exactly days*24 rows.
-        return aggregate_to_hourly(rows)[:days * 24]
+        return aggregate_to_hourly(rows)[:24]
     else:
-        a, b, c, ts = _island_loads("7day", days * 24, step="hourly")
-        grid_cap = get_grid_availability(ts)   # real main-grid supply per hour
+        # Multi-day: start from tomorrow 00:00 (same starting point as the 24h plan)
+        tomorrow = (sim_now() + timedelta(days=1)).date()
+        sa = get_forecast_series("7day", island="A")
+        sb = get_forecast_series("7day", island="B")
+        sc = get_forecast_series("7day", island="C")
+        # Find the first index at/after tomorrow 00:00
+        start_idx = next(
+            (i for i, p in enumerate(sa)
+             if datetime.fromisoformat(str(p["datetime"])).date() >= tomorrow),
+            0,
+        )
+        # Slice days*96 points (15-min) then aggregate to hourly
+        end_idx = min(start_idx + days * _STEPS_PER_DAY, len(sa), len(sb), len(sc))
+        a_15 = [_predicted_safe(sa[i]) for i in range(start_idx, end_idx)]
+        b_15 = [_predicted_safe(sb[i]) for i in range(start_idx, end_idx)]
+        c_15 = [_predicted_safe(sc[i]) for i in range(start_idx, end_idx)]
+        ts_15 = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in range(start_idx, end_idx)]
+        dt = 1.0 / _STEPS_PER_HOUR
+        grid_cap = get_grid_availability(ts_15)
         try:
-            return solver(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
+            rows = solver(a_15, b_15, c_15, ts_15, dt_hours=dt, grid_cap=grid_cap)
         except Exception as exc:
             _log.warning("dispatch solver '%s' failed (%s); falling back to baseline", strategy, exc)
-            return solve_baseline(a, b, c, ts, dt_hours=1.0, grid_cap=grid_cap)[:days * 24]
+            rows = solve_baseline(a_15, b_15, c_15, ts_15, dt_hours=dt, grid_cap=grid_cap)
+        return aggregate_to_hourly(rows)[:days * 24]
 
 
 def _tomorrow_15min_loads() -> tuple[list[float], list[float], list[float], list[datetime], str]:

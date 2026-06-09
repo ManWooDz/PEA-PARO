@@ -310,19 +310,45 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           <div className="text-xs uppercase eyebrow text-muted mt-4 mb-2 thai">
             ช่วงเวลาเดินเครื่อง · สิ่งที่ต้องตั้งโปรแกรม
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[10px] uppercase eyebrow text-muted thai">
-                <th className="text-left font-medium py-1 pr-3">แหล่งจ่าย</th>
-                <th className="text-left font-medium py-1 px-2">ช่วงเดินเครื่อง (พรุ่งนี้)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SOURCES.map((src) => (
-                <OnPeriodRow key={src.key} src={src} steps={effectiveSteps} />
-              ))}
-            </tbody>
-          </table>
+          <div className="max-h-[320px] overflow-y-auto border hairline rounded-lg">
+            <table className="w-full text-xs table-fixed">
+              <thead className="sticky top-0" style={{ background: "var(--surface-2)" }}>
+                <tr className="text-[10px] uppercase eyebrow text-muted thai">
+                  <th className="text-center font-medium py-2 px-2 w-1/4">เวลา</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#6366f1" }}>BESS</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#8b5cf6" }}>Diesel #8 (A)</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#ef4444" }}>Diesel #9 (C)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {effectiveSteps.map((s, i) => {
+                  const start = String(s.datetime).slice(11, 16);
+                  const endMin = (parseInt(start.slice(0,2)) * 60 + parseInt(start.slice(3)) + 15) % 1440;
+                  const end = `${String(Math.floor(endMin/60)).padStart(2,"0")}:${String(endMin%60).padStart(2,"0")}`;
+                  const bess = s.battery_mw ?? 0;
+                  const d8 = s.diesel_a_mw ?? 0;
+                  const d9 = s.diesel_c_mw ?? 0;
+                  return (
+                    <tr key={i} className="border-t hairline">
+                      <td className="py-1 px-2 mono text-center text-[11px]">{start} - {end}</td>
+                      <td className="py-1 px-2 mono text-center" style={{
+                        color: Math.abs(bess) > 0.01 ? "var(--foreground)" : "var(--muted)",
+                        background: bess > 0.01 ? "#ef444488" : bess < -0.01 ? "#10b98188" : "transparent",
+                      }}>
+                        {Math.abs(bess) > 0.01 ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}` : "—"}
+                      </td>
+                      <td className="py-1 px-2 mono text-center" style={{ color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)" }}>
+                        {d8 > 0.01 ? d8.toFixed(1) : "—"}
+                      </td>
+                      <td className="py-1 px-2 mono text-center" style={{ color: d9 > 0.01 ? "#ef4444" : "var(--muted)" }}>
+                        {d9 > 0.01 ? d9.toFixed(1) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="text-[11px] text-muted thai mt-2">
             * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี = ช่วงเดินเครื่อง
