@@ -189,11 +189,20 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   const [localHistory, setLocalHistory] = useState(null);
   useEffect(() => {
     let alive = true;
-    if (loadIsland === "C") { setLocalHistory(null); return; }  // use parent's history prop
+    if (loadIsland === "C") {
+      setLocalHistory(null);
+      return;
+    } // use parent's history prop
     fetchLoadHistory(loadIsland)
-      .then((d) => { if (alive) setLocalHistory(d); })
-      .catch(() => { if (alive) setLocalHistory(null); });
-    return () => { alive = false; };
+      .then((d) => {
+        if (alive) setLocalHistory(d);
+      })
+      .catch(() => {
+        if (alive) setLocalHistory(null);
+      });
+    return () => {
+      alive = false;
+    };
   }, [loadIsland]);
   const effectiveHistory = loadIsland === "C" ? history : localHistory;
 
@@ -208,7 +217,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
   const loadData = useMemo(() => {
     const hist =
       effectiveHistory?.points?.map((p) => ({
-        t: p.ts?.slice(11, 16) ?? "",   // "HH:MM" (15-min)
+        t: p.ts?.slice(11, 16) ?? "", // "HH:MM" (15-min)
         actual: +(p.load_mw?.toFixed(2) ?? 0),
       })) ?? [];
     if (!hist.length) return hist;
@@ -222,10 +231,10 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
     // Next-6h forecast at 15-min. Skip any points whose HH:MM ≤ the last actual
     // (they overlap the history, not extend it). Take up to 24 forward points.
     let added = 0;
-    for (const p of (fc6.points || [])) {
+    for (const p of fc6.points || []) {
       if (added >= 24) break;
       const t = String(p.datetime).slice(11, 16);
-      if (t <= lastTs) continue;   // overlapping history range
+      if (t <= lastTs) continue; // overlapping history range
       const v = p.predicted_safe ?? p.predicted;
       if (v == null) continue;
       merged.push({ t, actual: null, forecast: +Number(v).toFixed(2) });
@@ -294,14 +303,14 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
       <section className="flex items-end justify-between flex-wrap gap-2">
         <div>
           <div className="text-xs uppercase eyebrow text-muted thai">
-            หน้าหลัก · การปฏิบัติการเรียลไทม์
+            หน้าหลัก
           </div>
           <h1 className="text-xl font-semibold mt-0.5 thai">
             ภาพรวมระบบพลังงานเกาะ C (เกาะเต่า)
           </h1>
         </div>
         <div className="text-xs text-muted thai">
-          ซิงค์ล่าสุด · <span className="mono">{lastSync}</span>
+          Last Sync: <span className="mono">{lastSync}</span>
         </div>
       </section>
 
@@ -365,7 +374,7 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
           <div className="flex items-baseline justify-between mb-3">
             <div>
               <div className="text-xs uppercase eyebrow text-muted thai">
-                โปรไฟล์โหลด · เกาะ {loadIsland}
+                Load Profile · เกาะ {loadIsland}
               </div>
               <div className="text-xs text-muted mt-0.5 thai">
                 24 ชม. ที่ผ่านมา + คาดการณ์ 6 ชม. ข้างหน้า
@@ -377,9 +386,20 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   key={isl}
                   onClick={() => setLoadIsland(isl)}
                   className="px-2 py-0.5 rounded text-[11px] mono border cursor-pointer transition"
-                  style={loadIsland === isl
-                    ? { borderColor: "var(--primary)", background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }
-                    : { borderColor: "var(--border-soft)", background: "var(--surface-2)", color: "var(--muted)" }}
+                  style={
+                    loadIsland === isl
+                      ? {
+                          borderColor: "var(--primary)",
+                          background:
+                            "color-mix(in srgb, var(--primary) 12%, transparent)",
+                          color: "var(--primary)",
+                        }
+                      : {
+                          borderColor: "var(--border-soft)",
+                          background: "var(--surface-2)",
+                          color: "var(--muted)",
+                        }
+                  }
                 >
                   {isl}
                 </button>
@@ -460,8 +480,12 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                     return (
                       <circle
                         key={`a-${props.index}`}
-                        cx={props.cx} cy={props.cy} r={4}
-                        fill="var(--primary)" stroke="var(--bg)" strokeWidth={2}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={4}
+                        fill="var(--primary)"
+                        stroke="var(--bg)"
+                        strokeWidth={2}
                       />
                     );
                   }}
@@ -485,8 +509,12 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                     return (
                       <circle
                         key={`f-${props.index}`}
-                        cx={props.cx} cy={props.cy} r={4}
-                        fill="var(--secondary)" stroke="var(--bg)" strokeWidth={2}
+                        cx={props.cx}
+                        cy={props.cy}
+                        r={4}
+                        fill="var(--secondary)"
+                        stroke="var(--bg)"
+                        strokeWidth={2}
                       />
                     );
                   }}
@@ -513,19 +541,31 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
             </div>
             <div className="flex items-center gap-2 text-[10px] flex-wrap justify-end">
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "var(--primary)" }} />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: "var(--primary)" }}
+                />
                 Grid (Line 6)
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#10b981" }} />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: "#10b981" }}
+                />
                 BESS #7
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#f59e0b" }} />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: "#f59e0b" }}
+                />
                 Diesel #8 (A)
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: "#ef4444" }} />
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: "#ef4444" }}
+                />
                 Diesel #9 (C)
               </span>
             </div>
@@ -553,9 +593,24 @@ export function Tab1LiveOps({ rt, history, energyMix, delta }) {
                   unit=" MW"
                 />
                 <Tooltip content={<LoadTip />} />
-                <Bar dataKey="Grid" name="Grid (Line 6)" stackId="a" fill="var(--primary)" />
-                <Bar dataKey="BESS #7" name="BESS #7" stackId="a" fill="#10b981" />
-                <Bar dataKey="Diesel #8 (A)" name="Diesel #8 (A)" stackId="a" fill="#f59e0b" />
+                <Bar
+                  dataKey="Grid"
+                  name="Grid (Line 6)"
+                  stackId="a"
+                  fill="var(--primary)"
+                />
+                <Bar
+                  dataKey="BESS #7"
+                  name="BESS #7"
+                  stackId="a"
+                  fill="#10b981"
+                />
+                <Bar
+                  dataKey="Diesel #8 (A)"
+                  name="Diesel #8 (A)"
+                  stackId="a"
+                  fill="#f59e0b"
+                />
                 <Bar
                   dataKey="Diesel #9 (C)"
                   name="Diesel #9 (C)"

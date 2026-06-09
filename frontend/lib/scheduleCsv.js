@@ -15,7 +15,8 @@ export function buildScheduleCsv(steps) {
 }
 
 export function downloadScheduleCsv(steps, date) {
-  const blob = new Blob([buildScheduleCsv(steps)], { type: "text/csv;charset=utf-8" });
+  const BOM = "\uFEFF";  // UTF-8 BOM so Excel auto-detects encoding (Thai text)
+  const blob = new Blob([BOM + buildScheduleCsv(steps)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

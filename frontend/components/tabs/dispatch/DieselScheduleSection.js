@@ -65,17 +65,86 @@ function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
   }));
 }
 
+
+// ── Timeline strips: thin horizontal bars showing on/off per source ──────────
+// Aligned to the same 96-step time axis as the step chart above.
+const STRIP_SOURCES = [
+  { key: "diesel_a_mw", label: "D#8", color: "#8b5cf6", threshold: 0.05, unitsKey: "diesel8_units_on" },
+  { key: "diesel_c_mw", label: "D#9", color: "#ef4444", threshold: 0.05, unitsKey: "diesel9_units_on" },
+  { key: "bess",        label: "BESS", color: "#6366f1", threshold: 0.05, unitsKey: null },
+];
+
+function TimelineStrips({ steps }) {
+  if (!steps || steps.length === 0) return null;
+  const n = steps.length;
+
+  return (
+    <div className="mt-2">
+      {STRIP_SOURCES.map((src) => {
+        const bars = [];
+        let runStart = null;
+        for (let i = 0; i <= n; i++) {
+          const s = i < n ? steps[i] : null;
+          const v = s ? (src.key === "bess" ? Math.max(0, s.battery_mw) : s[src.key]) : 0;
+          const on = v > src.threshold;
+          if (on && runStart === null) {
+            runStart = i;
+          } else if (!on && runStart !== null) {
+            bars.push({ start: runStart, end: i });
+            runStart = null;
+          }
+        }
+        // Find peak units across all runs for this source
+        const getUnits = (start, end) => {
+          if (!src.unitsKey) return null;
+          let mx = 0;
+          for (let i = start; i < end; i++) mx = Math.max(mx, steps[i]?.[src.unitsKey] ?? 0);
+          return mx;
+        };
+        return (
+          <div key={src.key} className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] mono w-8 text-right" style={{ color: src.color }}>{src.label}</span>
+            <div className="flex-1 relative h-4 rounded-sm" style={{ background: "var(--surface-2)" }}>
+              {bars.map((b, i) => {
+                const left = (b.start / n) * 100;
+                const width = ((b.end - b.start) / n) * 100;
+                const units = getUnits(b.start, b.end);
+                const startTime = hhmm(steps[b.start].datetime);
+                const endTime = shiftHHMM(steps[b.end - 1].datetime, 15 * 60);
+                return (
+                  <div
+                    key={i}
+                    className="absolute top-0 h-full rounded-sm"
+                    style={{ left: `${left}%`, width: `${width}%`, background: src.color }}
+                    title={`${startTime}–${endTime}${units ? ` · ${units} เครื่อง` : ""}`}
+                  />
+                );
+              })}
+              {bars.length === 0 && (
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] text-muted thai">
+                  {src.key === "bess" ? "ชาร์จเท่านั้น" : "ไม่เดินเครื่อง"}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {/* Time reference from the chart x-axis above; hover bars for exact times */}
+    </div>
+  );
+}
+
+
 const SOURCES = [
   { key: "diesel_a_mw", unitsKey: "diesel8_units_on", label: "Diesel #8 (เกาะ A)", color: "#f59e0b" },
   { key: "diesel_c_mw", unitsKey: "diesel9_units_on", label: "Diesel #9 (เกาะ C)", color: "#ef4444" },
   { key: "bess",        unitsKey: null,               label: "BESS แบตเตอรี่",      color: "#6366f1" },
 ];
 
+
 function OnPeriodRow({ src, steps }) {
   const runs = runsOf(steps, src.key, { unitsKey: src.unitsKey });
-  const lead = LEAD_MIN[src.key];   // undefined for BESS
-  // BESS only ever discharges in the on-period table (charging is excluded), so an
-  // empty BESS row means "charge-only", distinct from a diesel that simply stays off.
+  const lead = LEAD_MIN[src.key];
   const emptyLabel = src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
   return (
     <tr className="border-b hairline last:border-0 align-top">
@@ -88,9 +157,6 @@ function OnPeriodRow({ src, steps }) {
         ) : (
           <div className="flex flex-col gap-1">
             {runs.map((r, i) => {
-              // Warm-up start can fall before 00:00 (the prior night) when a run
-              // begins right at midnight — flag the day rollover so the operator
-              // doesn't read a late-evening time as "today".
               const warmup = lead != null ? shiftHHMM(r.startIso, -Math.round(lead * 60)) : null;
               const crossedMidnight = warmup != null && warmup > r.start;
               return (
@@ -181,7 +247,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           </div>
           <div className="text-[11px] thai mt-1" style={{ color: activePlan?.uploaded ? "#10b981" : "var(--muted)" }}>
             {activePlan?.uploaded
-              ? `✓ อัปโหลดเป็นแผนอ้างอิง Early-Warning แล้ว (${String(activePlan.uploaded_at).slice(11, 16)})`
+              ? `✓ ใช้เป็นแผนอ้างอิง Early-Warning แล้ว (${String(activePlan.uploaded_at).slice(11, 16)})`
               : "ยังไม่ได้อัปโหลดเป็นแผนอ้างอิง Early-Warning"}
           </div>
           {uploadError && (
@@ -222,27 +288,26 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
         </div>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-              <XAxis dataKey="t" interval={11} tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} unit=" MW" width={56} />
+              <XAxis dataKey="t" interval={11} tick={{ fontSize: 10 }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10 }} unit=" MW" width={48} tickLine={false} axisLine={false} />
               <Tooltip
                 formatter={(v, n) => [`${fmt1(v)} MW`, n]}
                 contentStyle={{ fontSize: 12 }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="step" dataKey="Diesel #8 (A)" stroke="#f59e0b" dot={false} strokeWidth={2} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line type="step" dataKey="Diesel #8 (A)" stroke="#8b5cf6" dot={false} strokeWidth={2} />
               <Line type="step" dataKey="Diesel #9 (C)" stroke="#ef4444" dot={false} strokeWidth={2} />
               <Line type="step" dataKey="BESS" stroke="#6366f1" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
 
-          <div className="text-[11px] text-muted thai mt-1">
-            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่
-          </div>
+          {/* Timeline strips — aligned below the chart (same 96-step x-axis) */}
+          <TimelineStrips steps={effectiveSteps} />
 
-          <div className="text-xs uppercase eyebrow text-muted mt-5 mb-2 thai">
+          <div className="text-xs uppercase eyebrow text-muted mt-4 mb-2 thai">
             ช่วงเวลาเดินเครื่อง · สิ่งที่ต้องตั้งโปรแกรม
           </div>
           <table className="w-full text-sm">
@@ -258,6 +323,10 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
               ))}
             </tbody>
           </table>
+
+          <div className="text-[11px] text-muted thai mt-2">
+            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี = ช่วงเดินเครื่อง
+          </div>
 
           <ScheduleEditor
             overrides={overrides}

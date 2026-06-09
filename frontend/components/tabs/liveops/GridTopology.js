@@ -103,7 +103,7 @@ export function GridTopology({ rt }) {
         <div>
           <div className="text-[10.5px] uppercase eyebrow text-muted">Grid Topology · Live</div>
           <div className="text-xs text-muted mt-0.5 thai">
-            โครงสร้างโครงข่ายแบบลดหลั่น 3 เกาะ · คลิกสายเคเบิล/แหล่งจ่ายเพื่อดูค่าเรียลไทม์ · คลิกกล่องเกาะเพื่อดูพยากรณ์โหลด
+            แผนผังโครงข่ายไฟฟ้า 3 เกาะ · คลิกสายเคเบิล/แหล่งจ่ายเพื่อดูค่าเรียลไทม์ · คลิกกล่องเกาะเพื่อดู Load Forecast
           </div>
         </div>
         <Legend />
