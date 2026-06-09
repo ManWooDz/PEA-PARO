@@ -5,6 +5,8 @@ import {
   Area,
   BarChart,
   Bar,
+  ComposedChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -14,8 +16,6 @@ import {
 } from "recharts";
 import { Icon } from "@/components/shared/Icon";
 import { Dot } from "@/components/shared/Dot";
-import { ApplyPlanDialog } from "@/components/operational/ApplyPlanDialog";
-import { useApplyPlan } from "@/hooks/useApplyPlan";
 import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggle";
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { DieselScheduleSection } from "@/components/tabs/dispatch/DieselScheduleSection";
@@ -28,7 +28,7 @@ import { useActivePlan } from "@/hooks/useActivePlan";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 const fmt2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
-const fmtBaht = (v) => (v == null ? "—" : `฿${(v / 1000).toFixed(1)}k`);
+const fmtBaht = (v) => (v == null ? "—" : `฿${Number(v).toLocaleString("th-TH", { maximumFractionDigits: 0 })}`);
 const SALE_BAHT_PER_KWH = 4;
 
 // ── Source Mix Breakdown ────────────────────────────────────────────
@@ -347,13 +347,13 @@ export function Tab2Dispatch({
   focusedHour,
   onHourClick,
 }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const { apply, submitting } = useApplyPlan();
-
   // ── Day-ahead / Intra-day mode ──
   const [mode, setMode] = useState("day-ahead");
   const [horizonDays, setHorizonDays] = useState(1); // 1 = 24h · 7 = 7 วัน
   const fc = useForecastSeries(mode === "intra-day" ? "6h" : "7day");
+  const fcA = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "A");
+  const fcB = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "B");
+  const fcC = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "C");
   // MILP day-ahead plans (baseline + min-cost). Custom keeps its slider plan (plans.custom).
   const da = useDayAheadPlans({ days: horizonDays, hasSolar });
   const planFor = (id) => da.plans?.[id];
@@ -368,31 +368,36 @@ export function Tab2Dispatch({
   const activePlan = planFor(activeId) ?? da.plans?.baseline;
   const rows = activePlan?.rows ?? [];
 
-  // ── Apply Plan ──
-  const handleConfirmApply = async () => {
-    try {
-      const result = await apply({
-        strategy: activeId,
-        horizon_hours: 24,
-      });
-      setActivePlanId?.(result.plan_id);
-    } catch (e) {
-      console.error(e);
-    }
-    setDialogOpen(false);
-  };
-
-  // ── Chart data ──
+  // ── Chart data (dispatch bars + system load forecast line) ──
   const isMultiDay = rows.length > 24;
-  const chartData = rows.map((r) => ({
-    h: isMultiDay ? `D${(r.day ?? 0) + 1} ${String(r.hour).padStart(2, "0")}` : r.hour,
-    Grid: +(r.grid_mw?.toFixed(2) ?? 0),
-    Solar: +(r.solar_mw?.toFixed(2) ?? 0),
-    Battery: +Math.max(0, r.battery_mw ?? 0).toFixed(2),  // only discharge (positive) in stacked bar
-    "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
-    "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
-    SoC: +(r.soc_pct?.toFixed(1) ?? 0),
-  }));
+
+  const chartData = rows.map((r, i) => {
+    // System-load forecast (A+B+C): each dispatch row = 1 hour → average 4 forecast points
+    const ptsA = fcA.points || [], ptsB = fcB.points || [], ptsC = fcC.points || [];
+    const s = i * 4, e = s + 4;
+    let sysLoad = null;
+    if (ptsA.length > s && ptsB.length > s && ptsC.length > s) {
+      let sum = 0, n = 0;
+      for (let j = s; j < Math.min(e, ptsA.length, ptsB.length, ptsC.length); j++) {
+        sum += (ptsA[j]?.predicted_safe ?? 0) + (ptsB[j]?.predicted_safe ?? 0) + (ptsC[j]?.predicted_safe ?? 0);
+        n++;
+      }
+      if (n > 0) sysLoad = +(sum / n).toFixed(2);
+    }
+    const day = r.day ?? 0;
+    const batCharge = Math.max(0, -(r.battery_mw ?? 0));  // charging is negative battery_mw
+    return {
+      h: isMultiDay ? `D${day + 1} ${String(r.hour).padStart(2, "0")}` : r.hour,
+      Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),  // grid minus what goes to charging
+      "ชาร์จ BESS": +(batCharge > 0.01 ? batCharge : 0).toFixed(2),
+      Solar: +(r.solar_mw?.toFixed(2) ?? 0),
+      "จ่าย BESS": +Math.max(0, r.battery_mw ?? 0).toFixed(2),
+      "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
+      "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
+      "โหลดรวม A+B+C": sysLoad,
+      SoC: +(r.soc_pct?.toFixed(1) ?? 0),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -446,9 +451,6 @@ export function Tab2Dispatch({
               7 วัน
             </button>
           </div>
-
-          {/* ── Forecast vs actual (พยากรณ์ทับจริง + Line 6 cap) ── */}
-          <ForecastChart points={fc.points.slice(0, horizonDays * 96)} />
 
       {/* ── Solar Scenario toggle ── */}
       <section className="panel rounded-xl p-4">
@@ -543,19 +545,7 @@ export function Tab2Dispatch({
           <div className="text-xs uppercase eyebrow text-muted thai">
             แผนการจ่ายไฟ 24 ชั่วโมง
           </div>
-          <button
-            onClick={() => setDialogOpen(true)}
-            className="px-4 py-2 rounded text-sm font-semibold cursor-pointer hover:opacity-90 bg-gradient thai"
-            style={{ color: "#fff" }}
-          >
-            ▶ นำแผนไปใช้
-          </button>
         </div>
-        {activePlanId && (
-          <div className="text-xs mono mb-2" style={{ color: "#10b981" }}>
-            ● Active plan: {String(activePlanId).slice(0, 8)}
-          </div>
-        )}
 
         <div className="panel rounded-xl p-4">
           {loading && !chartData.length ? (
@@ -563,10 +553,10 @@ export function Tab2Dispatch({
               <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
             </div>
           ) : chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart
                 data={chartData}
-                margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
+                margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -586,14 +576,14 @@ export function Tab2Dispatch({
                   tickLine={false}
                   axisLine={false}
                   unit=" MW"
+                  width={48}
                 />
                 <Tooltip content={<ChartTip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, color: "var(--muted)" }}
-                />
-                <Bar dataKey="Grid" stackId="a" fill="var(--primary)" />
+                <Legend wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
+                <Bar dataKey="Grid" stackId="a" fill="var(--primary)" name="Grid (จ่ายโหลด)" />
+                <Bar dataKey="ชาร์จ BESS" stackId="a" fill="#94a3b8" name="ชาร์จ BESS" />
                 <Bar dataKey="Solar" stackId="a" fill="#f59e0b" />
-                <Bar dataKey="Battery" stackId="a" fill="#10b981" />
+                <Bar dataKey="จ่าย BESS" stackId="a" fill="#10b981" name="จ่าย BESS" />
                 <Bar dataKey="Diesel A" stackId="a" fill="#8b5cf6" />
                 <Bar
                   dataKey="Diesel C"
@@ -601,7 +591,16 @@ export function Tab2Dispatch({
                   fill="#ef4444"
                   radius={[2, 2, 0, 0]}
                 />
-              </BarChart>
+                <Line
+                  type="monotone"
+                  dataKey="โหลดรวม A+B+C"
+                  name="โหลดรวม A+B+C (Forecast)"
+                  stroke="#f59e0b"
+                  strokeWidth={2.5}
+                  dot={false}
+                  connectNulls
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[260px] flex items-center justify-center text-muted text-sm">
@@ -690,13 +689,6 @@ export function Tab2Dispatch({
         </>
       )}
 
-      <ApplyPlanDialog
-        open={dialogOpen}
-        strategy={activeId}
-        onConfirm={handleConfirmApply}
-        onCancel={() => setDialogOpen(false)}
-        submitting={submitting}
-      />
     </div>
   );
 }

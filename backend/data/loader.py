@@ -9,7 +9,10 @@ from pathlib import Path
 from datetime import datetime
 
 from data.seed import ISLAND_C_LOAD_PROFILE, ISLAND_C_PEAK_KW
+from data.seed import LINES
 from data.clock import now as sim_now
+
+_GRID_PHYSICAL_CAP = LINES[1]["limit_mw"] + LINES[2]["limit_mw"] + LINES[3]["limit_mw"]  # 72 MW
 
 # ── Path resolution ───────────────────────────────────────────────────────────
 _BACKEND_DIR = Path(__file__).parent.parent          # backend/
@@ -156,22 +159,15 @@ def load_historical() -> pd.DataFrame:
 
 
 def get_grid_availability(timestamps) -> list[float]:
-    """Main-grid availability (MW) at each timestamp, from the historical 'Grid'
-    column (cable 1+2+3). Used as the per-step grid cap in the MILP. Falls back to
-    the sum of lines 1-3, then to the physical 72 MW, if the column is missing.
+    """Main-grid availability (MW) at each timestamp.
+
+    The islands can request as much power from the main grid as needed, up to the
+    physical cable capacity (Lines 1+2+3 = 72 MW). The MILP's node-balance +
+    cascade constraints (A→B ≤ 34 MW, B→C ≤ 8 MW) then determine how much actually
+    reaches each island. Local generation (Battery, Diesel) fills the gap when the
+    cascade bottleneck limits downstream delivery.
     """
-    df = load_historical()
-    if "grid_avail_mw" in df.columns:
-        series = df["grid_avail_mw"]
-    else:
-        cols = [c for c in ("line1_mw", "line2_mw", "line3_mw") if c in df.columns]
-        series = df[cols].sum(axis=1) if cols else None
-    if series is None:
-        return [72.0] * len(timestamps)
-    s = pd.Series(series.values, index=df["timestamp"]).sort_index()
-    targets = pd.DatetimeIndex([pd.Timestamp(t) for t in timestamps])
-    vals = s.reindex(targets, method="nearest")
-    return [float(v) if pd.notna(v) else 72.0 for v in vals]
+    return [_GRID_PHYSICAL_CAP] * len(timestamps)
 
 
 def load_hourly() -> pd.DataFrame:
