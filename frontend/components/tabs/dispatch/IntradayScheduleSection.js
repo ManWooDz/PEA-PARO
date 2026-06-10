@@ -2,7 +2,7 @@
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
-import { useTodaySchedule } from "@/hooks/useTodaySchedule";
+import { useTodaySchedule, useTodayFullSchedule } from "@/hooks/useTodaySchedule";
 
 // Read-only intra-day counterpart of DieselScheduleSection: shows what to do for
 // the REMAINING part of today (from the current time → 23:45) under the current
@@ -169,6 +169,85 @@ export function IntradayScheduleSection() {
           {schedule?.cost?.diesel_litres != null && (
             <div className="text-[11px] text-muted thai mt-3">
               น้ำมันดีเซลที่เหลือวันนี้ตามแผนแนะนำ ~
+              <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span> ลิตร ·
+              ต้นทุนรวม <span className="mono">฿{Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", { maximumFractionDigits: 0 })}</span>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+export function TodayFullScheduleSection() {
+  const { schedule, loading } = useTodayFullSchedule();
+  const steps = schedule?.steps ?? [];
+
+  return (
+    <section className="panel rounded-xl p-5">
+      <div className="mb-4">
+        <div className="text-base font-semibold thai">
+          📋 ตารางการเดินเครื่องวันนี้
+        </div>
+        <div className="text-xs text-muted thai mt-0.5">
+          แผนแนะนำ (ลดต้นทุน) สำหรับวันนี้ — ทุก 15 นาที
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="h-[260px] flex items-center justify-center text-muted text-sm thai">
+          กำลังคำนวณตารางเดินเครื่องวันนี้…
+        </div>
+      ) : steps.length === 0 ? (
+        <div className="h-[260px] flex items-center justify-center text-muted text-sm thai">
+          ไม่มีข้อมูลตารางเดินเครื่อง
+        </div>
+      ) : (
+        <>
+          <div className="max-h-[320px] overflow-y-auto border hairline rounded-lg">
+            <table className="w-full text-xs table-fixed">
+              <thead className="sticky top-0" style={{ background: "var(--surface-2)" }}>
+                <tr className="text-[10px] uppercase eyebrow text-muted thai">
+                  <th className="text-center font-medium py-2 px-2 w-1/4">เวลา</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#6366f1" }}>BESS</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#8b5cf6" }}>Diesel #8 (A)</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#ef4444" }}>Diesel #9 (C)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {steps.map((s, i) => {
+                  const start = hhmm(s.datetime);
+                  const endMin = (parseInt(start.slice(0, 2)) * 60 + parseInt(start.slice(3)) + 15) % 1440;
+                  const end = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+                  const bess = s.battery_mw ?? 0;
+                  const d8 = s.diesel_a_mw ?? 0;
+                  const d9 = s.diesel_c_mw ?? 0;
+                  return (
+                    <tr key={i} className="border-t hairline">
+                      <td className="py-1 px-2 mono text-center text-[11px]">{start} - {end}</td>
+                      <td className="py-1 px-2 mono text-center" style={{ color: Math.abs(bess) > 0.01 ? "var(--foreground)" : "var(--muted)", background: bess > 0.01 ? "#ef444488" : bess < -0.01 ? "#10b98188" : "transparent" }}>
+                        {Math.abs(bess) > 0.01 ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}` : "—"}
+                      </td>
+                      <td className="py-1 px-2 mono text-center" style={{ color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)" }}>
+                        {d8 > 0.01 ? d8.toFixed(1) : "—"}
+                      </td>
+                      <td className="py-1 px-2 mono text-center" style={{ color: d9 > 0.01 ? "#ef4444" : "var(--muted)" }}>
+                        {d9 > 0.01 ? d9.toFixed(1) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="text-[11px] text-muted thai mt-2">
+            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี = ช่วงเดินเครื่อง
+          </div>
+
+          {schedule?.cost?.diesel_litres != null && (
+            <div className="text-[11px] text-muted thai mt-3">
+              น้ำมันดีเซลวันนี้ตามแผนแนะนำ ~
               <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span> ลิตร ·
               ต้นทุนรวม <span className="mono">฿{Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", { maximumFractionDigits: 0 })}</span>
             </div>

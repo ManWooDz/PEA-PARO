@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { Icon } from '@/components/shared/Icon'
 import { reportUrl } from '@/lib/api'
+import { useSchedule } from '@/hooks/useSchedule'
+import { downloadScheduleCsv } from '@/lib/scheduleCsv'
 
 // page tab id → report `tab` param
 const TAB_MAP = { liveops: 'realtime', dispatch: 'dispatch', forecast: 'forecast', alerts: 'alerts' }
@@ -15,6 +17,7 @@ export function ExportModal({ open, onClose, showToast, active }) {
   const [format, setFormat] = useState('html')
   const [email,  setEmail]  = useState('soc@pea.co.th')
   const [scope,  setScope]  = useState('current')
+  const { schedule } = useSchedule()
 
   if (!open) return null
 
@@ -24,6 +27,14 @@ export function ExportModal({ open, onClose, showToast, active }) {
   const handleDownload = async () => {
     const reportTab = TAB_MAP[active] || 'realtime'
     const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')
+
+    // Dispatch tab + CSV: use client-side schedule table data directly
+    if (active === 'dispatch' && format === 'csv' && schedule?.steps?.length) {
+      downloadScheduleCsv(schedule.steps, schedule.date)
+      showToast('ดาวน์โหลด CSV แล้ว', `ตารางเดินเครื่อง ${schedule.date || 'tomorrow'}`)
+      onClose()
+      return
+    }
 
     // PDF: fetch the HTML report, write it into a new window, and print
     // (browser "Save as PDF" — renders Thai perfectly, no PDF/font library).

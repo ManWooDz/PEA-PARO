@@ -20,10 +20,11 @@ import { DispatchModeToggle } from "@/components/tabs/dispatch/DispatchModeToggl
 import { ForecastChart } from "@/components/tabs/dispatch/ForecastChart";
 import { DieselScheduleSection } from "@/components/tabs/dispatch/DieselScheduleSection";
 import { IntradayScheduleSection } from "@/components/tabs/dispatch/IntradayScheduleSection";
+import { TodayFullScheduleSection } from "@/components/tabs/dispatch/IntradayScheduleSection";
 import { FuelReservePanel } from "@/components/tabs/dispatch/FuelReservePanel";
 import { EmergencyRecommendations } from "@/components/tabs/dispatch/EmergencyRecommendations";
 import { useForecastSeries } from "@/hooks/useForecastSeries";
-import { useDayAheadPlans, useIntradayAlerts, useTodayPlanActions } from "@/hooks/useRecommendations";
+import { useDayAheadPlans, useIntradayAlerts, useTodayPlanActions, useTodayFullPlan } from "@/hooks/useRecommendations";
 import { useActivePlan } from "@/hooks/useActivePlan";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
@@ -318,18 +319,53 @@ function StrategyCard({ strat, plan, baselineCost, baselineLitres, isActive, onS
 // ── Chart tooltip ───────────────────────────────────────────────────
 function ChartTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  const visible = payload.filter((p) => p.value > 0 && !String(p.dataKey).startsWith("_"));
+  if (!visible.length) return null;
+  const data = payload[0]?.payload;
   return (
     <div className="panel rounded-lg px-3 py-2 text-xs shadow-xl">
       <div className="mono text-muted mb-1">
         {label}
       </div>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex items-center gap-2">
-          <span style={{ color: p.color }}>●</span>
-          <span className="text-muted">{p.name}</span>
-          <span className="mono">{fmt2(p.value)} MW</span>
-        </div>
-      ))}
+      {visible.map((p) => {
+        if (p.dataKey === "โหลดรวม A+B+C") {
+          // Show per-island breakdown
+          return (
+            <div key={p.dataKey}>
+              <div className="flex items-center gap-2">
+                <span style={{ color: p.color }}>●</span>
+                <span className="text-muted">{p.name}</span>
+                <span className="mono">{fmt2(p.value)} MW</span>
+              </div>
+              {data?._loadA > 0 && (
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-muted">Island A</span>
+                  <span className="mono">{fmt2(data._loadA)} MW</span>
+                </div>
+              )}
+              {data?._loadB > 0 && (
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-muted">Island B</span>
+                  <span className="mono">{fmt2(data._loadB)} MW</span>
+                </div>
+              )}
+              {data?._loadC > 0 && (
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-muted">Island C</span>
+                  <span className="mono">{fmt2(data._loadC)} MW</span>
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div key={p.dataKey} className="flex items-center gap-2">
+            <span style={{ color: p.color }}>●</span>
+            <span className="text-muted">{p.name}</span>
+            <span className="mono">{fmt2(p.value)} MW</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -345,13 +381,15 @@ export function Tab2Dispatch({
 }) {
   // ── Day-ahead / Intra-day mode ──
   const [mode, setMode] = useState("day-ahead");
-  const [horizonDays, setHorizonDays] = useState(1); // 1 = 24h · 7 = 7 วัน
+  const horizonDays = 1;
   const fc = useForecastSeries(mode === "intra-day" ? "6h" : "7day");
-  const fcA = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "A");
-  const fcB = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "B");
-  const fcC = useForecastSeries(mode === "intra-day" ? "6h" : "7day", "C");
+  const fcA = useForecastSeries("7day", "A");
+  const fcB = useForecastSeries("7day", "B");
+  const fcC = useForecastSeries("7day", "C");
   // MILP day-ahead plans (baseline + min-cost). Custom keeps its slider plan (plans.custom).
-  const da = useDayAheadPlans({ days: horizonDays, hasSolar });
+  const da = useDayAheadPlans({ days: horizonDays, hasSolar, resolution: '15min' });
+  const da7 = useDayAheadPlans({ days: 7, hasSolar });
+  const todayFull = useTodayFullPlan();
   const intraday = useIntradayAlerts({ soc_pct: 60, grid_available_mw: 1.3 });
   const planActions = useTodayPlanActions();
   const activePlanState = useActivePlan();
@@ -364,49 +402,111 @@ export function Tab2Dispatch({
   const rows = activePlan?.rows ?? [];
 
   // ── Chart data (dispatch bars + system load forecast line) ──
-  const isMultiDay = rows.length > 24;
 
   // For both 24h and 7d, the dispatch rows start at tomorrow 00:00.
   // The forecast starts at today 09:15. Offset = steps from 09:15 to 00:00 = 59 steps.
   const fcOffset = 59;
 
   const chartData = rows.map((r, i) => {
-    // System-load forecast (A+B+C): each dispatch row = 1 hour → average 4 forecast points
+    // 15-min resolution: 1:1 mapping with forecast points
     const ptsA = fcA.points || [], ptsB = fcB.points || [], ptsC = fcC.points || [];
-    const s = fcOffset + i * 4, e = s + 4;
-    let sysLoad = null;
-    if (ptsA.length > s && ptsB.length > s && ptsC.length > s) {
-      let sum = 0, n = 0;
-      for (let j = s; j < Math.min(e, ptsA.length, ptsB.length, ptsC.length); j++) {
-        sum += (ptsA[j]?.predicted_safe ?? 0) + (ptsB[j]?.predicted_safe ?? 0) + (ptsC[j]?.predicted_safe ?? 0);
-        n++;
-      }
-      if (n > 0) sysLoad = +(sum / n).toFixed(2);
+    const idx = fcOffset + i;
+    let sysLoad = null, loadA = null, loadB = null, loadC = null;
+    if (ptsA.length > idx && ptsB.length > idx && ptsC.length > idx) {
+      loadA = +(ptsA[idx]?.predicted_safe ?? 0).toFixed(2);
+      loadB = +(ptsB[idx]?.predicted_safe ?? 0).toFixed(2);
+      loadC = +(ptsC[idx]?.predicted_safe ?? 0).toFixed(2);
+      sysLoad = +(loadA + loadB + loadC).toFixed(2);
     }
-    const day = r.day ?? 0;
-    const batCharge = Math.max(0, -(r.battery_mw ?? 0));  // charging is negative battery_mw
-    // Labels
-    let hLabel;
-    if (isMultiDay) {
-      const serverNow = rt?.server_datetime ? new Date(rt.server_datetime) : new Date();
-      const base = new Date(serverNow);
-      base.setDate(base.getDate() + 1 + day);
-      const dd = String(base.getDate()).padStart(2, "0");
-      const mm = String(base.getMonth() + 1).padStart(2, "0");
-      hLabel = `${dd}/${mm} ${String(r.hour).padStart(2, "0")}:00`;
-    } else {
-      hLabel = `${String(r.hour).padStart(2, "0")}:00`;
-    }
+    const batCharge = Math.max(0, -(r.battery_mw ?? 0));
+    const hLabel = `${String(r.hour).padStart(2, "0")}:${String(r.minute ?? 0).padStart(2, "0")}`;
     return {
       h: hLabel,
-      Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),  // grid minus what goes to charging
+      Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),
       "ชาร์จ BESS": +(batCharge > 0.01 ? batCharge : 0).toFixed(2),
       Solar: +(r.solar_mw?.toFixed(2) ?? 0),
       "จ่าย BESS": +Math.max(0, r.battery_mw ?? 0).toFixed(2),
       "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
       "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
       "โหลดรวม A+B+C": sysLoad,
+      "_loadA": loadA,
+      "_loadB": loadB,
+      "_loadC": loadC,
       SoC: +(r.soc_pct?.toFixed(1) ?? 0),
+    };
+  });
+
+  // ── 7-day chart data ──
+  const plan7 = da7.plans?.["min-cost"] ?? da7.plans?.baseline;
+  const rows7 = plan7?.rows ?? [];
+  const chartData7 = rows7.map((r, i) => {
+    const day = r.day ?? 0;
+    const batCharge = Math.max(0, -(r.battery_mw ?? 0));
+    const serverNow = rt?.server_datetime ? new Date(rt.server_datetime) : new Date();
+    const base = new Date(serverNow);
+    base.setDate(base.getDate() + 1 + day);
+    const dd = String(base.getDate()).padStart(2, "0");
+    const mm = String(base.getMonth() + 1).padStart(2, "0");
+    const hLabel = `${dd}/${mm} ${String(r.hour).padStart(2, "0")}:00`;
+    const ptsA = fcA.points || [], ptsB = fcB.points || [], ptsC = fcC.points || [];
+    const s = fcOffset + i * 4, e = s + 4;
+    let sysLoad = null, loadA = null, loadB = null, loadC = null;
+    if (ptsA.length > s && ptsB.length > s && ptsC.length > s) {
+      let sumA = 0, sumB = 0, sumC = 0, n = 0;
+      for (let j = s; j < Math.min(e, ptsA.length, ptsB.length, ptsC.length); j++) {
+        sumA += (ptsA[j]?.predicted_safe ?? 0);
+        sumB += (ptsB[j]?.predicted_safe ?? 0);
+        sumC += (ptsC[j]?.predicted_safe ?? 0);
+        n++;
+      }
+      if (n > 0) {
+        loadA = +(sumA / n).toFixed(2);
+        loadB = +(sumB / n).toFixed(2);
+        loadC = +(sumC / n).toFixed(2);
+        sysLoad = +(loadA + loadB + loadC).toFixed(2);
+      }
+    }
+    return {
+      h: hLabel,
+      Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),
+      "ชาร์จ BESS": +(batCharge > 0.01 ? batCharge : 0).toFixed(2),
+      Solar: +(r.solar_mw?.toFixed(2) ?? 0),
+      "จ่าย BESS": +Math.max(0, r.battery_mw ?? 0).toFixed(2),
+      "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
+      "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
+      "โหลดรวม A+B+C": sysLoad,
+      "_loadA": loadA,
+      "_loadB": loadB,
+      "_loadC": loadC,
+      SoC: +(r.soc_pct?.toFixed(1) ?? 0),
+    };
+  });
+
+  // ── Today full-day chart data (15-min, 00:00–23:45) ──
+  const todayRows = todayFull.plan?.rows ?? [];
+  const chartDataToday = todayRows.map((r, i) => {
+    const batCharge = Math.max(0, -(r.battery_mw ?? 0));
+    const hLabel = `${String(r.hour).padStart(2, "0")}:${String(r.minute ?? 0).padStart(2, "0")}`;
+    const ptsA = fcA.points || [], ptsB = fcB.points || [], ptsC = fcC.points || [];
+    let loadA = null, loadB = null, loadC = null, sysLoad = null;
+    if (ptsA.length > i && ptsB.length > i && ptsC.length > i) {
+      loadA = +(ptsA[i]?.predicted_safe ?? 0).toFixed(2);
+      loadB = +(ptsB[i]?.predicted_safe ?? 0).toFixed(2);
+      loadC = +(ptsC[i]?.predicted_safe ?? 0).toFixed(2);
+      sysLoad = +(loadA + loadB + loadC).toFixed(2);
+    }
+    return {
+      h: hLabel,
+      Grid: +Math.max(0, (r.grid_mw ?? 0) - batCharge).toFixed(2),
+      "ชาร์จ BESS": +(batCharge > 0.01 ? batCharge : 0).toFixed(2),
+      Solar: +(r.solar_mw?.toFixed(2) ?? 0),
+      "จ่าย BESS": +Math.max(0, r.battery_mw ?? 0).toFixed(2),
+      "Diesel A": +((r.diesel_a_mw ?? 0) < 0.01 ? 0 : r.diesel_a_mw).toFixed(2),
+      "Diesel C": +((r.diesel_c_mw ?? 0) < 0.01 ? 0 : r.diesel_c_mw).toFixed(2),
+      "โหลดรวม A+B+C": sysLoad ?? (r.load_mw > 0 ? +r.load_mw.toFixed(2) : null),
+      "_loadA": loadA,
+      "_loadB": loadB,
+      "_loadC": loadC,
     };
   });
 
@@ -419,14 +519,15 @@ export function Tab2Dispatch({
             แผนการจ่ายไฟ
           </div>
           <h1 className="text-xl font-semibold mt-0.5 thai">
-            การจ่ายไฟที่เหมาะสม · 24 ชม.
+            แผนการจ่ายไฟ
           </h1>
           <div className="text-xs text-muted mt-1 thai">
-            ดีเซล <span className="mono">฿12/kWh</span> · ขาย{" "}
+            Diesel #9 <span className="mono">฿12/kWh</span> · Diesel #8{" "}
+            <span className="mono">฿15/kWh</span> · ขาย{" "}
             <span className="mono">฿{SALE_BAHT_PER_KWH}/kWh</span> · ดีเซลทุก
             kWh{" "}
             <span style={{ color: "#ef4444" }} className="mono">
-              ขาดทุน ฿8
+              ขาดทุน ฿8–11
             </span>
           </div>
         </div>
@@ -437,31 +538,7 @@ export function Tab2Dispatch({
 
       {mode === "day-ahead" && (
         <>
-          {/* ── Horizon sub-toggle ── */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setHorizonDays(1)}
-              className="px-3 py-1.5 rounded text-sm border thai cursor-pointer"
-              style={
-                horizonDays === 1
-                  ? { borderColor: "var(--primary)", color: "var(--primary)", fontWeight: 600 }
-                  : { borderColor: "var(--border-soft)", color: "var(--muted)" }
-              }
-            >
-              24 ชม.
-            </button>
-            <button
-              onClick={() => setHorizonDays(7)}
-              className="px-3 py-1.5 rounded text-sm border thai cursor-pointer"
-              style={
-                horizonDays === 7
-                  ? { borderColor: "var(--primary)", color: "var(--primary)", fontWeight: 600 }
-                  : { borderColor: "var(--border-soft)", color: "var(--muted)" }
-              }
-            >
-              7 วัน
-            </button>
-          </div>
+
 
       {/* ── Solar Scenario toggle ── */}
       <section className="panel rounded-xl p-4">
@@ -523,13 +600,6 @@ export function Tab2Dispatch({
       </section>
 
       {/* ── strategy cards (แผนปัจจุบัน / ลดต้นทุน) ── */}
-      {/* ── 7-day diesel fuel reserve (procurement planning) ── */}
-      {horizonDays === 7 && (
-        <FuelReservePanel
-          minCost={da.plans?.["min-cost"]?.cost}
-        />
-      )}
-
       {/* ── diesel warm-up note (ramp-derived; for scheduling start times) ── */}
       <div className="text-[11px] text-muted thai">
         ⏱ เวลาวอร์มเครื่องดีเซล: Diesel #8 ~1 นาที 42 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
@@ -560,12 +630,10 @@ export function Tab2Dispatch({
                 />
                 <XAxis
                   dataKey="h"
-                  tickFormatter={isMultiDay
-                    ? (v) => (typeof v === "string" && v.includes(":00") ? v.slice(0, 5) : v)
-                    : (v) => v}
-                  tick={{ fontSize: isMultiDay ? 9 : 10, fill: "var(--muted)" }}
+                  tickFormatter={(v) => v}
+                  tick={{ fontSize: 9, fill: "var(--muted)" }}
                   tickLine={false}
-                  interval={isMultiDay ? 23 : 2}
+                  interval={7}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "var(--muted)" }}
@@ -604,27 +672,52 @@ export function Tab2Dispatch({
             </div>
           )}
 
-          <div className="flex items-center gap-4 mt-2 text-xs text-muted flex-wrap thai">
-            <span className="flex items-center gap-1">
-              <span
-                className="inline-block w-3 h-2"
-                style={{ background: "rgba(59,130,246,0.18)" }}
-              />
-              ช่วงเวลาชาร์จแบตเตอรี่ (22:00–08:59)
-            </span>
-            <span className="flex items-center gap-1">
-              <span
-                className="inline-block w-3 h-2"
-                style={{ background: "rgba(245,158,11,0.18)" }}
-              />
-              ช่วงเวลาจ่ายไฟแบตเตอรี่ (09:00–21:59)
-            </span>
-          </div>
+
         </div>
       </section>
 
           {/* ── 15-min day-ahead diesel schedule (B1) — replaces the Action Timeline ── */}
           <DieselScheduleSection activePlan={activePlanState.active} onUploaded={activePlanState.refresh} />
+
+          {/* ── 7-day Dispatch Chart ── */}
+          <section>
+            <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+              <div className="text-xs uppercase eyebrow text-muted thai">
+                แผนการจ่ายไฟ 7 วันข้างหน้า
+              </div>
+            </div>
+            <div className="panel rounded-xl p-4">
+              {da7.loading && !chartData7.length ? (
+                <div className="h-[260px] flex items-center justify-center text-muted text-sm gap-2">
+                  <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
+                </div>
+              ) : chartData7.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={chartData7} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                    <XAxis dataKey="h" tickFormatter={(v) => (typeof v === "string" && v.includes(":00") ? v.slice(0, 5) : v)} tick={{ fontSize: 9, fill: "var(--muted)" }} tickLine={false} interval={23} />
+                    <YAxis tick={{ fontSize: 10, fill: "var(--muted)" }} tickLine={false} axisLine={false} unit=" MW" width={48} />
+                    <Tooltip content={<ChartTip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
+                    <Bar dataKey="Grid" stackId="a" fill="var(--primary)" name="Grid (จ่ายโหลด)" />
+                    <Bar dataKey="ชาร์จ BESS" stackId="a" fill="#94a3b8" name="ชาร์จ BESS" />
+                    <Bar dataKey="Solar" stackId="a" fill="#f59e0b" />
+                    <Bar dataKey="จ่าย BESS" stackId="a" fill="#10b981" name="จ่าย BESS" />
+                    <Bar dataKey="Diesel A" stackId="a" fill="#8b5cf6" />
+                    <Bar dataKey="Diesel C" stackId="a" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                    <Line type="monotone" dataKey="โหลดรวม A+B+C" name="โหลดรวม A+B+C (Forecast)" stroke="#f59e0b" strokeWidth={2.5} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[260px] flex items-center justify-center text-muted text-sm">
+                  No plan data
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── 7-day diesel fuel reserve (procurement planning) ── */}
+          <FuelReservePanel minCost={da7.plans?.["min-cost"]?.cost} />
         </>
       )}
 
@@ -653,35 +746,45 @@ export function Tab2Dispatch({
             </div>
           </section>
 
-          {/* ── 6-hour forecast (24 × 15-min) ── */}
+          {/* ── Today full-day 24h dispatch chart (15-min) ── */}
           <section>
-            <div className="text-xs uppercase eyebrow text-muted mb-2 thai">
-              พยากรณ์ 6 ชั่วโมงข้างหน้า · ทุก 15 นาที
+            <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+              <div className="text-xs uppercase eyebrow text-muted thai">
+                แผนการจ่ายไฟ 24 ชั่วโมง · วันนี้
+              </div>
             </div>
-            <ForecastChart points={fc.points.slice(0, 24)} height={300} />
+            <div className="panel rounded-xl p-4">
+              {todayFull.loading && !chartDataToday.length ? (
+                <div className="h-[260px] flex items-center justify-center text-muted text-sm gap-2">
+                  <Dot color="var(--primary)" pulse /> <span>กำลังคำนวณ…</span>
+                </div>
+              ) : chartDataToday.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={chartDataToday} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
+                    <XAxis dataKey="h" tick={{ fontSize: 9, fill: "var(--muted)" }} tickLine={false} interval={7} />
+                    <YAxis tick={{ fontSize: 10, fill: "var(--muted)" }} tickLine={false} axisLine={false} unit=" MW" width={48} />
+                    <Tooltip content={<ChartTip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: "var(--muted)" }} />
+                    <Bar dataKey="Grid" stackId="a" fill="var(--primary)" name="Grid (จ่ายโหลด)" />
+                    <Bar dataKey="ชาร์จ BESS" stackId="a" fill="#94a3b8" name="ชาร์จ BESS" />
+                    <Bar dataKey="Solar" stackId="a" fill="#f59e0b" />
+                    <Bar dataKey="จ่าย BESS" stackId="a" fill="#10b981" name="จ่าย BESS" />
+                    <Bar dataKey="Diesel A" stackId="a" fill="#8b5cf6" />
+                    <Bar dataKey="Diesel C" stackId="a" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                    <Line type="monotone" dataKey="โหลดรวม A+B+C" name="โหลดรวม A+B+C (Forecast)" stroke="#f59e0b" strokeWidth={2.5} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[260px] flex items-center justify-center text-muted text-sm">
+                  No plan data
+                </div>
+              )}
+            </div>
           </section>
 
-          <div className="text-[11px] thai mb-2 rounded px-2 py-1"
-               style={activePlanState.active?.uploaded
-                 ? { background: "rgba(16,185,129,0.10)", color: "#10b981", border: "1px solid #10b98140" }
-                 : { background: "var(--surface-2)", color: "var(--muted)", border: "1px solid var(--border-soft)" }}>
-            {activePlanState.active?.uploaded
-              ? `Early-Warning อ้างอิงแผนที่อัปโหลด (${String(activePlanState.active.uploaded_at).slice(11, 16)})`
-              : "ยังไม่อัปโหลดแผน — Early-Warning ใช้คำแนะนำมาตรฐาน"}
-          </div>
-          <IntradayScheduleSection />
-          <EmergencyRecommendations
-            title="🛠 คำแนะนำการเดินเครื่องวันนี้ · ตามแผนแนะนำ"
-            recommendations={planActions.recommendations}
-            loading={planActions.loading}
-            emptyLabel="🟢 ไม่มีการเปลี่ยนแปลงการเดินเครื่องในช่วงที่เหลือ — เดินตามแผนปกติ"
-          />
-          <EmergencyRecommendations
-            title="⚠ การเตือนล่วงหน้า · ความเสี่ยง (ถ้าจริงแย่กว่าพยากรณ์)"
-            recommendations={intraday.recommendations}
-            loading={intraday.loading}
-            emptyLabel="🟢 ไม่มีความเสี่ยงเด่น — เป็นไปตามแผน"
-          />
+          {/* ── Today full-day diesel schedule table (00:00–23:45) ── */}
+          <TodayFullScheduleSection />
         </>
       )}
 

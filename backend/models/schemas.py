@@ -105,6 +105,7 @@ class EnergyMixResponse(BaseModel):
 # ── Tab 2 dispatch ───────────────────────────────────────────────────────────
 class DispatchRow(BaseModel):
     hour: int                      # 0-23 integer (was "00:00" string)
+    minute: int = 0                # 0, 15, 30, 45 (relevant for 15-min resolution)
     load_mw: float                 # MW (was load_kw)
     grid_mw: float                 # MW (was grid_kw)
     battery_mw: float              # MW +discharge/-charge (was battery_kw)

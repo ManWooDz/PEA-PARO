@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { fetchDayAhead, fetchIntradayAlerts, fetchIntradayScenarios, fetchIntradayPlanActions } from '@/lib/api'
+import { fetchDayAhead, fetchIntradayAlerts, fetchIntradayScenarios, fetchIntradayPlanActions, fetchTodayFullDayAhead } from '@/lib/api'
 
 export function useDayAhead({ strategy = 'min-cost', days = 1, hasSolar = false }) {
   const [data, setData] = useState(null)
@@ -26,7 +26,7 @@ export function useDayAhead({ strategy = 'min-cost', days = 1, hasSolar = false 
  * real MILP schedule and the genuine "ลดต้นทุน vs แผนปัจจุบัน" savings.
  * Returns { plans: { baseline, "min-cost" }, loading }.
  */
-export function useDayAheadPlans({ days = 1, hasSolar = false }) {
+export function useDayAheadPlans({ days = 1, hasSolar = false, resolution = '1h' }) {
   const [plans, setPlans] = useState({})
   const [loading, setLoading] = useState(false)
 
@@ -34,14 +34,14 @@ export function useDayAheadPlans({ days = 1, hasSolar = false }) {
     let alive = true
     setLoading(true)
     Promise.all([
-      fetchDayAhead({ strategy: 'baseline', days, hasSolar }),
-      fetchDayAhead({ strategy: 'min-cost', days, hasSolar }),
+      fetchDayAhead({ strategy: 'baseline', days, hasSolar, resolution }),
+      fetchDayAhead({ strategy: 'min-cost', days, hasSolar, resolution }),
     ])
       .then(([bl, mc]) => { if (alive) setPlans({ baseline: bl, 'min-cost': mc }) })
       .catch(() => { if (alive) setPlans({}) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [days, hasSolar])
+  }, [days, hasSolar, resolution])
 
   return { plans, loading }
 }
@@ -96,4 +96,21 @@ export function useIntradayScenarios(body) {
   }, [JSON.stringify(body)])    // eslint-disable-line react-hooks/exhaustive-deps
 
   return { scenarios, loading }
+}
+
+export function useTodayFullPlan() {
+  const [plan, setPlan] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    fetchTodayFullDayAhead()
+      .then(d => { if (alive) setPlan(d) })
+      .catch(() => { if (alive) setPlan(null) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [])
+
+  return { plan, loading }
 }

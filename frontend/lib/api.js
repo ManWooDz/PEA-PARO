@@ -57,9 +57,9 @@ export const regenerateForecast = (file) => {
   }).then(r => r.data)
 }
 
-export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false } = {}) =>
+export const fetchDayAhead = ({ strategy = 'min-cost', days = 1, hasSolar = false, resolution = '1h' } = {}) =>
   api.get('/api/dispatch/day-ahead', {
-    params: { strategy, days, has_solar: hasSolar },
+    params: { strategy, days, has_solar: hasSolar, resolution },
   }).then(r => r.data)
 
 export const fetchIntradayAlerts = (body = {}) =>
@@ -76,6 +76,10 @@ export const fetchIntradayScenarios = (body = {}) =>
 export const fetchSchedule  = () => api.get('/api/dispatch/schedule').then(r => r.data)
 // Intra-day: today's remaining 15-min schedule (recommended, min-cost)
 export const fetchTodaySchedule = () => api.get('/api/dispatch/schedule/today').then(r => r.data)
+// Intra-day: today full-day schedule (00:00–23:45, 96 steps)
+export const fetchTodayFullSchedule = () => api.get('/api/dispatch/schedule/today-full').then(r => r.data)
+// Intra-day: today full-day dispatch plan (15-min resolution)
+export const fetchTodayFullDayAhead = () => api.get('/api/dispatch/day-ahead/today').then(r => r.data)
 export const scheduleCsvUrl = () => `${API_BASE}/api/dispatch/schedule.csv`
 export const recostSchedule = (overrides) =>
   api.post('/api/dispatch/schedule/recost', { overrides }).then(r => r.data)

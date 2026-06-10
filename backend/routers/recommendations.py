@@ -241,6 +241,66 @@ def _solve_today_schedule() -> tuple[list[dict], list[datetime], str]:
     return rows, ts, date_str
 
 
+_today_fullday_cache: dict = {}   # {date_str: (rows, ts)}
+
+
+def _today_fullday_15min_loads():
+    """15-min loads for today — uses all available forecast points for today's date.
+    May be fewer than 96 if the forecast starts mid-day (e.g., sim clock at 09:15)."""
+    today = sim_now().date()
+    sa = get_forecast_series("7day", island="A")
+    sb = get_forecast_series("7day", island="B")
+    sc = get_forecast_series("7day", island="C")
+    idx = [i for i, p in enumerate(sa)
+           if datetime.fromisoformat(str(p["datetime"])).date() == today]
+    if not idx:
+        raise HTTPException(status_code=503, detail="พยากรณ์ไม่ครอบคลุมวันนี้.")
+    # Cap to available B/C data
+    idx = [i for i in idx if i < len(sb) and i < len(sc)]
+    a = [_predicted_safe(sa[i]) for i in idx]
+    b = [_predicted_safe(sb[i]) for i in idx]
+    c = [_predicted_safe(sc[i]) for i in idx]
+    ts = [datetime.fromisoformat(str(sa[i]["datetime"])) for i in idx]
+    return a, b, c, ts, today.isoformat()
+
+
+def _solve_today_fullday_schedule():
+    """Solve 15-min schedule for today 00:00–23:45 (96 steps)."""
+    date_str = sim_now().date().isoformat()
+    if date_str in _today_fullday_cache:
+        return _today_fullday_cache[date_str]
+    a, b, c, ts, date_str = _today_fullday_15min_loads()
+    dt = 1.0 / _STEPS_PER_HOUR
+    grid_cap = get_grid_availability(ts)
+    try:
+        rows = solve_milp(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    except Exception as exc:
+        _log.warning("today fullday MILP failed (%s); baseline", exc)
+        rows = solve_baseline(a, b, c, ts, dt_hours=dt, grid_cap=grid_cap)
+    _today_fullday_cache.clear()
+    _today_fullday_cache[date_str] = (rows, ts, date_str)
+    return rows, ts, date_str
+
+
+@router.get("/api/dispatch/schedule/today-full", response_model=ScheduleResponse)
+def dispatch_schedule_today_full():
+    """Full-day today schedule (00:00–23:45, 96 steps, min-cost)."""
+    rows, ts, date_str = _solve_today_fullday_schedule()
+    steps = [
+        ScheduleStep(
+            datetime=t.isoformat(),
+            diesel_a_mw=r["diesel_a_mw"],
+            diesel_c_mw=r["diesel_c_mw"],
+            diesel8_units_on=r["diesel8_units_on"],
+            diesel9_units_on=r["diesel9_units_on"],
+            battery_mw=r["battery_mw"],
+        )
+        for t, r in zip(ts, rows)
+    ]
+    cost = compute_plan_cost(aggregate_to_hourly(rows))
+    return ScheduleResponse(date=date_str, steps=steps, cost=CostBreakdown(**cost))
+
+
 @router.get("/api/forecast/series", response_model=ForecastSeriesResponse)
 def forecast_series(horizon: str = "7day", island: str = "C"):
     try:
@@ -263,7 +323,7 @@ class DayAheadResponse(BaseModel):
 
 
 @router.get("/api/dispatch/day-ahead", response_model=DayAheadResponse)
-def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False):
+def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False, resolution: str = "1h"):
     # NOTE: has_solar is accepted for API compatibility but not modeled by the MILP
     # (solar remains a separate scenario — see spec future work). It has no effect here.
     if strategy not in VALID_STRATEGIES:
@@ -272,12 +332,42 @@ def day_ahead(strategy: str = "min-cost", days: int = 1, has_solar: bool = False
         raise HTTPException(status_code=422, detail="days must be >= 1.")
     if days > 7:
         raise HTTPException(status_code=422, detail="days must be <= 7 (7-day forecast horizon).")
+    if resolution == "15min" and days == 1:
+        rows_raw, ts, _ = _solve_tomorrow_schedule()
+        rows_out = []
+        for t, r in zip(ts, rows_raw):
+            row = dict(r)
+            row["minute"] = t.minute
+            rows_out.append(row)
+        cost = compute_plan_cost(aggregate_to_hourly(rows_raw))
+        recs = build_recommendations(aggregate_to_hourly(rows_raw))
+        return DayAheadResponse(
+            strategy=strategy,
+            rows=[DispatchRow(**r) for r in rows_out],
+            cost=CostBreakdown(**cost),
+            recommendations=[Recommendation(**r) for r in recs],
+        )
     rows = _system_dispatch(strategy, days)
     cost = compute_plan_cost(rows)
     recs = build_recommendations(rows)
     return DayAheadResponse(
         strategy=strategy,
         rows=[DispatchRow(**r) for r in rows],
+        cost=CostBreakdown(**cost),
+        recommendations=[Recommendation(**r) for r in recs],
+    )
+
+
+@router.get("/api/dispatch/day-ahead/today", response_model=DayAheadResponse)
+def day_ahead_today():
+    """Full-day today dispatch plan at 15-min resolution (00:00–23:45)."""
+    rows, ts, _ = _solve_today_fullday_schedule()
+    rows_out = [dict(r, minute=t.minute) for t, r in zip(ts, rows)]
+    cost = compute_plan_cost(aggregate_to_hourly(rows))
+    recs = build_recommendations(aggregate_to_hourly(rows))
+    return DayAheadResponse(
+        strategy="min-cost",
+        rows=[DispatchRow(**r) for r in rows_out],
         cost=CostBreakdown(**cost),
         recommendations=[Recommendation(**r) for r in recs],
     )

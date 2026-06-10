@@ -1,7 +1,14 @@
 "use client";
 import { useState } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
 } from "recharts";
 import { useSchedule } from "@/hooks/useSchedule";
 import { recostSchedule, applySchedule } from "@/lib/api";
@@ -27,7 +34,7 @@ function fmtLead(leadMin) {
 // Diesel #9 ~0.5 min. Kept in sync with the warm-up note in Tab2Dispatch.
 const LEAD_MIN = { diesel_a_mw: 1.7, diesel_c_mw: 0.5 };
 
-const hhmm = (iso) => String(iso).slice(11, 16);          // "HH:MM" from ISO
+const hhmm = (iso) => String(iso).slice(11, 16); // "HH:MM" from ISO
 
 const shiftHHMM = (iso, deltaSec) => {
   const d = new Date(iso);
@@ -45,7 +52,14 @@ function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
   for (const s of steps) {
     const v = key === "bess" ? Math.max(0, s.battery_mw) : s[key];
     if (v > threshold) {
-      if (!cur) cur = { startIso: s.datetime, endIso: s.datetime, sum: 0, n: 0, units: 0 };
+      if (!cur)
+        cur = {
+          startIso: s.datetime,
+          endIso: s.datetime,
+          sum: 0,
+          n: 0,
+          units: 0,
+        };
       cur.endIso = s.datetime;
       cur.sum += v;
       cur.n += 1;
@@ -59,19 +73,36 @@ function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
   return runs.map((r) => ({
     startIso: r.startIso,
     start: hhmm(r.startIso),
-    end: shiftHHMM(r.endIso, 15 * 60),   // each step covers 15 min
+    end: shiftHHMM(r.endIso, 15 * 60), // each step covers 15 min
     avg: r.sum / r.n,
     units: r.units,
   }));
 }
 
-
 // ── Timeline strips: thin horizontal bars showing on/off per source ──────────
 // Aligned to the same 96-step time axis as the step chart above.
 const STRIP_SOURCES = [
-  { key: "diesel_a_mw", label: "D#8", color: "#8b5cf6", threshold: 0.05, unitsKey: "diesel8_units_on" },
-  { key: "diesel_c_mw", label: "D#9", color: "#ef4444", threshold: 0.05, unitsKey: "diesel9_units_on" },
-  { key: "bess",        label: "BESS", color: "#6366f1", threshold: 0.05, unitsKey: null },
+  {
+    key: "diesel_a_mw",
+    label: "D#8",
+    color: "#8b5cf6",
+    threshold: 0.05,
+    unitsKey: "diesel8_units_on",
+  },
+  {
+    key: "diesel_c_mw",
+    label: "D#9",
+    color: "#ef4444",
+    threshold: 0.05,
+    unitsKey: "diesel9_units_on",
+  },
+  {
+    key: "bess",
+    label: "BESS",
+    color: "#6366f1",
+    threshold: 0.05,
+    unitsKey: null,
+  },
 ];
 
 function TimelineStrips({ steps }) {
@@ -85,7 +116,11 @@ function TimelineStrips({ steps }) {
         let runStart = null;
         for (let i = 0; i <= n; i++) {
           const s = i < n ? steps[i] : null;
-          const v = s ? (src.key === "bess" ? Math.max(0, s.battery_mw) : s[src.key]) : 0;
+          const v = s
+            ? src.key === "bess"
+              ? Math.max(0, s.battery_mw)
+              : s[src.key]
+            : 0;
           const on = v > src.threshold;
           if (on && runStart === null) {
             runStart = i;
@@ -98,13 +133,22 @@ function TimelineStrips({ steps }) {
         const getUnits = (start, end) => {
           if (!src.unitsKey) return null;
           let mx = 0;
-          for (let i = start; i < end; i++) mx = Math.max(mx, steps[i]?.[src.unitsKey] ?? 0);
+          for (let i = start; i < end; i++)
+            mx = Math.max(mx, steps[i]?.[src.unitsKey] ?? 0);
           return mx;
         };
         return (
           <div key={src.key} className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] mono w-8 text-right" style={{ color: src.color }}>{src.label}</span>
-            <div className="flex-1 relative h-4 rounded-sm" style={{ background: "var(--surface-2)" }}>
+            <span
+              className="text-[10px] mono w-8 text-right"
+              style={{ color: src.color }}
+            >
+              {src.label}
+            </span>
+            <div
+              className="flex-1 relative h-4 rounded-sm"
+              style={{ background: "var(--surface-2)" }}
+            >
               {bars.map((b, i) => {
                 const left = (b.start / n) * 100;
                 const width = ((b.end - b.start) / n) * 100;
@@ -115,7 +159,11 @@ function TimelineStrips({ steps }) {
                   <div
                     key={i}
                     className="absolute top-0 h-full rounded-sm"
-                    style={{ left: `${left}%`, width: `${width}%`, background: src.color }}
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      background: src.color,
+                    }}
                     title={`${startTime}–${endTime}${units ? ` · ${units} เครื่อง` : ""}`}
                   />
                 );
@@ -134,22 +182,33 @@ function TimelineStrips({ steps }) {
   );
 }
 
-
 const SOURCES = [
-  { key: "diesel_a_mw", unitsKey: "diesel8_units_on", label: "Diesel #8 (เกาะ A)", color: "#f59e0b" },
-  { key: "diesel_c_mw", unitsKey: "diesel9_units_on", label: "Diesel #9 (เกาะ C)", color: "#ef4444" },
-  { key: "bess",        unitsKey: null,               label: "BESS แบตเตอรี่",      color: "#6366f1" },
+  {
+    key: "diesel_a_mw",
+    unitsKey: "diesel8_units_on",
+    label: "Diesel #8 (เกาะ A)",
+    color: "#f59e0b",
+  },
+  {
+    key: "diesel_c_mw",
+    unitsKey: "diesel9_units_on",
+    label: "Diesel #9 (เกาะ C)",
+    color: "#ef4444",
+  },
+  { key: "bess", unitsKey: null, label: "BESS แบตเตอรี่", color: "#6366f1" },
 ];
-
 
 function OnPeriodRow({ src, steps }) {
   const runs = runsOf(steps, src.key, { unitsKey: src.unitsKey });
   const lead = LEAD_MIN[src.key];
-  const emptyLabel = src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
+  const emptyLabel =
+    src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
   return (
     <tr className="border-b hairline last:border-0 align-top">
       <td className="py-2 pr-3">
-        <div className="text-sm font-medium thai" style={{ color: src.color }}>{src.label}</div>
+        <div className="text-sm font-medium thai" style={{ color: src.color }}>
+          {src.label}
+        </div>
       </td>
       <td className="py-2 px-2">
         {runs.length === 0 ? (
@@ -157,18 +216,30 @@ function OnPeriodRow({ src, steps }) {
         ) : (
           <div className="flex flex-col gap-1">
             {runs.map((r, i) => {
-              const warmup = lead != null ? shiftHHMM(r.startIso, -Math.round(lead * 60)) : null;
+              const warmup =
+                lead != null
+                  ? shiftHHMM(r.startIso, -Math.round(lead * 60))
+                  : null;
               const crossedMidnight = warmup != null && warmup > r.start;
               return (
                 <div key={i} className="text-sm">
-                  <span className="mono">{r.start}–{r.end}</span>{" "}
-                  <span className="text-muted text-xs">· เฉลี่ย {fmt1(r.avg)} MW</span>
+                  <span className="mono">
+                    {r.start}–{r.end}
+                  </span>{" "}
+                  <span className="text-muted text-xs">
+                    · เฉลี่ย {fmt1(r.avg)} MW
+                  </span>
                   {src.unitsKey && r.units > 0 && (
-                    <span className="text-muted text-xs">{" "}· {r.units} เครื่อง</span>
+                    <span className="text-muted text-xs">
+                      {" "}
+                      · {r.units} เครื่อง
+                    </span>
                   )}
                   {warmup != null && (
                     <span className="text-muted text-[11px] thai block">
-                      สตาร์ท {warmup}{crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~{fmtLead(lead)} ก่อนถึง {r.start}
+                      สตาร์ท {warmup}
+                      {crossedMidnight ? " (เมื่อคืน)" : ""} — วอร์ม ~
+                      {fmtLead(lead)} ก่อนถึง {r.start}
                     </span>
                   )}
                 </div>
@@ -185,7 +256,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
   const { schedule, loading } = useSchedule();
 
   const [overrides, setOverrides] = useState([]);
-  const [edited, setEdited] = useState(null);     // { steps, cost, warnings }
+  const [edited, setEdited] = useState(null); // { steps, cost, warnings }
   const [recosting, setRecosting] = useState(false);
   const [editError, setEditError] = useState(null);
   // dirty = overrides changed since the last confirm/reset, so the chart/cost shown
@@ -211,9 +282,20 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
     }
   };
 
-  const addOverride = (o) => { setOverrides((prev) => [...prev, o]); setDirty(true); };
-  const removeOverride = (i) => { setOverrides((prev) => prev.filter((_, k) => k !== i)); setDirty(true); };
-  const resetEdits = () => { setOverrides([]); setEdited(null); setEditError(null); setDirty(false); };
+  const addOverride = (o) => {
+    setOverrides((prev) => [...prev, o]);
+    setDirty(true);
+  };
+  const removeOverride = (i) => {
+    setOverrides((prev) => prev.filter((_, k) => k !== i));
+    setDirty(true);
+  };
+  const resetEdits = () => {
+    setOverrides([]);
+    setEdited(null);
+    setEditError(null);
+    setDirty(false);
+  };
   const confirmEdits = async () => {
     setRecosting(true);
     setEditError(null);
@@ -232,7 +314,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
     t: hhmm(s.datetime),
     "Diesel #8 (A)": s.diesel_a_mw,
     "Diesel #9 (C)": s.diesel_c_mw,
-    "BESS": s.battery_mw,
+    BESS: s.battery_mw,
   }));
 
   return (
@@ -240,18 +322,25 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-4">
         <div>
           <div className="text-base font-semibold thai">
-            📋 ตารางการเดินเครื่อง 15 นาที · พรุ่งนี้ {schedule?.date ? `(${schedule.date})` : ""}
+            📋 ตารางการเดินเครื่อง 15 นาที · พรุ่งนี้{" "}
+            {schedule?.date ? `(${schedule.date})` : ""}
           </div>
           <div className="text-xs text-muted thai mt-0.5">
-            แผนแนะนำ (ลดต้นทุน) สำหรับตั้งโปรแกรมเครื่องดีเซล — 00:00–23:45 ทุก 15 นาที
+            แผนแนะนำ (ลดต้นทุน) สำหรับตั้งโปรแกรมเครื่องดีเซล — 00:00–23:45 ทุก
+            15 นาที
           </div>
-          <div className="text-[11px] thai mt-1" style={{ color: activePlan?.uploaded ? "#10b981" : "var(--muted)" }}>
+          <div
+            className="text-[11px] thai mt-1"
+            style={{ color: activePlan?.uploaded ? "#10b981" : "var(--muted)" }}
+          >
             {activePlan?.uploaded
               ? `✓ ใช้เป็นแผนอ้างอิง Early-Warning แล้ว (${String(activePlan.uploaded_at).slice(11, 16)})`
               : "ยังไม่ได้อัปโหลดเป็นแผนอ้างอิง Early-Warning"}
           </div>
           {uploadError && (
-            <div className="text-[11px] text-red-500 thai mt-1">⚠️ {uploadError}</div>
+            <div className="text-[11px] text-red-500 thai mt-1">
+              ⚠️ {uploadError}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -259,7 +348,9 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
             onClick={() => downloadScheduleCsv(effectiveSteps, schedule?.date)}
             disabled={loading || effectiveSteps.length === 0}
             className={`px-3 py-2 rounded-lg text-sm border hairline thai transition ${
-              loading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+              loading || effectiveSteps.length === 0
+                ? "opacity-40 pointer-events-none"
+                : "hover:opacity-90"
             }`}
             style={{ background: "var(--surface-2)" }}
           >
@@ -269,7 +360,9 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
             onClick={uploadPlan}
             disabled={loading || uploading || effectiveSteps.length === 0}
             className={`px-3 py-2 rounded-lg text-sm thai transition ${
-              loading || uploading || effectiveSteps.length === 0 ? "opacity-40 pointer-events-none" : "hover:opacity-90"
+              loading || uploading || effectiveSteps.length === 0
+                ? "opacity-40 pointer-events-none"
+                : "hover:opacity-90"
             }`}
             style={{ background: "var(--primary)", color: "#fff" }}
           >
@@ -289,18 +382,53 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-              <XAxis dataKey="t" interval={11} tick={{ fontSize: 10 }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10 }} unit=" MW" width={48} tickLine={false} axisLine={false} />
+            <LineChart
+              data={data}
+              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--border-soft)"
+              />
+              <XAxis
+                dataKey="t"
+                interval={11}
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                unit=" MW"
+                width={48}
+                tickLine={false}
+                axisLine={false}
+              />
               <Tooltip
                 formatter={(v, n) => [`${fmt1(v)} MW`, n]}
                 contentStyle={{ fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="step" dataKey="Diesel #8 (A)" stroke="#8b5cf6" dot={false} strokeWidth={2} />
-              <Line type="step" dataKey="Diesel #9 (C)" stroke="#ef4444" dot={false} strokeWidth={2} />
-              <Line type="step" dataKey="BESS" stroke="#6366f1" dot={false} strokeWidth={2} />
+              <Line
+                type="step"
+                dataKey="Diesel #8 (A)"
+                stroke="#8b5cf6"
+                dot={false}
+                strokeWidth={2}
+              />
+              <Line
+                type="step"
+                dataKey="Diesel #9 (C)"
+                stroke="#ef4444"
+                dot={false}
+                strokeWidth={2}
+              />
+              <Line
+                type="step"
+                dataKey="BESS"
+                stroke="#6366f1"
+                dot={false}
+                strokeWidth={2}
+              />
             </LineChart>
           </ResponsiveContainer>
 
@@ -308,39 +436,88 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           <TimelineStrips steps={effectiveSteps} />
 
           <div className="text-xs uppercase eyebrow text-muted mt-4 mb-2 thai">
-            ช่วงเวลาเดินเครื่อง · สิ่งที่ต้องตั้งโปรแกรม
+            ช่วงเวลาเดินเครื่อง
           </div>
           <div className="max-h-[320px] overflow-y-auto border hairline rounded-lg">
             <table className="w-full text-xs table-fixed">
-              <thead className="sticky top-0" style={{ background: "var(--surface-2)" }}>
+              <thead
+                className="sticky top-0"
+                style={{ background: "var(--surface-2)" }}
+              >
                 <tr className="text-[10px] uppercase eyebrow text-muted thai">
-                  <th className="text-center font-medium py-2 px-2 w-1/4">เวลา</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#6366f1" }}>BESS</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#8b5cf6" }}>Diesel #8 (A)</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#ef4444" }}>Diesel #9 (C)</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4 ">
+                    เวลา
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#6366f1" }}
+                  >
+                    BESS
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#8b5cf6" }}
+                  >
+                    Diesel #8 (A)
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#ef4444" }}
+                  >
+                    Diesel #9 (C)
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {effectiveSteps.map((s, i) => {
                   const start = String(s.datetime).slice(11, 16);
-                  const endMin = (parseInt(start.slice(0,2)) * 60 + parseInt(start.slice(3)) + 15) % 1440;
-                  const end = `${String(Math.floor(endMin/60)).padStart(2,"0")}:${String(endMin%60).padStart(2,"0")}`;
+                  const endMin =
+                    (parseInt(start.slice(0, 2)) * 60 +
+                      parseInt(start.slice(3)) +
+                      15) %
+                    1440;
+                  const end = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
                   const bess = s.battery_mw ?? 0;
                   const d8 = s.diesel_a_mw ?? 0;
                   const d9 = s.diesel_c_mw ?? 0;
                   return (
                     <tr key={i} className="border-t hairline">
-                      <td className="py-1 px-2 mono text-center text-[11px]">{start} - {end}</td>
-                      <td className="py-1 px-2 mono text-center" style={{
-                        color: Math.abs(bess) > 0.01 ? "var(--foreground)" : "var(--muted)",
-                        background: bess > 0.01 ? "#ef444488" : bess < -0.01 ? "#10b98188" : "transparent",
-                      }}>
-                        {Math.abs(bess) > 0.01 ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}` : "—"}
+                      <td className="py-1 px-2 mono text-center text-[11px]">
+                        {start} - {end}
                       </td>
-                      <td className="py-1 px-2 mono text-center" style={{ color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)" }}>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color:
+                            Math.abs(bess) > 0.01
+                              ? "var(--foreground)"
+                              : "var(--muted)",
+                          background:
+                            bess > 0.01
+                              ? "#ef444488"
+                              : bess < -0.01
+                                ? "#10b98188"
+                                : "transparent",
+                        }}
+                      >
+                        {Math.abs(bess) > 0.01
+                          ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)",
+                        }}
+                      >
                         {d8 > 0.01 ? d8.toFixed(1) : "—"}
                       </td>
-                      <td className="py-1 px-2 mono text-center" style={{ color: d9 > 0.01 ? "#ef4444" : "var(--muted)" }}>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color: d9 > 0.01 ? "#ef4444" : "var(--muted)",
+                        }}
+                      >
                         {d9 > 0.01 ? d9.toFixed(1) : "—"}
                       </td>
                     </tr>
@@ -351,7 +528,8 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           </div>
 
           <div className="text-[11px] text-muted thai mt-2">
-            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี = ช่วงเดินเครื่อง
+            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี =
+            ช่วงเดินเครื่อง
           </div>
 
           <ScheduleEditor
@@ -364,12 +542,21 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
             edited={edited}
           />
           {editError && (
-            <div className="text-[11px] text-red-500 thai mt-2">⚠️ {editError}</div>
+            <div className="text-[11px] text-red-500 thai mt-2">
+              ⚠️ {editError}
+            </div>
           )}
           {dirty && !recosting && (
-            <div className="text-[11px] thai mt-2 rounded px-2 py-1"
-                 style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b", border: "1px solid #f59e0b40" }}>
-              การแก้ไขยังไม่ถูกนำไปคำนวณ — กด “ยืนยันการแก้ไข” เพื่ออัปเดตกราฟ/ต้นทุน/CSV
+            <div
+              className="text-[11px] thai mt-2 rounded px-2 py-1"
+              style={{
+                background: "rgba(245,158,11,0.10)",
+                color: "#f59e0b",
+                border: "1px solid #f59e0b40",
+              }}
+            >
+              การแก้ไขยังไม่ถูกนำไปคำนวณ — กด “ยืนยันการแก้ไข”
+              เพื่ออัปเดตกราฟ/ต้นทุน/CSV
             </div>
           )}
           <EditedPlanCard
