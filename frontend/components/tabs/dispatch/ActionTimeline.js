@@ -1,4 +1,6 @@
 'use client'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faStar, faWalkieTalkie, faDesktop } from '@fortawesome/free-solid-svg-icons'
 
 const SEV = {
   critical: { color: '#ef4444', label: 'ด่วน' },
@@ -16,7 +18,7 @@ function RecCard({ r }) {
     >
       <div className="flex items-center justify-between">
         <span className="mono text-xs text-muted">
-          {isRadio ? '📻' : '🖥️'} ลงมือ {r.act_time} → มีผล {r.effect_time}
+          {isRadio ? <FontAwesomeIcon icon={faWalkieTalkie} className="mr-1" /> : <FontAwesomeIcon icon={faDesktop} className="mr-1" />} ลงมือ {r.act_time} → มีผล {r.effect_time}
         </span>
         <span
           className="px-1.5 py-0.5 rounded text-[10px] uppercase eyebrow"
@@ -38,7 +40,7 @@ export function ActionTimeline({ recommendations = [] }) {
   if (!recommendations.length) {
     return (
       <div className="panel rounded-xl p-6 text-center text-sm text-muted thai">
-        🟢 ไม่มีคำสั่งในช่วงนี้ — เดินตามแผนปกติ
+        <FontAwesomeIcon icon={faStar} className="mr-1" style={{color:'#10b981'}} /> ไม่มีคำสั่งในช่วงนี้ — เดินตามแผนปกติ
       </div>
     )
   }

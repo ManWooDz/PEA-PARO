@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPencil } from "@fortawesome/free-solid-svg-icons";
 
 // 15-min grid: starts 00:00..23:45, ends 00:15..24:00.
 const pad = (n) => String(n).padStart(2, "0");
@@ -39,7 +41,7 @@ export function ScheduleEditor({ overrides, onAdd, onRemove, onConfirm, onReset,
 
   return (
     <div className="panel-2 border hairline rounded-lg p-4 mt-4">
-      <div className="text-xs uppercase eyebrow text-muted mb-3 thai">✏️ แก้ตารางเฉพาะช่วง</div>
+      <div className="text-xs uppercase eyebrow text-muted mb-3 thai"><FontAwesomeIcon icon={faPencil} className="mr-1" /> แก้ตารางเฉพาะช่วง</div>
 
       <div className="flex flex-wrap items-end gap-2 text-sm">
         <label className="flex flex-col gap-1 thai">

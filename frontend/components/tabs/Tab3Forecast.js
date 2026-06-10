@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSolarPanel } from "@fortawesome/free-solid-svg-icons";
 import {
   AreaChart,
   Area,
@@ -361,7 +363,7 @@ export function Tab3Forecast({
                 color: showWeather ? "#f59e0b" : "var(--muted)",
               }}
             >
-              ☀️ แสดงแนวโน้ม Solar / อากาศ
+              <FontAwesomeIcon icon={faSolarPanel} className="mr-1" /> แสดงแนวโน้ม Solar / อากาศ
             </button>
           </div>
           {seriesLoading && !forecastData.length ? (

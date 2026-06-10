@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faGasPump, faStar, faGear } from "@fortawesome/free-solid-svg-icons";
 
 const DEFAULT_FUEL_PRICE = 30;
 const DEFAULT_L_KWH_D8 = 0.27;
@@ -31,7 +33,7 @@ function SettingsPopup({ price, setPrice, lD8, setLD8, lD9, setLD9, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-sm font-semibold thai">
-          ⚙ ตั้งค่าแผนน้ำมันดีเซล
+          <FontAwesomeIcon icon={faGear} className="mr-1" /> ตั้งค่าแผนน้ำมันดีเซล
         </div>
         <label className="block">
           <span className="text-xs text-muted thai">ราคาน้ำมัน (฿/ลิตร)</span>
@@ -100,7 +102,7 @@ export function FuelReservePanel({ minCost }) {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
         <div>
           <div className="text-base font-semibold thai">
-            ⛽ แผนสำรองน้ำมันดีเซล · 7 วันข้างหน้า
+            <FontAwesomeIcon icon={faGasPump} className="mr-1" /> แผนสำรองน้ำมันดีเซล · 7 วันข้างหน้า
           </div>
           <div className="text-xs text-muted thai mt-0.5">
             ปริมาณน้ำมันที่ต้องสำรองเพื่อเดินเครื่องตามแผน
@@ -112,7 +114,7 @@ export function FuelReservePanel({ minCost }) {
           className="px-3 py-1.5 rounded-lg text-xs border hairline thai transition cursor-pointer hover:opacity-80"
           style={{ background: "var(--surface-2)" }}
         >
-          ⚙ ตั้งค่า
+          <FontAwesomeIcon icon={faGear} className="mr-1" /> ตั้งค่า
         </button>
       </div>
 
@@ -181,7 +183,7 @@ export function FuelReservePanel({ minCost }) {
             border: "1px solid #10b98140",
           }}
         >
-          🟢 ไม่ต้องสั่งซื้อน้ำมันดีเซลตลอด 7 วัน — แผนแนะนำใช้ Grid + BESS
+          <FontAwesomeIcon icon={faStar} className="mr-1" style={{color:'#10b981'}} /> ไม่ต้องสั่งซื้อน้ำมันดีเซลตลอด 7 วัน — แผนแนะนำใช้ Grid + BESS
           เต็มที่
         </div>
       )}

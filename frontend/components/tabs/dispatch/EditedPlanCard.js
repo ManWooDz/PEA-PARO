@@ -1,5 +1,8 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
+
 const fmtBaht = (v) => `฿${Math.round(v ?? 0).toLocaleString("th-TH")}`;
 const fmtL = (v) => `${Math.round(v ?? 0).toLocaleString("th-TH")} ลิตร`;
 
@@ -78,7 +81,7 @@ export function EditedPlanCard({ recommended, edited, warnings }) {
             border: "1px solid #ef444440",
           }}
         >
-          ⚠️ เกินขีดจำกัดสายส่ง (Over Limit):
+          <FontAwesomeIcon icon={faTriangleExclamation} className="mr-1" /> เกินขีดจำกัดสายส่ง (Over Limit):
           <ul className="mt-1">
             {warnings.map((w, i) => (
               <li key={i} className="text-xs">

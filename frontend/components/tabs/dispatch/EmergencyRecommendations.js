@@ -1,11 +1,13 @@
 'use client'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faStar } from '@fortawesome/free-solid-svg-icons'
 import { ActionTimeline } from './ActionTimeline'
 
 export function EmergencyRecommendations({
   recommendations = [],
   loading,
   title = '⚠ คำแนะนำฉุกเฉิน · Early Warning',
-  emptyLabel = '🟢 ปกติ — เป็นไปตามแผน',
+  emptyLabel,
 }) {
   return (
     <section>
@@ -18,7 +20,7 @@ export function EmergencyRecommendations({
         </div>
       ) : recommendations.length === 0 ? (
         <div className="panel rounded-xl p-6 text-center text-sm thai" style={{ color: '#10b981' }}>
-          {emptyLabel}
+          {emptyLabel ?? <><FontAwesomeIcon icon={faStar} className="mr-1" style={{color:'#10b981'}} /> ปกติ — เป็นไปตามแผน</>}
         </div>
       ) : (
         <ActionTimeline recommendations={recommendations} />

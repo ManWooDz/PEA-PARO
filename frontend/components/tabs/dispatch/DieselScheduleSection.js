@@ -15,6 +15,8 @@ import { recostSchedule, applySchedule } from "@/lib/api";
 import { downloadScheduleCsv } from "@/lib/scheduleCsv";
 import { ScheduleEditor } from "@/components/tabs/dispatch/ScheduleEditor";
 import { EditedPlanCard } from "@/components/tabs/dispatch/EditedPlanCard";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTableList, faDownload, faUpload, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
 
 const fmt1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
 
@@ -322,7 +324,8 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-4">
         <div>
           <div className="text-base font-semibold thai">
-            📋 ตารางการเดินเครื่อง 15 นาที · พรุ่งนี้{" "}
+            <FontAwesomeIcon icon={faTableList} className="mr-1.5" />
+            ตารางการเดินเครื่อง 15 นาที · พรุ่งนี้{" "}
             {schedule?.date ? `(${schedule.date})` : ""}
           </div>
           <div className="text-xs text-muted thai mt-0.5">
@@ -339,7 +342,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           </div>
           {uploadError && (
             <div className="text-[11px] text-red-500 thai mt-1">
-              ⚠️ {uploadError}
+              <FontAwesomeIcon icon={faTriangleExclamation} className="mr-1" /> {uploadError}
             </div>
           )}
         </div>
@@ -354,7 +357,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
             }`}
             style={{ background: "var(--surface-2)" }}
           >
-            ⬇ ดาวน์โหลด CSV{edited ? " (แก้ไขแล้ว)" : ""}
+            <FontAwesomeIcon icon={faDownload} className="mr-1" /> ดาวน์โหลด CSV{edited ? " (แก้ไขแล้ว)" : ""}
           </button>
           <button
             onClick={uploadPlan}
@@ -366,7 +369,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
             }`}
             style={{ background: "var(--primary)", color: "#fff" }}
           >
-            {uploading ? "กำลังอัปโหลด…" : "⬆ อัปโหลดเป็นแผนอ้างอิง EW"}
+            {uploading ? "กำลังอัปโหลด…" : <><FontAwesomeIcon icon={faUpload} className="mr-1" /> อัปโหลดเป็นแผนอ้างอิง EW</>}
           </button>
         </div>
       </div>
@@ -543,7 +546,7 @@ export function DieselScheduleSection({ activePlan, onUploaded }) {
           />
           {editError && (
             <div className="text-[11px] text-red-500 thai mt-2">
-              ⚠️ {editError}
+              <FontAwesomeIcon icon={faTriangleExclamation} className="mr-1" /> {editError}
             </div>
           )}
           {dirty && !recosting && (

@@ -1,8 +1,10 @@
 'use client'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCalendarDays, faBolt } from '@fortawesome/free-solid-svg-icons'
 
 const MODES = [
-  { id: 'day-ahead', label: '📅 Day-ahead · วางแผนล่วงหน้า', color: 'var(--primary)' },
-  { id: 'intra-day', label: '⚡ Intra-day · ระหว่างวัน (ฉุกเฉิน)', color: '#ef4444' },
+  { id: 'day-ahead', icon: faCalendarDays, label: 'Day-ahead · วางแผนล่วงหน้า', color: 'var(--primary)' },
+  { id: 'intra-day', icon: faBolt, label: 'Intra-day · ระหว่างวัน (ฉุกเฉิน)', color: '#ef4444' },
 ]
 
 export function DispatchModeToggle({ mode, setMode }) {
@@ -19,7 +21,7 @@ export function DispatchModeToggle({ mode, setMode }) {
               ? { borderColor: m.color, background: `color-mix(in srgb, ${m.color} 12%, transparent)`, color: m.color, fontWeight: 600 }
               : { borderColor: 'var(--border-soft)', background: 'var(--surface-2)', color: 'var(--muted)' }}
           >
-            {m.label}
+            <FontAwesomeIcon icon={m.icon} className="mr-1" /> {m.label}
           </button>
         )
       })}

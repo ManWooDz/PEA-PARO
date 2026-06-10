@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSolarPanel, faClock } from "@fortawesome/free-solid-svg-icons";
 import {
   AreaChart,
   Area,
@@ -592,7 +594,7 @@ export function Tab2Dispatch({
                     }
               }
             >
-              ☀️ <span className="thai">มี Solar</span>{" "}
+              <FontAwesomeIcon icon={faSolarPanel} className="mr-1" /> <span className="thai">มี Solar</span>{" "}
               <span className="text-[11px] ml-1">(0.8 MWp)</span>
             </button>
           </div>
@@ -602,8 +604,38 @@ export function Tab2Dispatch({
       {/* ── strategy cards (แผนปัจจุบัน / ลดต้นทุน) ── */}
       {/* ── diesel warm-up note (ramp-derived; for scheduling start times) ── */}
       <div className="text-[11px] text-muted thai">
-        ⏱ เวลาวอร์มเครื่องดีเซล: Diesel #8 ~1 นาที 42 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
+        <FontAwesomeIcon icon={faClock} className="mr-1" /> เวลาวอร์มเครื่องดีเซล: Diesel #8 ~1 นาที 42 วินาที · Diesel #9 ~30 วินาที — ต้องสตาร์ทล่วงหน้าก่อนถึงเวลาเป้าหมาย (น้ำมันช่วงวอร์มถูกคิดในต้นทุน + แผนสำรองแล้ว)
       </div>
+
+      {/* ── Plan cost summary ── */}
+      {activePlan?.cost && (
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10px] uppercase eyebrow text-muted thai">ต้นทุนรวม</div>
+            <div className="mono font-bold text-lg mt-1" style={{ color: "var(--primary)" }}>
+              {fmtBaht(activePlan.cost.total_thb)}
+            </div>
+          </div>
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10px] uppercase eyebrow text-muted thai">ดีเซลรวม</div>
+            <div className="mono font-bold text-lg mt-1" style={{ color: "#8b5cf6" }}>
+              {Math.round(activePlan.cost.diesel_litres ?? 0).toLocaleString("th-TH")} <span className="text-xs text-muted">ลิตร</span>
+            </div>
+          </div>
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10px] uppercase eyebrow text-muted thai">ต้นทุน Grid</div>
+            <div className="mono font-bold text-lg mt-1" style={{ color: "var(--primary)" }}>
+              {fmtBaht(activePlan.cost.grid_thb)}
+            </div>
+          </div>
+          <div className="panel rounded-xl p-4">
+            <div className="text-[10px] uppercase eyebrow text-muted thai">ต้นทุนดีเซล</div>
+            <div className="mono font-bold text-lg mt-1" style={{ color: "#ef4444" }}>
+              {fmtBaht(activePlan.cost.diesel_thb)}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── 24h Dispatch Chart ── */}
       <section>

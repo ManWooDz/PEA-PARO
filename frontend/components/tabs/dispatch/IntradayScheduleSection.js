@@ -1,8 +1,20 @@
 "use client";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
 } from "recharts";
-import { useTodaySchedule, useTodayFullSchedule } from "@/hooks/useTodaySchedule";
+import {
+  useTodaySchedule,
+  useTodayFullSchedule,
+} from "@/hooks/useTodaySchedule";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTableList } from "@fortawesome/free-solid-svg-icons";
 
 // Read-only intra-day counterpart of DieselScheduleSection: shows what to do for
 // the REMAINING part of today (from the current time → 23:45) under the current
@@ -36,7 +48,14 @@ function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
   for (const s of steps) {
     const v = key === "bess" ? Math.max(0, s.battery_mw) : s[key];
     if (v > threshold) {
-      if (!cur) cur = { startIso: s.datetime, endIso: s.datetime, sum: 0, n: 0, units: 0 };
+      if (!cur)
+        cur = {
+          startIso: s.datetime,
+          endIso: s.datetime,
+          sum: 0,
+          n: 0,
+          units: 0,
+        };
       cur.endIso = s.datetime;
       cur.sum += v;
       cur.n += 1;
@@ -57,19 +76,32 @@ function runsOf(steps, key, { threshold = 0.05, unitsKey = null } = {}) {
 }
 
 const SOURCES = [
-  { key: "diesel_a_mw", unitsKey: "diesel8_units_on", label: "Diesel #8 (เกาะ A)", color: "#f59e0b" },
-  { key: "diesel_c_mw", unitsKey: "diesel9_units_on", label: "Diesel #9 (เกาะ C)", color: "#ef4444" },
-  { key: "bess",        unitsKey: null,               label: "BESS แบตเตอรี่",      color: "#6366f1" },
+  {
+    key: "diesel_a_mw",
+    unitsKey: "diesel8_units_on",
+    label: "Diesel #8 (เกาะ A)",
+    color: "#f59e0b",
+  },
+  {
+    key: "diesel_c_mw",
+    unitsKey: "diesel9_units_on",
+    label: "Diesel #9 (เกาะ C)",
+    color: "#ef4444",
+  },
+  { key: "bess", unitsKey: null, label: "BESS แบตเตอรี่", color: "#6366f1" },
 ];
 
 function OnPeriodRow({ src, steps }) {
   const runs = runsOf(steps, src.key, { unitsKey: src.unitsKey });
   const lead = LEAD_MIN[src.key];
-  const emptyLabel = src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
+  const emptyLabel =
+    src.key === "bess" ? "ไม่จ่ายไฟ (ชาร์จเท่านั้น)" : "ไม่เดินเครื่อง";
   return (
     <tr className="border-b hairline last:border-0 align-top">
       <td className="py-2 pr-3">
-        <div className="text-sm font-medium thai" style={{ color: src.color }}>{src.label}</div>
+        <div className="text-sm font-medium thai" style={{ color: src.color }}>
+          {src.label}
+        </div>
       </td>
       <td className="py-2 px-2">
         {runs.length === 0 ? (
@@ -77,13 +109,23 @@ function OnPeriodRow({ src, steps }) {
         ) : (
           <div className="flex flex-col gap-1">
             {runs.map((r, i) => {
-              const warmup = lead != null ? shiftHHMM(r.startIso, -Math.round(lead * 60)) : null;
+              const warmup =
+                lead != null
+                  ? shiftHHMM(r.startIso, -Math.round(lead * 60))
+                  : null;
               return (
                 <div key={i} className="text-sm">
-                  <span className="mono">{r.start}–{r.end}</span>{" "}
-                  <span className="text-muted text-xs">· เฉลี่ย {fmt1(r.avg)} MW</span>
+                  <span className="mono">
+                    {r.start}–{r.end}
+                  </span>{" "}
+                  <span className="text-muted text-xs">
+                    · เฉลี่ย {fmt1(r.avg)} MW
+                  </span>
                   {src.unitsKey && r.units > 0 && (
-                    <span className="text-muted text-xs">{" "}· {r.units} เครื่อง</span>
+                    <span className="text-muted text-xs">
+                      {" "}
+                      · {r.units} เครื่อง
+                    </span>
                   )}
                   {warmup != null && (
                     <span className="text-muted text-[11px] thai block">
@@ -107,18 +149,20 @@ export function IntradayScheduleSection() {
     t: hhmm(s.datetime),
     "Diesel #8 (A)": s.diesel_a_mw,
     "Diesel #9 (C)": s.diesel_c_mw,
-    "BESS": s.battery_mw,
+    BESS: s.battery_mw,
   }));
 
   return (
     <section className="panel rounded-xl p-5">
       <div className="mb-4">
         <div className="text-base font-semibold thai">
-          📋 ตารางการเดินเครื่องวันนี้ · ช่วงที่เหลือ
+          <FontAwesomeIcon icon={faTableList} className="mr-1.5" />
+          ตารางการเดินเครื่องวันนี้ · ช่วงที่เหลือ
           {schedule?.from_time ? ` (${schedule.from_time}–23:45)` : ""}
         </div>
         <div className="text-xs text-muted thai mt-0.5">
-          แผนแนะนำปัจจุบัน (ลดต้นทุน) สำหรับสิ่งที่ต้องทำในช่วงที่เหลือของวันนี้ — ทุก 15 นาที
+          แผนแนะนำปัจจุบัน (ลดต้นทุน) สำหรับสิ่งที่ต้องทำในช่วงที่เหลือของวันนี้
+          — ทุก 15 นาที
         </div>
       </div>
 
@@ -133,15 +177,46 @@ export function IntradayScheduleSection() {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-soft)" />
-              <XAxis dataKey="t" interval={Math.max(0, Math.floor(data.length / 8))} tick={{ fontSize: 11 }} />
+            <LineChart
+              data={data}
+              margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--border-soft)"
+              />
+              <XAxis
+                dataKey="t"
+                interval={Math.max(0, Math.floor(data.length / 8))}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis tick={{ fontSize: 11 }} unit=" MW" width={56} />
-              <Tooltip formatter={(v, n) => [`${fmt1(v)} MW`, n]} contentStyle={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(v, n) => [`${fmt1(v)} MW`, n]}
+                contentStyle={{ fontSize: 12 }}
+              />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="step" dataKey="Diesel #8 (A)" stroke="#f59e0b" dot={false} strokeWidth={2} />
-              <Line type="step" dataKey="Diesel #9 (C)" stroke="#ef4444" dot={false} strokeWidth={2} />
-              <Line type="step" dataKey="BESS" stroke="#6366f1" dot={false} strokeWidth={2} />
+              <Line
+                type="step"
+                dataKey="Diesel #8 (A)"
+                stroke="#f59e0b"
+                dot={false}
+                strokeWidth={2}
+              />
+              <Line
+                type="step"
+                dataKey="Diesel #9 (C)"
+                stroke="#ef4444"
+                dot={false}
+                strokeWidth={2}
+              />
+              <Line
+                type="step"
+                dataKey="BESS"
+                stroke="#6366f1"
+                dot={false}
+                strokeWidth={2}
+              />
             </LineChart>
           </ResponsiveContainer>
 
@@ -156,7 +231,9 @@ export function IntradayScheduleSection() {
             <thead>
               <tr className="text-[10px] uppercase eyebrow text-muted thai">
                 <th className="text-left font-medium py-1 pr-3">แหล่งจ่าย</th>
-                <th className="text-left font-medium py-1 px-2">ช่วงเดินเครื่อง (วันนี้)</th>
+                <th className="text-left font-medium py-1 px-2">
+                  ช่วงเดินเครื่อง (วันนี้)
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -169,8 +246,14 @@ export function IntradayScheduleSection() {
           {schedule?.cost?.diesel_litres != null && (
             <div className="text-[11px] text-muted thai mt-3">
               น้ำมันดีเซลที่เหลือวันนี้ตามแผนแนะนำ ~
-              <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span> ลิตร ·
-              ต้นทุนรวม <span className="mono">฿{Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", { maximumFractionDigits: 0 })}</span>
+              <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span>{" "}
+              ลิตร · ต้นทุนรวม{" "}
+              <span className="mono">
+                ฿
+                {Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", {
+                  maximumFractionDigits: 0,
+                })}
+              </span>
             </div>
           )}
         </>
@@ -187,7 +270,8 @@ export function TodayFullScheduleSection() {
     <section className="panel rounded-xl p-5">
       <div className="mb-4">
         <div className="text-base font-semibold thai">
-          📋 ตารางการเดินเครื่องวันนี้
+          <FontAwesomeIcon icon={faTableList} className="mr-1.5" />
+          ตารางการเดินเครื่องวันนี้
         </div>
         <div className="text-xs text-muted thai mt-0.5">
           แผนแนะนำ (ลดต้นทุน) สำหรับวันนี้ — ทุก 15 นาที
@@ -206,32 +290,84 @@ export function TodayFullScheduleSection() {
         <>
           <div className="max-h-[320px] overflow-y-auto border hairline rounded-lg">
             <table className="w-full text-xs table-fixed">
-              <thead className="sticky top-0" style={{ background: "var(--surface-2)" }}>
+              <thead
+                className="sticky top-0"
+                style={{ background: "var(--surface-2)" }}
+              >
                 <tr className="text-[10px] uppercase eyebrow text-muted thai">
-                  <th className="text-center font-medium py-2 px-2 w-1/4">เวลา</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#6366f1" }}>BESS</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#8b5cf6" }}>Diesel #8 (A)</th>
-                  <th className="text-center font-medium py-2 px-2 w-1/4" style={{ color: "#ef4444" }}>Diesel #9 (C)</th>
+                  <th className="text-center font-medium py-2 px-2 w-1/4">
+                    เวลา
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#6366f1" }}
+                  >
+                    BESS
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#8b5cf6" }}
+                  >
+                    Diesel #8 (A)
+                  </th>
+                  <th
+                    className="text-center font-medium py-2 px-2 w-1/4"
+                    style={{ color: "#ef4444" }}
+                  >
+                    Diesel #9 (C)
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {steps.map((s, i) => {
                   const start = hhmm(s.datetime);
-                  const endMin = (parseInt(start.slice(0, 2)) * 60 + parseInt(start.slice(3)) + 15) % 1440;
+                  const endMin =
+                    (parseInt(start.slice(0, 2)) * 60 +
+                      parseInt(start.slice(3)) +
+                      15) %
+                    1440;
                   const end = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
                   const bess = s.battery_mw ?? 0;
                   const d8 = s.diesel_a_mw ?? 0;
                   const d9 = s.diesel_c_mw ?? 0;
                   return (
                     <tr key={i} className="border-t hairline">
-                      <td className="py-1 px-2 mono text-center text-[11px]">{start} - {end}</td>
-                      <td className="py-1 px-2 mono text-center" style={{ color: Math.abs(bess) > 0.01 ? "var(--foreground)" : "var(--muted)", background: bess > 0.01 ? "#ef444488" : bess < -0.01 ? "#10b98188" : "transparent" }}>
-                        {Math.abs(bess) > 0.01 ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}` : "—"}
+                      <td className="py-1 px-2 mono text-center text-[11px]">
+                        {start} - {end}
                       </td>
-                      <td className="py-1 px-2 mono text-center" style={{ color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)" }}>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color:
+                            Math.abs(bess) > 0.01
+                              ? "var(--foreground)"
+                              : "var(--muted)",
+                          background:
+                            bess > 0.01
+                              ? "#ef444488"
+                              : bess < -0.01
+                                ? "#10b98188"
+                                : "transparent",
+                        }}
+                      >
+                        {Math.abs(bess) > 0.01
+                          ? `${bess > 0 ? "+" : ""}${bess.toFixed(1)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color: d8 > 0.01 ? "#8b5cf6" : "var(--muted)",
+                        }}
+                      >
                         {d8 > 0.01 ? d8.toFixed(1) : "—"}
                       </td>
-                      <td className="py-1 px-2 mono text-center" style={{ color: d9 > 0.01 ? "#ef4444" : "var(--muted)" }}>
+                      <td
+                        className="py-1 px-2 mono text-center"
+                        style={{
+                          color: d9 > 0.01 ? "#ef4444" : "var(--muted)",
+                        }}
+                      >
                         {d9 > 0.01 ? d9.toFixed(1) : "—"}
                       </td>
                     </tr>
@@ -242,14 +378,21 @@ export function TodayFullScheduleSection() {
           </div>
 
           <div className="text-[11px] text-muted thai mt-2">
-            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี = ช่วงเดินเครื่อง
+            * BESS: ค่าบวก = จ่ายไฟ · ค่าลบ = ชาร์จแบตเตอรี่ · แถบสี =
+            ช่วงเดินเครื่อง
           </div>
 
           {schedule?.cost?.diesel_litres != null && (
             <div className="text-[11px] text-muted thai mt-3">
               น้ำมันดีเซลวันนี้ตามแผนแนะนำ ~
-              <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span> ลิตร ·
-              ต้นทุนรวม <span className="mono">฿{Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", { maximumFractionDigits: 0 })}</span>
+              <span className="mono">{fmt1(schedule.cost.diesel_litres)}</span>{" "}
+              ลิตร · ต้นทุนรวม{" "}
+              <span className="mono">
+                ฿
+                {Number(schedule.cost.total_thb ?? 0).toLocaleString("th-TH", {
+                  maximumFractionDigits: 0,
+                })}
+              </span>
             </div>
           )}
         </>
